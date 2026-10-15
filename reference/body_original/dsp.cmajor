@@ -1,0 +1,897 @@
+// BODY: instrument-inspired stereo bodies excited by incoming audio.
+// One continuous Morph travels through seven instruments into their coupled Obosaxolele body.
+// Adjacent bodies share a register, damping and contact response while morphing.
+// Exploratory models, not acoustic instrument emulations.
+processor BODYFree
+{
+    input stream float<2> in;
+    output stream float<2> out;
+    input event float param1 [[ name: "Tune", min: 0.0, max: 100.0, step: 0.1, init: 58.0, unit: "%" ]];
+    input event float param2 [[ name: "Decay", min: 0.0, max: 100.0, step: 0.1, init: 50.0, unit: "%" ]];
+    input event float param3 [[ name: "Mix", min: 0.0, max: 100.0, step: 0.1, init: 45.0, unit: "%" ]];
+    input event float param4 [[ name: "Morph", min: 0.0, max: 7.0, step: 0.001, init: 4.0 ]];
+    input event float param5 [[ name: "Bypass", min: 0.0, max: 1.0, step: 1.0, init: 0.0, text: "Off|On" ]];
+    output event float<4> bodyViz;
+
+    float sizeTarget=0.58f, decayTarget=0.5f, mixTarget=0.45f, bypassTarget;
+    float morphTarget=4.0f, morphNow=4.0f;
+    // Bass Drum -> Snare -> Piano -> Ukulele -> Clarinet -> Oboe -> Sax.
+    int[7] series=(0,1,3,6,2,4,5);
+    float[7] bodyWeights;
+    float mixNow=0.45f, bypassNow, controlSlew, fastSlew, modeSlew, dcRadius;
+    float[7] sizes=(0.58f,0.58f,0.58f,0.58f,0.58f,0.58f,0.58f),feed;
+    float[7] logRoots,logSeconds,sustain=(0.035f,0.035f,1.0f,0.045f,1.0f,0.78f,0.025f);
+    float rattleSustain=0.08f;
+    float<2> previousInput,dcState;
+    float peak,slowPeak,onset,peakRelease,slowSlew,onsetRise,onsetFall;
+    float inputMeter,wetMeter,leftMeter,rightMeter,meterRelease,protect,protectRelease;
+    int counter,vizCounter,vizPeriod,protectHold,protectHoldSamples;
+    float protectGain=1.0f,protectAttackSlew,protectReleaseSlew;
+    bool started;
+    // A slow, bounded stereo trim evens pitched bodies without chasing samples.
+    // Gain holds after excitation stops, preserving the shape of stored tails.
+    float balanceInputPower,balanceOutputPower,balanceGain=1.0f,balanceTarget=1.0f;
+    float balancePowerSlew,balanceDownSlew,balanceUpSlew;
+    // Shared stereo peak of the input that excited this still-ringing phrase.
+    // Hold through silence; rearm only after half a second of inaudible ringout.
+    float inputPeakReference;
+    int referenceQuietSamples,referenceQuietLimit;
+
+    // Four low membrane modes, three snare shell modes and three soundboard modes.
+    float[10] ratios=(1.0f,1.586f,2.128f,2.65f,1.0f,1.62f,2.39f,1.0f,1.82f,2.74f);
+    float[10] weights=(1.0f,0.19f,0.075f,0.025f,0.5f,0.33f,0.16f,0.28f,0.17f,0.08f);
+    float[10] times=(1.0f,0.35f,0.17f,0.09f,0.56f,0.26f,0.12f,1.0f,0.62f,0.4f);
+    float<2>[10] modalReal,modalImag;
+    float[10] poleR,poleI,drive,stepR,stepI,stepD,targetR,targetI,targetD;
+    float bassFilter,bassFilterTarget,bassFilterStep;
+    float<2> bassContact;
+
+    float snareLow,snareHigh,snareLowTarget,snareHighTarget,snareLowStep,snareHighStep;
+    float snareRelease,snareReleaseTarget,snareReleaseStep;
+    float<2> snareEnvelope,snareNoiseLow,snareNoiseHigh,snarePrevious;
+    int[2] noiseState=(17431,739391);
+
+    // A closed bore has a negative reflection each half-period: odd modes.
+    float<2>[4096] boreBuffer;
+    int boreWrite;
+    float boreDelay,boreDelayTarget,boreDelayStep,boreGain,boreGainTarget,boreGainStep;
+    float boreDrive,boreDriveTarget,boreDriveStep,boreFilter;
+    float boreRadiationDelay,boreRadiationTarget,boreRadiationStep;
+    float<2> boreLowpass,boreReedLowpass,boreReedEnvelope,boreReedPeak;
+    float boreReedFilter,boreAttack,boreRelease,boreLevelRelease;
+
+    // Two detuned, dispersive strings; positive reflection supports all harmonics.
+    float<2>[8192] string0,string1;
+    int stringWrite;
+    float[2] stringDelay,stringDelayTarget,stringDelayStep,stringGain,stringGainTarget,stringGainStep;
+    float[2] stringDrive,stringDriveTarget,stringDriveStep;
+    float<2>[2] stringLowpass,dispersionState;
+    float stringFilter,hammerFilter;
+    float[2] stringDispersion=(-0.86f,-0.78f);
+    float<2> hammerLowpass,hammerPrevious;
+
+
+    // Ukulele: a short single string with a transient-sensitive plucked contact.
+    float<2>[8192] ukeString;
+    int ukeWrite;
+    float ukeDelay,ukeDelayTarget,ukeDelayStep,ukeGain,ukeGainTarget,ukeGainStep;
+    float ukeDrive,ukeDriveTarget,ukeDriveStep,ukeStringFilter,ukeContactFilter;
+    float<2> ukeStringLowpass,ukeContact,ukePrevious,ukeWoodLow,ukeWoodHigh;
+    float<2>[2048] ukePickBuffer;
+    int ukePickWrite;
+    float ukePickDelay,ukePickDelayTarget,ukePickDelayStep,ukeWoodLowFilter,ukeWoodHighFilter;
+    float[2] ukeBodyR,ukeBodyI,ukeBodyDrive;
+    float<2>[2] ukeBodyReal,ukeBodyImag;
+
+    // Sax: positive full-period bore, continuous asymmetric reed excitation.
+    // This supports mixed odd/even partials, unlike Clarinet's negative half-period.
+    float<2>[8192] saxBuffer;
+    int saxWrite;
+    float saxDelay,saxDelayTarget,saxDelayStep,saxGain,saxGainTarget,saxGainStep;
+    float saxDrive,saxDriveTarget,saxDriveStep,saxFilter;
+    float<2> saxLowpass,saxReedPrevious,saxReedDC,saxBreathEnvelope,saxBreathLow,saxBreathHigh,saxFormantLow,saxFormantHigh;
+    int[2] saxNoiseState=(281391,891137);
+    float saxBreathAttack,saxBreathRelease,saxBreathLowFilter,saxBreathHighFilter,saxFormantLowFilter,saxFormantHighFilter;
+    float[2] saxBodyR,saxBodyI,saxBodyDrive;
+    float<2>[2] saxBodyReal,saxBodyImag;
+
+    // Oboe stays nasal alone; the final hybrid reshapes its existing modes into beating pairs.
+    // Clean paired nasal clusters use fixed-energy excitation normalization.
+    float oboEnergyGain=1.0f,oboBoundHz,oboBoundDecay,oboBoundHybrid;
+    float oboHybrid,hybridGesture,hybridGestureRise,hybridGestureFall;
+    // Each role follows its active ingredient, then holds while that tail drains.
+    float ukeHybrid,saxHybrid,reedBoxWarmFilter;
+    float<2> reedBoxSaxWarm;
+    float[4] joinedCentres=(1.0f,2.009f,3.022f,5.05f);
+    float[4] joinedSplits=(3.2f,5.1f,7.7f,11.3f);
+    // Keep the low beating pair, but give the third/fifth families a nasal voice
+    // even at C#2. This spectral identity remains when no attack is detected.
+    float[8] joinedWeights=(0.60f,0.54f,0.72f,0.62f,0.85f,0.72f,0.70f,0.58f);
+    float[8] joinedTimes=(2.5f,2.375f,1.75f,1.65f,1.175f,1.075f,0.75f,0.675f);
+    float[8] oboRestAngle,oboRestRadius;
+    float<2> oboReedPrevious,oboReedDC,oboReedLow;
+    float oboFormantHighFilter;
+    float[8] oboRatios=(1.0f,2.73f,3.0f,3.29f,6.43f,7.0f,7.61f,10.57f);
+    float[8] oboWeights=(0.045f,0.22f,0.30f,0.24f,0.92f,1.20f,0.85f,0.38f);
+    float[8] oboTimes=(0.30f,0.18f,0.24f,0.20f,0.35f,0.52f,0.33f,0.18f);
+    float<2>[8] oboReal,oboImag;
+    float[8] oboR,oboI,oboD,oboTargetR,oboTargetI,oboTargetD,oboStepR,oboStepI,oboStepD;
+
+    event param1(float v) { if (!isnan(v) && !isinf(v)) sizeTarget=clamp(v*0.01f,0.0f,1.0f); }
+    event param2(float v) { if (!isnan(v) && !isinf(v)) decayTarget=clamp(v*0.01f,0.0f,1.0f); }
+    event param3(float v) { if (!isnan(v) && !isinf(v)) mixTarget=clamp(v*0.01f,0.0f,1.0f); }
+    event param4(float v) { if (!isnan(v) && !isinf(v)) morphTarget=clamp(v,0.0f,7.0f); }
+    event param5(float v) { if (!isnan(v) && !isinf(v)) bypassTarget=v>=0.5f ? 1.0f : 0.0f; }
+
+    void updateMorphWeights()
+    {
+        for (int body=0;body<7;++body) bodyWeights.at(body)=0.0f;
+        if (morphNow<=6.0f)
+        {
+            int left=min(5,int(floor(morphNow)));
+            float fraction=morphNow-float(left);
+            bodyWeights.at(series.at(left))=1.0f-fraction;
+            bodyWeights.at(series.at(left+1))=fraction;
+        }
+        else
+        {
+            // The last stop is a blend of the existing Oboe, Sax and Ukulele.
+            // Ease from pure Sax into equal thirds without adding a new engine.
+            float portion=(morphNow-6.0f)/3.0f;
+            bodyWeights[4]=portion;
+            bodyWeights[5]=1.0f-2.0f*portion;
+            bodyWeights[6]=portion;
+        }
+    }
+
+    void updateFeeds()
+    {
+        float total;
+        for (int mode=0;mode<7;++mode)
+        {
+            feed.at(mode)=float(sqrt(bodyWeights.at(mode)));
+            total+=feed.at(mode);
+        }
+        // From Oboe onward the same input excites correlated reed bodies.
+        // Keep their combined injection constant; stored tails keep ringing.
+        if (morphNow>5.0f)
+        {
+            float normalise=1.0f/max(1.0f,total);
+            for (int mode=0;mode<7;++mode) feed.at(mode)*=normalise;
+        }
+        if (morphNow>6.0f)
+        {
+            // Restore the excitation lost when independent source paths become
+            // a coupled body. Apply before storage so tails do not change gain
+            // when the morph leaves the hybrid; the shared level trim remains.
+            float joined=clamp(morphNow-6.0f,0.0f,1.0f);
+            joined=joined*joined*(3.0f-2.0f*joined);
+            float calibration=1.0f+0.50f*joined;
+            feed[4]*=calibration;feed[5]*=calibration;feed[6]*=calibration;
+        }
+    }
+
+    float anchorRoot(int body,float size)
+    {
+        // Tune rises clockwise in every body; larger drums sit at the low end.
+        if (body==0) return 120.0f*float(pow(2.0f,-1.68f*(1.0f-size)));
+        if (body==1) return 310.0f*float(pow(2.0f,-1.04f*(1.0f-size)));
+        float note=36.0f+float(floor(size*36.0f+0.5f));
+        return 440.0f*float(pow(2.0f,(note-69.0f)/12.0f));
+    }
+
+    float anchorSeconds(int body,float decay)
+    {
+        if (body==0) return 0.08f*float(pow(20.0f,decay));
+        if (body==1) return 0.08f*float(pow(12.5f,decay));
+        if (body==2) return 0.15f*float(pow(20.0f,decay));
+        if (body==3) return 0.25f*float(pow(24.0f,decay));
+        if (body==4) return 0.12f*float(pow(25.0f,decay));
+        if (body==5) return 0.15f*float(pow(20.0f,decay));
+        return 0.07f*float(pow(12.0f,decay));
+    }
+
+    float anchorSustain(int body)
+    {
+        if (body==2 || body==4) return 1.0f;
+        if (body==3) return 0.045f;
+        if (body==5) return 0.78f;
+        if (body==6) return 0.025f;
+        return 0.035f;
+    }
+
+    void updateBodyControls(bool initial)
+    {
+        float total,sharedRoot,sharedTime,sharedSustain;
+        for (int body=0;body<7;++body)
+        {
+            float weight=bodyWeights.at(body);
+            total+=weight;
+            sharedRoot+=weight*float(log(anchorRoot(body,sizeTarget)));
+            sharedTime+=weight*float(log(anchorSeconds(body,decayTarget)));
+            sharedSustain+=weight*anchorSustain(body);
+        }
+        if (total>0.0f)
+        {
+            sharedRoot/=total;sharedTime/=total;sharedSustain/=total;
+        }
+        for (int body=0;body<7;++body)
+        {
+            if (initial)
+            {
+                logRoots.at(body)=float(log(anchorRoot(body,sizeTarget)));
+                logSeconds.at(body)=float(log(anchorSeconds(body,decayTarget)));
+                sustain.at(body)=anchorSustain(body);sizes.at(body)=sizeTarget;
+            }
+            // Active bodies follow the shared pitch and damping.
+            // Earlier bodies retain their last settings while their tails drain.
+            if (bodyWeights.at(body)>0.0f)
+            {
+                float slew=initial ? 1.0f : controlSlew;
+                float previousRoot=logRoots.at(body),previousTime=logSeconds.at(body);
+                float previousSustain=sustain.at(body),previousSize=sizes.at(body);
+                logRoots.at(body)+=slew*(sharedRoot-logRoots.at(body));
+                logSeconds.at(body)+=slew*(sharedTime-logSeconds.at(body));
+                // A hybrid shares its register and time, but keeps each contact identity.
+                float contactTarget=body<2 ? sharedSustain : 0.90f*anchorSustain(body)+0.10f*sharedSustain;
+                sustain.at(body)+=slew*(contactTarget-sustain.at(body));
+                sizes.at(body)+=slew*(sizeTarget-sizes.at(body));
+                if (logRoots.at(body)==previousRoot || abs(logRoots.at(body)-sharedRoot)<0.000001f) logRoots.at(body)=sharedRoot;
+                if (logSeconds.at(body)==previousTime || abs(logSeconds.at(body)-sharedTime)<0.000001f) logSeconds.at(body)=sharedTime;
+                if (sustain.at(body)==previousSustain || abs(sustain.at(body)-contactTarget)<0.000001f) sustain.at(body)=contactTarget;
+                if (sizes.at(body)==previousSize || abs(sizes.at(body)-sizeTarget)<0.000001f) sizes.at(body)=sizeTarget;
+            }
+        }
+        // The withdrawn Oboe keeps its last voicing while its stored tail drains.
+        if (initial || bodyWeights[4]>0.0f)
+        {
+            float joined=clamp(morphNow-6.0f,0.0f,1.0f);
+            joined=joined*joined*(3.0f-2.0f*joined);
+            float previous=oboHybrid;
+            oboHybrid+=(initial ? 1.0f : controlSlew)*(joined-oboHybrid);
+            if (oboHybrid==previous || abs(oboHybrid-joined)<0.000001f) oboHybrid=joined;
+        }
+        for (int role=0;role<2;++role)
+        {
+            int ingredient=role==0 ? 6 : 5;
+            if (initial || bodyWeights.at(ingredient)>0.0f)
+            {
+                float joined=clamp(morphNow-6.0f,0.0f,1.0f);
+                joined=joined*joined*(3.0f-2.0f*joined);
+                float previous=role==0 ? ukeHybrid : saxHybrid;
+                float next=previous+(initial ? 1.0f : controlSlew)*(joined-previous);
+                if (next==previous || abs(next-joined)<0.000001f) next=joined;
+                if (role==0) ukeHybrid=next;else saxHybrid=next;
+            }
+        }
+        if (bodyWeights[1]>0.0f)
+        {
+            float target=0.08f+0.92f*clamp((sharedSustain-0.035f)/0.965f,0.0f,1.0f);
+            rattleSustain+=(initial ? 1.0f : controlSlew)*(target-rattleSustain);
+        }
+    }
+
+    float filterPhaseDelay(float coefficient,float omega)
+    {
+        return float(atan((1.0f-coefficient)*float(sin(omega))/(1.0f-(1.0f-coefficient)*float(cos(omega)))))/omega;
+    }
+
+    // The real parts of damped complex modes have a closed-form impulse energy.
+    // Include cross terms so nearby cluster voices do not defeat normalization.
+    // Spaced math calls keep this control-rate calculation in float64 in Amorph.
+    float oboeModalEnergyGain(float energyTarget)
+    {
+        float64 energy;
+        for (int i=0;i<8;++i)
+        {
+            float64 ir=float64(oboTargetR.at(i)),ii=float64(oboTargetI.at(i));
+            for (int j=0;j<8;++j)
+            {
+                float64 jr=float64(oboTargetR.at(j)),ji=float64(oboTargetI.at(j));
+                float64 product=(ir*ir+ii*ii)*(jr*jr+ji*ji);
+                float64 difference=ir*jr+ii*ji,sum=ir*jr-ii*ji;
+                float64 correlation=0.5*((1.0-difference)/(1.0-2.0*difference+product)
+                                          +(1.0-sum)/(1.0-2.0*sum+product));
+                energy+=float64(oboTargetD.at(i))*float64(oboTargetD.at(j))*correlation;
+            }
+        }
+        // Fixed bank energy, not source-following gain: no envelope pumping.
+        // The existing phrase-peak guard remains responsible for rare narrow peaks.
+        return float(float64(energyTarget)/sqrt (max(0.000001,energy)));
+    }
+
+    void update(bool initial)
+    {
+        float sr=float(processor.frequency);
+        float bassHz=float(exp(logRoots[0]));
+        // Source attacks briefly tighten the membrane, then settle to its size.
+        bassHz*=float(pow(2.0f,0.33f*onset*feed[0]));
+        float bassDecay=float(exp(logSeconds[0]));
+        float snareHz=float(exp(logRoots[1]));
+        float snareDecay=float(exp(logSeconds[1]));
+        float norm=float(sqrt(48000.0f/sr));
+        for (int i=0;i<10;++i)
+        {
+            float hz=i<4 ? bassHz : (i<7 ? snareHz : 185.0f);
+            float seconds=i<4 ? bassDecay : (i<7 ? snareDecay : 0.095f);
+            float r=float(exp(-6.907755f/(sr*max(0.009f,seconds*times.at(i)))));
+            float angle=float(twoPi)*hz*ratios.at(i)/sr;
+            targetR.at(i)=r*float(cos(angle));targetI.at(i)=r*float(sin(angle));
+            targetD.at(i)=norm*weights.at(i)*float(sqrt(2.0f*(1.0f-r*r)));
+            if (initial) { poleR.at(i)=targetR.at(i);poleI.at(i)=targetI.at(i);drive.at(i)=targetD.at(i); }
+            stepR.at(i)=(targetR.at(i)-poleR.at(i))/32.0f;
+            stepI.at(i)=(targetI.at(i)-poleI.at(i))/32.0f;
+            stepD.at(i)=(targetD.at(i)-drive.at(i))/32.0f;
+        }
+        bassFilterTarget=1.0f-float(exp(-float(twoPi)*(bassHz*3.0f+170.0f)/sr));
+        snareLowTarget=1.0f-float(exp(-float(twoPi)*(6900.0f-2100.0f*(1.0f-sizes[1]))/sr));
+        snareHighTarget=1.0f-float(exp(-float(twoPi)*(1400.0f-450.0f*(1.0f-sizes[1]))/sr));
+        snareReleaseTarget=float(exp(-6.907755f/(sr*snareDecay*0.78f)));
+        if (initial) { bassFilter=bassFilterTarget;snareLow=snareLowTarget;snareHigh=snareHighTarget;snareRelease=snareReleaseTarget; }
+        bassFilterStep=(bassFilterTarget-bassFilter)/32.0f;
+        snareLowStep=(snareLowTarget-snareLow)/32.0f;snareHighStep=(snareHighTarget-snareHigh)/32.0f;
+        snareReleaseStep=(snareReleaseTarget-snareRelease)/32.0f;
+
+        float boreHz=float(exp(logRoots[2]));
+        float boreOmega=float(twoPi)*boreHz/sr;
+        float boreDecay=float(exp(logSeconds[2]));
+        boreDelayTarget=clamp(sr/(2.0f*boreHz)-filterPhaseDelay(boreFilter,boreOmega),2.0f,4093.0f);
+        boreGainTarget=float(exp(-6.907755f/(2.0f*boreHz*boreDecay)));
+        boreDriveTarget=1.35f*float(sqrt(1.0f-boreGainTarget*boreGainTarget));
+        if (initial) { boreDelay=boreDelayTarget;boreGain=boreGainTarget;boreDrive=boreDriveTarget; }
+        boreDelayStep=(boreDelayTarget-boreDelay)/32.0f;boreGainStep=(boreGainTarget-boreGain)/32.0f;boreDriveStep=(boreDriveTarget-boreDrive)/32.0f;
+        // Radiation taps are half a fundamental period apart: reinforce odd
+        // partials while cancelling more of the even source feed-through.
+        boreRadiationTarget=clamp(boreDelayTarget+sr/(2.0f*boreHz),2.0f,4093.0f);
+        if (initial) boreRadiationDelay=boreRadiationTarget;
+        boreRadiationStep=(boreRadiationTarget-boreRadiationDelay)/32.0f;
+
+        float pianoDecay=float(exp(logSeconds[3]));
+        for (int voice=0;voice<2;++voice)
+        {
+            // Unison pairs beat slowly; displayed Note is their shared centre.
+            float hz=float(exp(logRoots[3]))*float(pow(2.0f,(voice==0 ? -0.09f : 0.09f)/12.0f));
+            float omega=float(twoPi)*hz/sr;
+            // Different stiffness in the paired strings separates upper partials
+            // beyond simple unison detuning. Fundamental compensation stays exact.
+            float dispersionRatio=(1.0f-stringDispersion.at(voice))/(1.0f+stringDispersion.at(voice));
+            float dispersionDelay=2.0f*float(atan(dispersionRatio*float(tan(omega*0.5f))))/omega;
+            stringDelayTarget.at(voice)=clamp(sr/hz-filterPhaseDelay(stringFilter,omega)-dispersionDelay,2.0f,8189.0f);
+            stringGainTarget.at(voice)=float(exp(-6.907755f/(hz*pianoDecay)));
+            stringDriveTarget.at(voice)=float(sqrt(1.0f-stringGainTarget.at(voice)*stringGainTarget.at(voice)));
+            if (initial) { stringDelay.at(voice)=stringDelayTarget.at(voice);stringGain.at(voice)=stringGainTarget.at(voice);stringDrive.at(voice)=stringDriveTarget.at(voice); }
+            stringDelayStep.at(voice)=(stringDelayTarget.at(voice)-stringDelay.at(voice))/32.0f;
+            stringGainStep.at(voice)=(stringGainTarget.at(voice)-stringGain.at(voice))/32.0f;
+            stringDriveStep.at(voice)=(stringDriveTarget.at(voice)-stringDrive.at(voice))/32.0f;
+        }
+
+        float ukeHz=float(exp(logRoots[6]));
+        float ukeDecay=float(exp(logSeconds[6]));
+        float ukeOmega=float(twoPi)*ukeHz/sr;
+        ukeDelayTarget=clamp(sr/ukeHz-filterPhaseDelay(ukeStringFilter,ukeOmega),2.0f,8189.0f);
+        ukeGainTarget=float(exp(-6.907755f/(ukeHz*ukeDecay)));
+        ukeDriveTarget=float(sqrt(1.0f-ukeGainTarget*ukeGainTarget));
+        // A near-third pluck suppresses the third-partial family and leaves
+        // a warmer fundamental/second-partial balance than the piano bridge.
+        ukePickDelayTarget=clamp(0.32f*sr/ukeHz,2.0f,2045.0f);
+        if (initial) { ukeDelay=ukeDelayTarget;ukeGain=ukeGainTarget;ukeDrive=ukeDriveTarget;ukePickDelay=ukePickDelayTarget; }
+        ukeDelayStep=(ukeDelayTarget-ukeDelay)/32.0f;
+        ukeGainStep=(ukeGainTarget-ukeGain)/32.0f;ukeDriveStep=(ukeDriveTarget-ukeDrive)/32.0f;
+        ukePickDelayStep=(ukePickDelayTarget-ukePickDelay)/32.0f;
+
+        float saxHz=float(exp(logRoots[5]));
+        float saxDecay=float(exp(logSeconds[5]));
+        float saxOmega=float(twoPi)*saxHz/sr;
+        saxDelayTarget=clamp(sr/saxHz-filterPhaseDelay(saxFilter,saxOmega),2.0f,8189.0f);
+        saxGainTarget=float(exp(-6.907755f/(saxHz*saxDecay)));
+        saxDriveTarget=1.15f*float(sqrt(1.0f-saxGainTarget*saxGainTarget));
+        if (initial) { saxDelay=saxDelayTarget;saxGain=saxGainTarget;saxDrive=saxDriveTarget; }
+        saxDelayStep=(saxDelayTarget-saxDelay)/32.0f;
+        saxGainStep=(saxGainTarget-saxGain)/32.0f;saxDriveStep=(saxDriveTarget-saxDrive)/32.0f;
+
+        float oboHz=float(exp(logRoots[4]));
+        float oboDecay=float(exp(logSeconds[4]));
+        float oboOmega=float(twoPi)*oboHz/sr;
+        // The hybrid opens from a nasal contact into its lower sympathetic pairs.
+        float contactRatio=2.1f;
+        if (oboHybrid>0.0f) contactRatio+=oboHybrid*(0.65f+1.0f*hybridGesture-contactRatio);
+        oboFormantHighFilter=1.0f-float(exp(-float(twoPi)*min(4200.0f,contactRatio*oboHz)/sr));
+        for (int mode=0;mode<8;++mode)
+        {
+            float seconds=oboDecay*oboTimes.at(mode);
+            float angle=oboOmega*oboRatios.at(mode);
+            float weight=oboWeights.at(mode);
+            if (oboHybrid>0.0f)
+            {
+                int pair=mode/2;
+                float centre=oboHz*joinedCentres.at(pair);
+                float split=min(0.045f*centre,joinedSplits.at(pair));
+                float pairedHz=centre+(mode%2==0 ? -0.5f : 0.5f)*split;
+                float ratio=oboRatios.at(mode)*float(pow(pairedHz/(oboHz*oboRatios.at(mode)),oboHybrid));
+                angle=oboOmega*ratio;
+                seconds=oboDecay*(oboTimes.at(mode)+oboHybrid*(joinedTimes.at(mode)-oboTimes.at(mode)));
+                weight+=oboHybrid*(joinedWeights.at(mode)-weight);
+            }
+            float radius=float(exp(-6.907755f/(sr*max(0.009f,seconds))));
+            oboRestAngle.at(mode)=angle;oboRestRadius.at(mode)=radius;
+            oboTargetR.at(mode)=radius*float(cos(angle));oboTargetI.at(mode)=radius*float(sin(angle));
+            // Normalize the resting geometry including every close-pair cross term.
+            oboTargetD.at(mode)=0.6225f*norm*weight*float(sqrt(2.0f*(1.0f-radius*radius)));
+        }
+        // Cache the modal energy calibration while controls are stationary.
+        // Incoming audio does not alter this linear normalization.
+        if (initial || oboHz!=oboBoundHz || oboDecay!=oboBoundDecay || oboHybrid!=oboBoundHybrid)
+        {
+            // Compensate the normal spectral rolloff of voices/strings moderately.
+            // Keep the analog-source level consistent across sample rates.
+            float energyTarget=clamp(0.28f*float(pow(oboHz/130.0f,0.9f)),0.14f,0.55f);
+            // Opening the hybrid's low modes admits more source energy than
+            // the nasal solo voicing; calibrate before storage and shared balance.
+            if (oboHybrid>0.0f) energyTarget*=1.0f-0.85f*oboHybrid;
+            oboEnergyGain=norm*oboeModalEnergyGain(energyTarget);oboBoundHz=oboHz;oboBoundDecay=oboDecay;oboBoundHybrid=oboHybrid;
+        }
+        for (int mode=0;mode<8;++mode)
+        {
+            oboTargetD.at(mode)*=oboEnergyGain;
+            // Contact changes modal balance below, never the pitch geometry.
+            if (initial) { oboR.at(mode)=oboTargetR.at(mode);oboI.at(mode)=oboTargetI.at(mode);oboD.at(mode)=oboTargetD.at(mode); }
+            oboStepR.at(mode)=(oboTargetR.at(mode)-oboR.at(mode))/32.0f;
+            oboStepI.at(mode)=(oboTargetI.at(mode)-oboI.at(mode))/32.0f;
+            oboStepD.at(mode)=(oboTargetD.at(mode)-oboD.at(mode))/32.0f;
+        }
+    }
+
+    float<2> readBore()
+    {
+        float offset=float(boreWrite)-boreDelay;if (offset<0.0f) offset+=4096.0f;
+        int first=int(offset);float fraction=offset-float(first);
+        return boreBuffer.at(first)*(1.0f-fraction)+boreBuffer.at((first+1)%4096)*fraction;
+    }
+    float<2> readBoreRadiation()
+    {
+        float offset=float(boreWrite)-boreRadiationDelay;if (offset<0.0f) offset+=4096.0f;
+        int first=int(offset);float fraction=offset-float(first);
+        return boreBuffer.at(first)*(1.0f-fraction)+boreBuffer.at((first+1)%4096)*fraction;
+    }
+
+    float<2> readString(int voice)
+    {
+        // Preserve the original 4096-sample interpolation coordinate, while
+        // integer block addressing extends the history for low mixed registers.
+        float offset=float(stringWrite%4096)-stringDelay.at(voice);
+        int block=(stringWrite/4096)*4096;
+        if (offset<0.0f) { offset+=4096.0f;block-=4096; }
+        int localFirst=int(floor(offset));float fraction=offset-float(localFirst);
+        int first=(block+localFirst+8192)%8192,second=(first+1)%8192;
+        if (voice==0) return string0.at(first)*(1.0f-fraction)+string0.at(second)*fraction;
+        return string1.at(first)*(1.0f-fraction)+string1.at(second)*fraction;
+    }
+
+    float<2> readUkeString()
+    {
+        float offset=float(ukeWrite)-ukeDelay;if (offset<0.0f) offset+=8192.0f;
+        int first=int(offset);float fraction=offset-float(first);
+        return ukeString.at(first)*(1.0f-fraction)+ukeString.at((first+1)%8192)*fraction;
+    }
+
+    float<2> readSax()
+    {
+        float offset=float(saxWrite)-saxDelay;if (offset<0.0f) offset+=8192.0f;
+        int first=int(offset);float fraction=offset-float(first);
+        return saxBuffer.at(first)*(1.0f-fraction)+saxBuffer.at((first+1)%8192)*fraction;
+    }
+
+    float<2> readStringPickup(int voice)
+    {
+        float offset=float(stringWrite)-0.11f*stringDelay.at(voice);if (offset<0.0f) offset+=8192.0f;
+        int first=int(offset);float fraction=offset-float(first);
+        if (voice==0) return string0.at(first)*(1.0f-fraction)+string0.at((first+1)%8192)*fraction;
+        return string1.at(first)*(1.0f-fraction)+string1.at((first+1)%8192)*fraction;
+    }
+
+    float<2> readUkePick()
+    {
+        float offset=float(ukePickWrite)-ukePickDelay;if (offset<0.0f) offset+=2048.0f;
+        int first=int(offset);float fraction=offset-float(first);
+        return ukePickBuffer.at(first)*(1.0f-fraction)+ukePickBuffer.at((first+1)%2048)*fraction;
+    }
+
+    float<2> readSaxPickup()
+    {
+        float offset=float(saxWrite)-0.17f*saxDelay;if (offset<0.0f) offset+=8192.0f;
+        int first=int(offset);float fraction=offset-float(first);
+        return saxBuffer.at(first)*(1.0f-fraction)+saxBuffer.at((first+1)%8192)*fraction;
+    }
+
+    void main()
+    {
+        float sr=float(processor.frequency);
+        controlSlew=1.0f-float(exp(-32.0f/(0.055f*sr)));
+        fastSlew=1.0f-float(exp(-1.0f/(0.012f*sr)));modeSlew=1.0f-float(exp(-1.0f/(0.025f*sr)));
+        dcRadius=float(exp(-float(twoPi)*20.0f/sr));
+        peakRelease=float(exp(-1.0f/(0.06f*sr)));slowSlew=1.0f-float(exp(-1.0f/(0.018f*sr)));
+        onsetRise=1.0f-float(exp(-1.0f/(0.00035f*sr)));onsetFall=1.0f-float(exp(-1.0f/(0.05f*sr)));
+        meterRelease=float(exp(-1.0f/(0.11f*sr)));protectRelease=float(exp(-1.0f/(0.12f*sr)));
+        protectHoldSamples=max(1,int(sr*0.025f));
+        referenceQuietLimit=max(1,int(sr*0.5f));
+        protectAttackSlew=1.0f-float(exp(-1.0f/(0.001f*sr)));
+        protectReleaseSlew=1.0f-float(exp(-1.0f/(0.150f*sr)));
+        // Each contact and loop has a separate spectral and temporal character.
+        boreFilter=1.0f-float(exp(-float(twoPi)*1750.0f/sr));
+        boreReedFilter=1.0f-float(exp(-float(twoPi)*2500.0f/sr));
+        boreAttack=1.0f-float(exp(-1.0f/(0.008f*sr)));boreRelease=1.0f-float(exp(-1.0f/(0.045f*sr)));
+        boreLevelRelease=float(exp(-1.0f/(0.018f*sr)));
+        stringFilter=1.0f-float(exp(-float(twoPi)*11500.0f/sr));
+        hammerFilter=1.0f-float(exp(-float(twoPi)*8200.0f/sr));
+        ukeStringFilter=1.0f-float(exp(-float(twoPi)*1650.0f/sr));
+        ukeContactFilter=1.0f-float(exp(-float(twoPi)*5600.0f/sr));
+        ukeWoodLowFilter=1.0f-float(exp(-float(twoPi)*1700.0f/sr));
+        ukeWoodHighFilter=1.0f-float(exp(-float(twoPi)*330.0f/sr));
+        saxFilter=1.0f-float(exp(-float(twoPi)*6600.0f/sr));
+        hybridGestureRise=1.0f-float(exp(-1.0f/(0.006f*sr)));
+        hybridGestureFall=1.0f-float(exp(-1.0f/(0.180f*sr)));
+        reedBoxWarmFilter=1.0f-float(exp(-float(twoPi)*900.0f/sr));
+        saxBreathAttack=1.0f-float(exp(-1.0f/(0.005f*sr)));saxBreathRelease=float(exp(-1.0f/(0.045f*sr)));
+        saxBreathLowFilter=1.0f-float(exp(-float(twoPi)*4200.0f/sr));
+        saxBreathHighFilter=1.0f-float(exp(-float(twoPi)*450.0f/sr));
+        saxFormantLowFilter=1.0f-float(exp(-float(twoPi)*2600.0f/sr));
+        saxFormantHighFilter=1.0f-float(exp(-float(twoPi)*650.0f/sr));
+
+        // Fixed passive radiation/body resonances: short wood, broad brass.
+        // These live outside the feedback loops and cannot self-excite.
+        for (int band=0;band<2;++band)
+        {
+            float woodHz=band==0 ? 310.0f : 690.0f;
+            float woodSeconds=band==0 ? 0.043f : 0.025f;
+            float radius=float(exp(-6.907755f/(sr*woodSeconds)));
+            float angle=float(twoPi)*woodHz/sr;
+            ukeBodyR.at(band)=radius*float(cos(angle));ukeBodyI.at(band)=radius*float(sin(angle));
+            ukeBodyDrive.at(band)=(band==0 ? 0.30f : 0.15f)*2.0f*(1.0f-radius);
+            float brassHz=band==0 ? 780.0f : 1750.0f;
+            float brassSeconds=band==0 ? 0.011f : 0.0065f;
+            radius=float(exp(-6.907755f/(sr*brassSeconds)));angle=float(twoPi)*brassHz/sr;
+            saxBodyR.at(band)=radius*float(cos(angle));saxBodyI.at(band)=radius*float(sin(angle));
+            saxBodyDrive.at(band)=(band==0 ? 0.85f : 0.65f)*2.0f*(1.0f-radius);
+        }
+        balancePowerSlew=1.0f-float(exp(-1.0f/(0.18f*sr)));
+        balanceDownSlew=1.0f-float(exp(-1.0f/(0.25f*sr)));
+        balanceUpSlew=1.0f-float(exp(-1.0f/(0.90f*sr)));
+        vizPeriod=max(1,int(sr/30.0f));
+        loop
+        {
+            if (!started)
+            {
+                morphNow=morphTarget;updateMorphWeights();
+                updateFeeds();
+                mixNow=mixTarget;bypassNow=bypassTarget;
+                updateBodyControls(true);update(true);started=true;
+            }
+            float previousMorph=morphNow;
+            morphNow+=modeSlew*(morphTarget-morphNow);
+            if (morphNow==previousMorph || abs(morphNow-morphTarget)<0.000001f) morphNow=morphTarget;
+            updateMorphWeights();
+            if (counter==0)
+            {
+                // The active bodies share continuously blended root,
+                // nominal decay and contact response, rather than fixed outputs.
+                updateBodyControls(false);update(false);
+            }
+            counter=(counter+1)%32;
+            float previousMix=mixNow,previousBypass=bypassNow;
+            mixNow+=fastSlew*(mixTarget-mixNow);bypassNow+=fastSlew*(bypassTarget-bypassNow);
+            if (mixNow==previousMix || abs(mixNow-mixTarget)<0.000001f) mixNow=mixTarget;
+            if (bypassNow==previousBypass || abs(bypassNow-bypassTarget)<0.000001f) bypassNow=bypassTarget;
+            // Smooth the position, then normalize the correlated reed blends.
+            // Neighboring stops receive input; the final segment also couples their vibrations.
+            updateFeeds();
+            float<2> dry=in;for (int ch=0;ch<2;++ch) if (isnan(dry[ch]) || isinf(dry[ch])) dry[ch]=0.0f;
+            float<2> x=dry-previousInput+dcRadius*dcState;previousInput=dry;dcState=x;
+            for (int ch=0;ch<2;++ch) x[ch]=clamp(x[ch],-4.0f,4.0f);
+            x*=1.0f-bypassNow;
+            float level=max(abs(x[0]),abs(x[1]));peak=max(level,peak*peakRelease);slowPeak+=slowSlew*(peak-slowPeak);
+            float novelty=clamp((peak-1.2f*slowPeak-0.0015f)/(peak+0.012f),0.0f,1.0f)*float(sqrt(clamp((peak-0.0015f)/0.08f,0.0f,1.0f)));
+            onset+=(novelty>onset ? onsetRise : onsetFall)*(novelty-onset);
+            if (onset<0.000001f && novelty==0.0f) onset=0.0f;
+
+            bassFilter+=bassFilterStep;snareLow+=snareLowStep;snareHigh+=snareHighStep;snareRelease+=snareReleaseStep;
+            if (counter==0) { bassFilter=bassFilterTarget;snareLow=snareLowTarget;snareHigh=snareHighTarget;snareRelease=snareReleaseTarget; }
+            float<2> bassInput=x*feed[0]*(sustain[0]+(1.0f-sustain[0])*novelty);bassContact+=bassFilter*(bassInput-bassContact);
+            float<2> snareInput=x*feed[1];
+            float<2> pianoInput=x*feed[3];
+            float<2> hammerEdge=(pianoInput-0.28f*hammerPrevious)*(sustain[3]+(1.0f-sustain[3])*novelty*novelty);hammerPrevious=pianoInput;
+            hammerLowpass+=hammerFilter*(hammerEdge-hammerLowpass);
+            float<2> bass,snareShell,soundboard;
+            for (int i=0;i<10;++i)
+            {
+                poleR.at(i)+=stepR.at(i);poleI.at(i)+=stepI.at(i);drive.at(i)+=stepD.at(i);
+                if (counter==0) { poleR.at(i)=targetR.at(i);poleI.at(i)=targetI.at(i);drive.at(i)=targetD.at(i); }
+                float<2> re=modalReal.at(i),im=modalImag.at(i);
+                float<2> excitation=i<4 ? bassContact : (i<7 ? snareInput*(sustain[1]+(1.0f-sustain[1])*novelty) : hammerLowpass);
+                modalReal.at(i)=poleR.at(i)*re-poleI.at(i)*im+drive.at(i)*excitation;modalImag.at(i)=poleI.at(i)*re+poleR.at(i)*im;
+                for (int ch=0;ch<2;++ch) if (abs(modalReal.at(i)[ch])+abs(modalImag.at(i)[ch])<1.0e-12f) { modalReal.at(i)[ch]=0.0f;modalImag.at(i)[ch]=0.0f; }
+                if (i<4) bass+=modalReal.at(i);else if (i<7) snareShell+=modalReal.at(i);else soundboard+=modalReal.at(i);
+            }
+
+            // Rattle only exists when input has excited this body. No idle noise.
+            float<2> rattle;
+            for (int ch=0;ch<2;++ch)
+            {
+                float edge=abs(snareInput[ch]-0.55f*snarePrevious[ch]);
+                float envelopeDrive=edge*(rattleSustain+(1.0f-rattleSustain)*novelty);
+                if (envelopeDrive<0.000015f) envelopeDrive=0.0f;
+                snareEnvelope[ch]=max(envelopeDrive,snareEnvelope[ch]*snareRelease);
+                if (snareEnvelope[ch]<1.0e-9f) snareEnvelope[ch]=0.0f;
+                int state=noiseState.at(ch);state^=state<<13;state^=state>>17;state^=state<<5;noiseState.at(ch)=state;
+                float noise=float(state&0x7fffffff)/1073741824.0f-1.0f;
+                float excited=noise*snareEnvelope[ch];
+                snareNoiseLow[ch]+=snareLow*(excited-snareNoiseLow[ch]);snareNoiseHigh[ch]+=snareHigh*(excited-snareNoiseHigh[ch]);
+                if (snareEnvelope[ch]==0.0f && abs(snareNoiseLow[ch])+abs(snareNoiseHigh[ch])<1.0e-12f)
+                {
+                    snareNoiseLow[ch]=0.0f;snareNoiseHigh[ch]=0.0f;
+                }
+                rattle[ch]=snareNoiseLow[ch]-snareNoiseHigh[ch];
+            }
+            snarePrevious=snareInput;
+
+            boreDelay+=boreDelayStep;boreGain+=boreGainStep;boreDrive+=boreDriveStep;
+            if (counter==0) { boreDelay=boreDelayTarget;boreGain=boreGainTarget;boreDrive=boreDriveTarget; }
+            float<2> bore=readBore();boreLowpass+=boreFilter*(bore-boreLowpass);
+            float<2> boreNext;
+            for (int ch=0;ch<2;++ch)
+            {
+                float reed=x[ch]*feed[2]*(sustain[2]+(1.0f-sustain[2])*novelty);
+                float reedLevel=abs(reed);
+                boreReedEnvelope[ch]+=(reedLevel>boreReedEnvelope[ch] ? boreAttack : boreRelease)*(reedLevel-boreReedEnvelope[ch]);
+                boreReedPeak[ch]=max(reedLevel,boreReedPeak[ch]*boreLevelRelease);
+                boreReedLowpass[ch]+=boreReedFilter*(reed-boreReedLowpass[ch]);
+                if (reedLevel==0.0f && abs(boreReedLowpass[ch])+boreReedEnvelope[ch]<1.0e-12f) { boreReedLowpass[ch]=0.0f;boreReedEnvelope[ch]=0.0f;boreReedPeak[ch]=0.0f; }
+                reed=boreReedLowpass[ch]*(0.65f+0.35f*clamp(boreReedEnvelope[ch]/max(0.0000001f,boreReedPeak[ch]),0.0f,1.0f));
+                reed=reed/(1.0f+0.90f*abs(reed));
+                float reflection=boreLowpass[ch];reflection=reflection/(1.0f+0.014f*abs(reflection));
+                boreNext[ch]=boreDrive*reed-boreGain*reflection;
+                if (abs(boreNext[ch])<1.0e-12f) boreNext[ch]=0.0f;
+            }
+            boreRadiationDelay+=boreRadiationStep;if (counter==0) boreRadiationDelay=boreRadiationTarget;
+            float<2> boreRadiation=(bore-0.80f*readBoreRadiation())/1.80f;
+            boreBuffer.at(boreWrite)=boreNext;boreWrite=(boreWrite+1)%4096;
+
+            float<2> piano;
+            for (int voice=0;voice<2;++voice)
+            {
+                stringDelay.at(voice)+=stringDelayStep.at(voice);stringGain.at(voice)+=stringGainStep.at(voice);stringDrive.at(voice)+=stringDriveStep.at(voice);
+                if (counter==0) { stringDelay.at(voice)=stringDelayTarget.at(voice);stringGain.at(voice)=stringGainTarget.at(voice);stringDrive.at(voice)=stringDriveTarget.at(voice); }
+                float<2> tap=readString(voice);stringLowpass.at(voice)+=stringFilter*(tap-stringLowpass.at(voice));
+                float<2> dispersed=stringDispersion.at(voice)*stringLowpass.at(voice)+dispersionState.at(voice);
+                dispersionState.at(voice)=stringLowpass.at(voice)-stringDispersion.at(voice)*dispersed;
+                float<2> next;
+                for (int ch=0;ch<2;++ch)
+                {
+                    float feedback=dispersed[ch];feedback=feedback/(1.0f+0.002f*abs(feedback));
+                    next[ch]=stringDrive.at(voice)*hammerLowpass[ch]+stringGain.at(voice)*feedback;
+                    if (abs(next[ch])<1.0e-12f) next[ch]=0.0f;
+                }
+                if (voice==0) string0.at(stringWrite)=next;else string1.at(stringWrite)=next;
+                // A bridge pickup rejects part of the fundamental and exposes overtones.
+                piano+=(tap-0.58f*readStringPickup(voice))*0.5f;
+            }
+            stringWrite=(stringWrite+1)%8192;
+
+
+            ukeDelay+=ukeDelayStep;ukeGain+=ukeGainStep;ukeDrive+=ukeDriveStep;ukePickDelay+=ukePickDelayStep;
+            if (counter==0) { ukeDelay=ukeDelayTarget;ukeGain=ukeGainTarget;ukeDrive=ukeDriveTarget;ukePickDelay=ukePickDelayTarget; }
+            float<2> ukeInput=x*feed[6];
+            // Ignore small crest fluctuations on pads; retain strong pluck contacts.
+            // Relative contrast keeps quiet attacks eligible without making idle noise.
+            float ukeContrast=clamp((peak-1.8f*slowPeak)/max(0.0000001f,0.5f*peak),0.0f,1.0f);
+            float ukeNovelty=novelty*ukeContrast*ukeContrast*(3.0f-2.0f*ukeContrast);
+            float<2> ukeEdge=(ukeInput-0.60f*ukePrevious)*(sustain[6]+(1.0f-sustain[6])*ukeNovelty);ukePrevious=ukeInput;
+            ukeContact+=ukeContactFilter*(ukeEdge-ukeContact);
+            float<2> delayedPick=readUkePick();ukePickBuffer.at(ukePickWrite)=ukeContact;ukePickWrite=(ukePickWrite+1)%2048;
+            float<2> picked=ukeContact-0.92f*delayedPick;
+            ukeWoodLow+=ukeWoodLowFilter*(ukeContact-ukeWoodLow);ukeWoodHigh+=ukeWoodHighFilter*(ukeContact-ukeWoodHigh);
+            for (int ch=0;ch<2;++ch) if (abs(ukeContact[ch])+abs(ukeWoodLow[ch])+abs(ukeWoodHigh[ch])<1.0e-12f) { ukeContact[ch]=0.0f;ukeWoodLow[ch]=0.0f;ukeWoodHigh[ch]=0.0f; }
+            float<2> ukeWoodBody;
+            for (int band=0;band<2;++band)
+            {
+                float<2> re=ukeBodyReal.at(band),im=ukeBodyImag.at(band);
+                ukeBodyReal.at(band)=ukeBodyR.at(band)*re-ukeBodyI.at(band)*im+ukeBodyDrive.at(band)*ukeContact;
+                ukeBodyImag.at(band)=ukeBodyI.at(band)*re+ukeBodyR.at(band)*im;
+                for (int ch=0;ch<2;++ch) if (abs(ukeBodyReal.at(band)[ch])+abs(ukeBodyImag.at(band)[ch])<1.0e-12f) { ukeBodyReal.at(band)[ch]=0.0f;ukeBodyImag.at(band)[ch]=0.0f; }
+                ukeWoodBody+=ukeBodyReal.at(band);
+            }
+            float<2> pluck=readUkeString();ukeStringLowpass+=ukeStringFilter*(pluck-ukeStringLowpass);
+            float<2> ukeNext;
+            for (int ch=0;ch<2;++ch)
+            {
+                float reflection=ukeStringLowpass[ch];reflection=reflection/(1.0f+0.003f*abs(reflection));
+                ukeNext[ch]=ukeDrive*picked[ch]+ukeGain*reflection;
+                if (abs(ukeNext[ch])<1.0e-12f) ukeNext[ch]=0.0f;
+            }
+            ukeString.at(ukeWrite)=ukeNext;ukeWrite=(ukeWrite+1)%8192;
+
+            // Only the final morph segment couples the existing bodies.
+            // A plucked bridge excites the nasal body, then the bell/bore.
+            // This is acyclic: energy travels forward and every stored tail drains.
+            float hybrid=clamp(morphNow-6.0f,0.0f,1.0f);
+            hybrid=hybrid*hybrid*(3.0f-2.0f*hybrid);
+            // The pad-safe pluck detector is the only gesture trigger: small
+            // sustained crest fluctuations cannot keep resetting the body.
+            float contactStrength=0.20f+0.80f*clamp(8.0f*peak,0.0f,1.0f);
+            float gestureTarget=hybrid*clamp(5.0f*ukeNovelty,0.0f,1.0f)*contactStrength;
+            hybridGesture+=(gestureTarget>hybridGesture ? hybridGestureRise : hybridGestureFall)*(gestureTarget-hybridGesture);
+            if (hybridGesture<0.000001f && gestureTarget==0.0f) hybridGesture=0.0f;
+            // The string is a contact for the reed chamber, not an equal
+            // sustained output. A small stored-string feed keeps the coupling alive.
+            float<2> hybridBridge=0.446899385f*(
+                0.82f*(3.0f*picked+0.90f*(ukeWoodLow-ukeWoodHigh+ukeWoodBody))
+                +0.18f*(18.0f*pluck+0.72f*(ukeWoodLow-ukeWoodHigh+ukeWoodBody)));
+
+            float<2> reedContact;
+            for (int ch=0;ch<2;++ch)
+            {
+                float reed=x[ch]*feed[4]*(sustain[4]+(1.0f-sustain[4])*novelty);
+                if (hybrid>0.0f)
+                    reed=reed*(1.0f-0.62f*hybrid)+0.95f*hybrid*hybridBridge[ch];
+                float highpass=reed-oboReedPrevious[ch]+dcRadius*oboReedDC[ch];
+                oboReedPrevious[ch]=reed;oboReedDC[ch]=highpass;
+                if (abs(oboReedDC[ch])<1.0e-12f) oboReedDC[ch]=0.0f;
+                oboReedLow[ch]+=oboFormantHighFilter*(highpass-oboReedLow[ch]);
+                if (abs(highpass)+abs(oboReedLow[ch])<1.0e-12f) oboReedLow[ch]=0.0f;
+                reedContact[ch]=highpass-oboReedLow[ch];
+            }
+            float<2> oboBody;
+            for (int mode=0;mode<8;++mode)
+            {
+                oboR.at(mode)+=oboStepR.at(mode);oboI.at(mode)+=oboStepI.at(mode);oboD.at(mode)+=oboStepD.at(mode);
+                if (counter==0) { oboR.at(mode)=oboTargetR.at(mode);oboI.at(mode)=oboTargetI.at(mode);oboD.at(mode)=oboTargetD.at(mode); }
+                float<2> re=oboReal.at(mode),im=oboImag.at(mode);
+                for (int ch=0;ch<2;++ch)
+                {
+                    // Linear stable poles: no reed saturation or amplitude-dependent loss.
+                    oboReal.at(mode)[ch]=oboR.at(mode)*re[ch]-oboI.at(mode)*im[ch]+oboD.at(mode)*reedContact[ch];
+                    oboImag.at(mode)[ch]=oboI.at(mode)*re[ch]+oboR.at(mode)*im[ch];
+                    if (abs(oboReal.at(mode)[ch])+abs(oboImag.at(mode)[ch])<1.0e-12f) { oboReal.at(mode)[ch]=0.0f;oboImag.at(mode)[ch]=0.0f; }
+                }
+                if (oboHybrid>0.0f)
+                {
+                    // A pinched attack opens into a steady warm/nasal body.
+                    // Smooth radiation weights also shape an already-stored hit;
+                    // they neither retune nor gate the close beating pairs.
+                    int pair=mode/2;
+                    float pinch=pair==0 ? -0.28f : (pair==1 ? -0.10f : (pair==2 ? 0.45f : 1.05f));
+                    float radiation=1.0f+oboHybrid*hybridGesture*pinch;
+                    oboBody+=radiation*oboReal.at(mode);
+                }
+                else oboBody+=oboReal.at(mode);
+            }
+
+            saxDelay+=saxDelayStep;saxGain+=saxGainStep;saxDrive+=saxDriveStep;
+            if (counter==0) { saxDelay=saxDelayTarget;saxGain=saxGainTarget;saxDrive=saxDriveTarget; }
+            float<2> sax=readSax();saxLowpass+=saxFilter*(sax-saxLowpass);
+            float<2> saxNext,saxBreath;
+            for (int ch=0;ch<2;++ch)
+            {
+                float reed=x[ch]*feed[5]*(sustain[5]+(1.0f-sustain[5])*novelty);
+                // Gentle asymmetric reed shaping keeps the distinct even/odd color.
+                // Its output is zero at zero input; the reflection stays passive.
+                float reedLevel=abs(reed);
+                saxBreathEnvelope[ch]=max(saxBreathEnvelope[ch]*saxBreathRelease,saxBreathEnvelope[ch]+saxBreathAttack*(reedLevel-saxBreathEnvelope[ch]));
+                if (saxBreathEnvelope[ch]<1.0e-9f) saxBreathEnvelope[ch]=0.0f;
+                int breathState=saxNoiseState.at(ch);breathState^=breathState<<13;breathState^=breathState>>17;breathState^=breathState<<5;saxNoiseState.at(ch)=breathState;
+                float noise=(float(breathState&0x7fffffff)/1073741824.0f-1.0f)*saxBreathEnvelope[ch];
+                saxBreathLow[ch]+=saxBreathLowFilter*(noise-saxBreathLow[ch]);saxBreathHigh[ch]+=saxBreathHighFilter*(noise-saxBreathHigh[ch]);
+                if (saxBreathEnvelope[ch]==0.0f && abs(saxBreathLow[ch])+abs(saxBreathHigh[ch])<1.0e-12f) { saxBreathLow[ch]=0.0f;saxBreathHigh[ch]=0.0f; }
+                // Keep breath subtle in both the bore excitation and direct air layer.
+                saxBreath[ch]=0.25f*(saxBreathLow[ch]-saxBreathHigh[ch]);
+                // Normalize source drive to its local envelope, then restore that
+                // envelope so quiet recordings retain the reed's harmonic character.
+                float sourceEnvelope=max(0.0000001f,saxBreathEnvelope[ch]);
+                reed=clamp(reed/sourceEnvelope,-4.0f,4.0f)*0.65f;
+                reed=1.55f*sourceEnvelope*(reed/(1.0f+0.60f*abs(reed))+0.12f*reed*reed/(1.0f+reed*reed));
+                float highpass=reed-saxReedPrevious[ch]+dcRadius*saxReedDC[ch];
+                saxReedPrevious[ch]=reed;saxReedDC[ch]=highpass;
+                if (abs(saxReedDC[ch])<1.0e-12f) saxReedDC[ch]=0.0f;
+                float reflection=saxLowpass[ch];reflection=reflection/(1.0f+0.020f*abs(reflection));
+                float bellExcitation=highpass+0.10f*saxBreath[ch];
+                // Feed the already-shaped nasal vibration into the bore without
+                // re-distorting it or using it to generate extra breath noise.
+                if (hybrid>0.0f)
+                    bellExcitation=bellExcitation*(1.0f-0.90f*hybrid)
+                        +0.60f*hybrid*(1.0f-0.70f*hybridGesture)*(1.753742612f*0.95f*oboBody[ch]);
+                saxNext[ch]=saxDrive*bellExcitation+saxGain*reflection;
+                if (abs(saxNext[ch])<1.0e-12f) saxNext[ch]=0.0f;
+            }
+            float<2> saxPickup=sax-0.72f*readSaxPickup();
+            // Broad radiation emphasis distinguishes this bore from strings
+            // and from the Oboe's much narrower upper harmonic cluster.
+            saxFormantLow+=saxFormantLowFilter*(saxPickup-saxFormantLow);
+            saxFormantHigh+=saxFormantHighFilter*(saxPickup-saxFormantHigh);
+            for (int ch=0;ch<2;++ch) if (abs(saxPickup[ch])+abs(saxFormantLow[ch])+abs(saxFormantHigh[ch])<1.0e-12f) { saxFormantLow[ch]=0.0f;saxFormantHigh[ch]=0.0f; }
+            saxPickup+=0.85f*(saxFormantLow-saxFormantHigh);
+            float<2> saxBody;
+            for (int band=0;band<2;++band)
+            {
+                float<2> re=saxBodyReal.at(band),im=saxBodyImag.at(band);
+                saxBodyReal.at(band)=saxBodyR.at(band)*re-saxBodyI.at(band)*im+saxBodyDrive.at(band)*saxPickup;
+                saxBodyImag.at(band)=saxBodyI.at(band)*re+saxBodyR.at(band)*im;
+                for (int ch=0;ch<2;++ch) if (abs(saxBodyReal.at(band)[ch])+abs(saxBodyImag.at(band)[ch])<1.0e-12f) { saxBodyReal.at(band)[ch]=0.0f;saxBodyImag.at(band)[ch]=0.0f; }
+                saxBody+=saxBodyReal.at(band);
+            }
+            saxPickup+=saxBody;
+            saxBuffer.at(saxWrite)=saxNext;saxWrite=(saxWrite+1)%8192;
+            // Warm radiation is outside the Sax feedback loop. Its stored bore
+            // builds behind the contact and drains normally after excitation ends.
+            reedBoxSaxWarm+=reedBoxWarmFilter*(saxPickup-reedBoxSaxWarm);
+            for (int ch=0;ch<2;++ch)
+                if (abs(saxPickup[ch])+abs(reedBoxSaxWarm[ch])<1.0e-12f) reedBoxSaxWarm[ch]=0.0f;
+
+            // All nonzero ingredients receive source; previously excited tails finish.
+            // Fixed calibration balances Sax against Oboe without gating any tail.
+            // Corpus-calibrated instrument output, before shared stereo balancing.
+            float<2> pitched=0.149448188f*(3.8f*boreRadiation)
+                +0.341292457f*(17.0f*piano+0.8f*soundboard)
+                +1.753742612f*(0.95f*oboBody)
+                +0.826146847f*(0.22f*(3.3f*saxPickup+1.10f*saxBreath))
+                +0.446899385f*(18.0f*pluck+0.72f*(ukeWoodLow-ukeWoodHigh+ukeWoodBody));
+            // Held role gains make one plucked reed box: woody contact, singing
+            // paired chamber, warm bore support. The endpoint has a common 2x
+            // calibration before balance; solos take the exact path above.
+            if (oboHybrid>0.0f) pitched+=1.80f*oboHybrid*(1.753742612f*0.95f*oboBody);
+            if (ukeHybrid>0.0f)
+                pitched+=ukeHybrid*0.446899385f*(-15.60f*pluck+1.48f*(ukeWoodLow-ukeWoodHigh+ukeWoodBody)+3.20f*picked);
+            if (saxHybrid>0.0f)
+                pitched+=saxHybrid*0.826146847f*0.22f*(2.20f*reedBoxSaxWarm-3.30f*saxPickup-1.10f*saxBreath);
+            float pitchedWeight=bodyWeights[2]+bodyWeights[3]+bodyWeights[4]+bodyWeights[5]+bodyWeights[6];
+            balanceInputPower+=balancePowerSlew*(0.5f*(x[0]*x[0]+x[1]*x[1])*pitchedWeight-balanceInputPower);
+            balanceOutputPower+=balancePowerSlew*(0.5f*(pitched[0]*pitched[0]+pitched[1]*pitched[1])-balanceOutputPower);
+            if (balanceInputPower<1.0e-20f) balanceInputPower=0.0f;
+            if (balanceOutputPower<1.0e-20f) balanceOutputPower=0.0f;
+            bool balanceActive=max(abs(dry[0]),abs(dry[1]))>0.00001f && pitchedWeight>0.01f && bypassNow<0.5f;
+            if (balanceActive)
+            {
+                if (counter==0 && balanceInputPower>1.0e-10f && balanceOutputPower>1.0e-12f)
+                    balanceTarget=clamp(float(sqrt(0.15848932f*balanceInputPower/max(1.0e-12f,balanceOutputPower))),0.125f,4.0f);
+                balanceGain+=(balanceTarget<balanceGain ? balanceDownSlew : balanceUpSlew)*(balanceTarget-balanceGain);
+            }
+            float<2> wet=1.5f*bass+1.4f*snareShell+2.7f*rattle+pitched*balanceGain;
+            float wetPeak=max(abs(wet[0]),abs(wet[1]));
+            float dryPeak=max(abs(dry[0]),abs(dry[1]));
+            inputPeakReference=max(inputPeakReference,dryPeak);
+            if (dryPeak==0.0f && wetPeak<=inputPeakReference*0.0000001f)
+            {
+                if (referenceQuietSamples<referenceQuietLimit) ++referenceQuietSamples;
+                if (referenceQuietSamples>=referenceQuietLimit)
+                {
+                    inputPeakReference=0.0f;protect=0.0f;protectHold=0;protectGain=1.0f;balanceGain=1.0f;balanceTarget=1.0f;balanceInputPower=0.0f;balanceOutputPower=0.0f;
+                }
+            }
+            else referenceQuietSamples=0;
+            if (wetPeak>=protect) { protect=wetPeak;protectHold=protectHoldSamples; }
+            else if (protectHold>0) --protectHold;
+            else protect=max(wetPeak,protect*protectRelease);
+            // Energy-normalize Oboe resonance before this guard. The guard covers
+            // transient peaks and other bodies without independent L/R pumping.
+            float ceiling=inputPeakReference;
+            float protectTarget=ceiling>0.0f ? min(1.0f,0.98f*ceiling/max(0.98f*ceiling,protect)) : 1.0f;
+            protectGain+=(protectTarget<protectGain ? protectAttackSlew : protectReleaseSlew)*(protectTarget-protectGain);
+            wet*=protectGain;
+            // This C1-continuous emergency knee catches fast first peaks while
+            // the smooth gain reacts; settled signals normally remain below it.
+            float protectedPeak=max(abs(wet[0]),abs(wet[1])),emergencyScale=1.0f;
+            if (ceiling==0.0f) wet=0.0f;
+            else if (protectedPeak>0.99f*ceiling)
+            {
+                float width=0.01f*ceiling;
+                float excess=protectedPeak-0.99f*ceiling;
+                float boundedPeak=0.99f*ceiling+width*(excess/(width+excess));
+                emergencyScale=boundedPeak/protectedPeak;
+                wet*=emergencyScale;
+            }
+            float amount=mixNow*(1.0f-bypassNow);float<2> result=dry*(1.0f-amount)+wet*amount;if (amount==0.0f) result=dry;
+            out <- result;
+            inputMeter=max(level,inputMeter*meterRelease);leftMeter=max(abs(wet[0]),leftMeter*meterRelease);rightMeter=max(abs(wet[1]),rightMeter*meterRelease);wetMeter=max(leftMeter,rightMeter);
+            if (++vizCounter>=vizPeriod) { bodyViz <- float<4>(inputMeter,wetMeter,leftMeter,rightMeter);vizCounter=0; }
+            advance();
+        }
+    }
+}
