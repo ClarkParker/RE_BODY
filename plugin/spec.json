@@ -325,7 +325,7 @@
    "init": 50,
    "unit": "%",
    "text": "",
-   "ui": "advanced"
+   "ui": "small"
   },
   {
    "id": "param14",
@@ -624,7 +624,7 @@
    "init": 50,
    "unit": "%",
    "text": "",
-   "ui": "advanced"
+   "ui": "small"
   },
   {
    "id": "param37",
@@ -923,7 +923,7 @@
    "init": 50,
    "unit": "%",
    "text": "",
-   "ui": "advanced"
+   "ui": "small"
   },
   {
    "id": "param60",

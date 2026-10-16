@@ -1,98 +1,110 @@
-# 21 — RE·BODY UI concept: the original panel with a layered, parallax instrument field
+# 21 — RE·BODY UI concept: the original panel, extended, with a layered parallax instrument field
 
-Status: concept, no code yet. Sources: `reference/body_original/index.js` (cited as UI:line), `docs/research/11_UI_UX_RESEARCH.md` (R11 §x),
-LALAFY prototype v0.71 (`styles.css:55-137`, `js/08-main.js:95-99`), platform rules `docs/index/03_AMORPH_PLATFORM.md` (P03 §2d/2e/5).
+Status: concept, no code yet; rewritten after review 40 and triage 42 (decisions D35-D39). Sources: `reference/body_original/index.js` (UI:line), `docs/research/11_UI_UX_RESEARCH.md` (R11 §x), LALAFY prototype v0.71 (`styles.css:55-137`, `js/08-main.js:95-99`), platform rules `docs/index/03_AMORPH_PLATFORM.md` (P03), kit `docs/07_SCALING.md` (07), `plugin/spec.json` (73 parameters, `ui` kinds, `anchorLabels`, 10 outputs). *(design)* marks numbers chosen here, not taken from a source.
 
-## 0. Decisions in force (owner, 2026-10-16)
-- The original GUI stays: header, instrument field, morph row, dial deck, monochrome, system font stack.
-- Depth and parallax come from LALAFY's technique: a perspective frame, layers with `translateZ(z) scale(s)`, the scene tilted a few degrees by the pointer, atmospheric perspective per layer.
-- Focus is the graphic in the middle: many layers, real depth; the rest of the panel gains the new functions and a quality pass, not a redesign.
-- Resizable window via the DEV-Kit scaling recipe (`docs/07_SCALING.md`, kit rule 8); the deviation from the upstream fluid-layout rule is documented (R11 §2, P03 §6).
-- Telemetry from the DSP is available: `bodyViz`, `bodyBands`, `bodyOnset`, `analysisViz`, `lineStateA/B/C`, `lineModesA/B/C` (see `20_DSP_CONCEPT.md` §8, `plugin/spec.json` outputs).
+## 0. Decisions in force
+- **D6** keep the original panel and make it good in one go; parallax technique from LALAFY; the instrument graphic in the middle is the focus, the rest gains the new functions and a quality pass. **D8** window resizable via the kit scaling recipe (07, kit rule 8); upstream deviations are written down (§6).
+- **D16 → D35** chassis **960 × 600** (16:10), CSS `zoom` 0.5-2.0, minimum width 640 (lead proposal after owner Q1, confirmation pending; `spec.json` `view` already says 960 × 600). **D24** (without Classic) the original GUI is extended, not replaced: contract in §11.
+- **D36** Material is the 4th main dial (Tune, Decay, Material, Mix). **D37** no Classic view at all: no skin, no toggle. **D38** motion budget Off / Calm (default, D17) / Full; depth must read strongly in every state through static light cues (rim, fog, floor, specular), parallax only adds to it. **D39** lines B/C are tabs; fallback = compact always-visible strip if the host spike shows that hidden controls fail the probe.
+- Applied from triage 42: T4, T5, T8, N1 (UI items), N12, N13 ("copy line A → B/C" is UI-only), N14.
 
-## 1. Chassis and layout
-Design chassis 720 × 460 (original 620 × 340 proportions, field enlarged to ≥50 % height, R11 §3 W2; +40 px for the line tabs and the physics dials), scaled with CSS `zoom` per 07_SCALING; manifest `view.resizable: true`, `// WINDOW SIZE: 720x460` on line 2.
-Rows: header 36 px (title `RE·BODY` with the brand `CLΞΛRPΞΛK` small, left-aligned directly beneath it per kit `docs/15_BRANDING.md`; **line tabs A · B · C** with activity lamps; state caption; Bypass; Motion switch) · field (flex) · morph row 44 px (slider + anchors merged, Hold button at its end, R11 R4/R11) · deck 110 px (4 main dials + Level/Follow/Blend small) · strip 1 34 px (Listen and Excite segmented buttons, Sensitivity) · strip 2 34 px (advanced + physics dials, collapsible).
-Everything is SVG or DOM; no canvas, so zoom stays crisp (R11 §6 Q1).
+## 1. Chassis and layout (T5; review A4-A6, F9)
+Design chassis 960 × 600, inner width 912 (side padding 24), scaled with CSS `zoom` per 07; no canvas, everything is SVG/DOM so zoom stays crisp (R11 §6 Q1). One row table (px, vertical):
+| row | height | gap below | content |
+|---|---|---|---|
+| padding top | 12 | | |
+| header | 36 | 6 | title `RE·BODY` (23 px, UI:272) with the brand `CLΞΛRPΞΛK` small directly beneath (kit `15_BRANDING.md`) · **line tabs A · B · C** (name button, ≥ 24 × 24 px Enable button, lamp) · **Copy A → B/C** (UI-only, §10) · state caption (ACTIVE / NO INPUT / BYPASSED) · Bypass · Motion switch (Off / Calm / Full) |
+| field | **234** | 6 | perspective frame 912 × 234 (§2); caption band 17 px at its bottom edge, outside the scene |
+| morph row | 48 | 6 | `MORPH` label 52 px · slider (≥ 28 px hit height) above 11 anchor cells of 70 px with the `anchorLabels` abbreviations (BASS … OBOSAX·) · Hold button 64 px at the end |
+| deck | 100 | 6 | line cluster: Tune · Decay · Material (70 px main dials) + Level · Follow · Blend · Pan (44 px small) · divider · global cluster: **Mix** (70 px main) + Width · Low Cut (44 px small) |
+| strip 1 | 64 | 6 | Listen (7) and Excite (4) segmented buttons, 28 px high, a hairline meter under each segment (`analysisViz`, §10) · Sensitivity · Touch (44 px small dials) |
+| strip 2 | 64 | | grouped mini-dials (34 px, ≥ 28): **contact** Position · Bright │ **body** Size · Body · Stretch │ **physics** Stiffness · Coupling · Air · Reed; collapsible behind MORE (UI-only) |
+| padding bottom | 12 | | |
+Sum: 12 + 36 + 6 + **234** + 6 + 48 + 6 + 100 + 6 + 64 + 6 + 64 + 12 = **600**. The field is 39 % of the height (BODY's own large layout gives 199 px, review A4); strips are ≥ 64 px (A5).
+- **Globals** (param3 Mix, param5 Bypass, param6 Width, param7 Low Cut, plus the UI-only Motion switch) form ONE non-triplicated zone `.globals`, never inside a line set (docks: header right = Bypass + Motion, deck right = Mix + Width + Low Cut), one `.control[data-param]` each (A6).
+- No generic flat grid of identical knobs (D14): three dial sizes (70 / 44 / 34 px), segmented rows, headed groups. Horizontal fit (912 px): header ≈ 830; morph row 52 + 10 + 776 + 10 + 64; deck 3 × 112 + 4 × 72 + 20 + 12 + 112 + 2 × 72 = 912; strip 1 ≈ 800; strip 2 9 × 84 + 2 × 24 = 804.
 
-## 2. The field: depth model
+## 2. The field: depth model (R11 B2; review F1-F5)
 ```
-.field        perspective: 1600px; perspective-origin: 50% 45%; overflow: hidden   ← clipping only here
-  .scene      transform-style: preserve-3d; transform: rotateY(yaw) rotateX(pitch)  ← no overflow/opacity/filter here
-    <svg class="layer" style="--z:-900px">…</svg>   one SVG per layer, position:absolute; inset:0
-    …
+.field    perspective: 1600px; perspective-origin: 50% 45%; overflow: hidden        ← the only clip; 912 × 234 fixed, so viewBox constants, nothing measured
+  .scene  transform-style: preserve-3d; transform-origin: 50% 45%; transform: translateZ(−push) scale(breathe) rotateY(yaw) rotateX(pitch)
+    <svg class="layer" style="transform: translateZ(var(--z)) scale(var(--s))">  one leaf <svg> per layer (3D transforms do not exist on SVG groups)
+  .caption                                    ← HTML sibling of .scene, never inside it (rotated text blurs, F4)
 ```
-`preserve-3d` is flattened by overflow, opacity, filter, mask or `contain:paint` on the scene (R11 B2), so transparency and fog live on the leaf SVGs only. 3D transforms are not available on SVG groups, hence one stacked `<svg>` per layer (R11 B2). Scale compensation keeps everything the same size at rest: `scale = (P − z) / P` for perspective P (LALAFY `styles.css:118-137` uses the same pairing).
-
-Layers, back to front (z in px at P = 1600):
-| # | layer | z | content | motion share |
+**Scale compensation:** `s = (P − z)/P = 1 − z/1600` per layer (LALAFY `styles.css:118-137` uses the same pairing); layer `transform-origin` = perspective-origin, so all layers coincide at rest. **Flatteners** (they flatten `preserve-3d`): `overflow` other than visible/clip, `opacity` < 1, `filter`, `backdrop-filter`, `clip`/`clip-path`, `mask`/`mask-image`, `isolation: isolate`, `mix-blend-mode` ≠ normal, `contain: paint`. None on `.scene` or any ancestor up to `.field`; leaf layers use `opacity` only (fog, 250 ms line cross-fade); no filters and no blend modes in the scene (the specular is plain alpha).
+Final layer table, back to front, P = 1600 (budget 12; 11 used, one spare for what the spike measures, e.g. un-merging strings):
+| # | layer | z (px) | s | content and static light cue |
 |---|---|---|---|---|
-| L0 | vignette / floor glow | −900 | radial gradient, horizon line | 1.0 |
-| L1 | floor shadow | −700 | soft ellipse under the body, size follows Tune | 0.9 |
-| L2 | cavity | −420 | dark interior behind sound hole, drum head, bell: becomes visible when tilted | 0.6 |
-| L3…L12 | contour paths 0…9 | per instrument, −300…+220 | the ten morphing paths of the original, one per layer | from z |
-| L13 | specular | +260 | one soft highlight that follows the light position | from z |
-| L14 | air | +320 | ≤40 faint particles (SVG circles) on a slow flow field, brightness from wet energy | from z |
-| L15 | caption | +60 | instrument name (13-14 px, R11 R1), note name and decay seconds computed from the line's Tune/Decay/Morph as the original does (index.js:21-36), tracked pitch from `lineState*.followHz` while Follow > 0 | 0.2 |
+| 1 | back | −900 | 1.56 | baked bitmap (inline data URI): vignette, horizon line, grain 3-5 % (R11 R9); fixed memory |
+| 2 | ghost far | −750 | 1.47 | second inactive line (tab order), flat silhouette, foggiest stroke (§10) |
+| 3 | ghost near | −600 | 1.38 | first inactive line, flat silhouette + chain thread |
+| 4 | hit | −590 | 1.37 | transparent copies of both silhouettes, `pointer-events: all`; every other scene layer has `pointer-events: none` |
+| 5 | floor | −450 | 1.28 | floor ellipse (baked radial gradient, `scaleX` follows Tune) + 1 px floor line, opacity from `wet` (R11 R5); dims at Mix 0 / bypass (R11 R7) |
+| 6 | rear = path 2 | −300…+170 | | rear shell, back/sides, tube, keyboard line; fog from its z |
+| 7 | opening = path 1 | −420…+220 | | head, cavity (dark inner fill), bell, lid rim; lit inner rim stroke; **vibrates** |
+| 8 | outline = path 0 | 0…+20 | | body; fill 60 % opaque so deep openings read through; **rim light** = two wide low-alpha strokes + lit edge (static `linearGradient`, `objectBoundingBox`, R11 R5); standing-wave markers; **vibrates** |
+| 9 | detail = paths 3-9 (strings + fittings merged) | mean of its paths, ≈ +60…+170 | | strings, seams, rods, keys, rings; per-path fog from each path's own z; **vibrates** (strings only) |
+| 10 | specular | +260 | 0.84 | one soft highlight, pre-painted once, moved by `translate3d` with the light, never repainted |
+| 11 | air | +320 | 0.80 | ≤ 40 faint circles, brightness from `wet` (§3) |
+- **Fog** `f(z) = clamp((320 − z)/1220, 0, 1)` on each path's own z: stroke mixed toward the field background by 0.75·f, opacity 1 − 0.4·f *(design)*, baked once per morph step, never an animated filter. **Light:** one default light, top-left; the pointer moves only layer 10 (`translate3d(0.25·px·W, 0.25·py·H, 0)` *(design)*) in the same gesture that tilts the scene; rim, floor and fog are painted for the default light and not repainted (F3).
+- **z-table:** `zTable[template][path]` (11 templates × 10 paths, authored in `22_BODIES.md` "Depth", shipped in `bodies.json`), e.g. bass drum rear shell (p2) −300, head (p1) −40, hoop (p0) 0, rods (p6-9) +100; guitar cavity (p1) −420, back (p2) −260, strings (p3-6) +40; sax rear tube (p2) −260, bell rim (p1) +220, keys (p6-9) +180. During a morph each path's z is interpolated with the same (a, b, t) as its geometry (UI:349-357, a = ⌊position⌋, b = min(10, a+1)); a layer's z is the mean of its paths' z, so depth morphs with the instrument and a layer is rewritten (`--z`, `--s`) only on morph steps.
+- **Memory and overscan** *(scratch calculation)*: a full-field layer (912 × 234 px × 4 B × (zoom 2 × DPR 2)²) costs ≈ 14 MB at s = 1 and ≈ 33 MB at s = 1.56 (F1), so `back` is a bitmap and layers 6-9 are sized to the instrument box (≈ 520 × 230). Layers 1-5 overscan through s > 1 (0.45·234·(s − 1) = 30-59 px above the field against a parallax shift of 25-40 px at 4°); layers 10-11 are generated 32 px larger per side than the field (their shift reaches 28 px at 4°).
+- **Stroke weight:** the layers are scale-compensated, so `vector-effect: non-scaling-stroke` (UI:280) is kept only if the spike shows equal line weight on all layers; otherwise `stroke-width = w/s` per layer.
+- **Caption** (outside the scene, 13 px, R11 R1): instrument name (`anchorLabelsLong`), note from `lineState*.rootHz`, seconds from `t60`, "FOLLOW ▸ A3" from `followHz` while Follow > 0; the wording logic of UI:21-36 generalised to 11 anchors; the aria `<title>` keeps the original's "illustration, not a physical measurement" (UI:313).
 
-**Depth table.** `zTable[template][path]` (8 original templates + new bodies × 10 paths). Examples: bass drum rear shell (path 2) −300, front hoop (path 0) 0, tension rods (6-9) +120; piano rim (0) 0, lid inner rim (1) −200, keyboard (2-5) +160; sax rear tube (2) −260, bell rim (1) +220, keys (6-9) +180. During a morph the z of each path is interpolated with the same `t` as its geometry (UI:353-357), so depth morphs with the instrument.
-**Atmospheric perspective.** Stroke colour and opacity per layer are baked from z (far = darker, lower contrast; near = full white), applied once per morph step, never via animated filters (R11 B2).
-**Light.** One light position `--lx/--ly` (default top-left). Rim-light gradient strokes on contour 0 (two wide low-alpha strokes + a lit edge, R11 R5), floor ellipse and the specular layer are repainted when the light moves; the pointer moves the light in the same gesture that tilts the scene.
+## 3. Motion model (D38; review F6)
+| mode | tilt cap T (yaw and pitch, at the chassis edge) | idle drift D | audio motion (push, breathe, vibration, particle flow) |
+|---|---|---|---|
+| Off | 0° | none | none; static depth, light, fog; brightness still follows `wet`; particles frozen |
+| Calm (default) | 1.5° | none | on |
+| Full | 4° | ±1° Lissajous 0.05 / 0.07 Hz; stops 20 s after the last pointer or audio activity *(design)* | on |
+`yaw = T·px + D·sin(2π·0.05·t)`, `pitch = T·py + D·sin(2π·0.07·t)`, (px, py) ∈ [−1, 1] over the host element; smoothing `v += (target − v)·(1 − exp(−dt/0.12))` (form of UI:335-336); `push = 6 px · env(bodyOnset)` (attack 60 ms, release 400 ms) as `translateZ(−push)`; `breathe = 1 + 0.004·wet`. At P = 1600 layers 1 (−900) and 11 (+320) shift against each other by ≈ 26 px at 1.5° and ≈ 68 px at 4° (+17 px at the drift extremes).
+- **Pointer:** `pointermove`/`pointerleave` on the host element only, no capture, no document listeners (P03 §2d), normalised with the zoom-aware `getBoundingClientRect()`; on leave the target returns to 0 (Full: to the drift).
+- **rAF stops when nothing moves** (the original re-requests every frame and only gates `draw()`, UI:337, B8): the loop re-arms on pointer move, parameter or morph change, telemetry energy > ε (thresholds as UI:336-337) and the Motion switch. Calm has no idle drift, so it is idle at rest; in Full the drift eases to 0 over 2 s after the 20 s timeout and the loop ends.
+- **Paused** during any control or morph drag (tilt target and drift held) and during window-resize drags (07 §3, §6).
+- **Reduced motion = Off** (query and change listener as UI:330); the Motion switch (UI-only stored state, `localStorage` in try/catch, default Calm) shows Off while the query matches; particles stay frozen under Off and reduce.
 
-## 3. Motion model (three sources, one smoothing)
-```
-yaw   = kPointer·px + idleX(t) + 0                    pitch = kPointer·py + idleY(t)
-zPush = onsetPush(t)                                  breathe = 1 + 0.004·wet
-tilt smoothing: v += (target − v)·(1 − exp(−dt/0.12))  (same form as UI:335)
-```
-- Pointer: ±5° at the frame edges (LALAFY uses 0.4 × head angle; the field here is smaller, so the cap is lower). `pointermove`/`pointerleave` on the host element only, no capture, no document listeners (P03 §2d). On leave the tilt eases back to idle.
-- Idle: Lissajous drift ±1°, 0.05 / 0.07 Hz, so depth is visible even without a pointer (pointer delivery in DAW WebViews is unverified, R11 R10).
-- Audio: `bodyOnset` pushes the scene back by up to 6 px (attack 60 ms, release 400 ms); `bodyViz` wet energy scales the scene by ≤0.4 %.
-- rAF runs only while something still moves (energy, tilt delta, morph delta), as the original already gates its draw (UI:333-338).
-- Paused during dial or slider drags; `prefers-reduced-motion` and the in-UI **Motion** switch (Off / Calm / Full, UI-only stored state, `localStorage` in try/catch) freeze tilt and push but keep static depth, light and fog.
+## 4. Energy response (R11 R6; telemetry 20 §8)
+- **Vibration on ≤ 3 layers at 30 Hz** (the telemetry rate: `d` is rewritten per telemetry frame, never per display frame): *opening* (head 1.0, openings 0.5), *detail* (strings 0.8, fittings not rewritten), *outline* (body 0.4; dropped first if the spike misses the frame budget). *Rear*, floor, ghosts, specular and air are transform/opacity only.
+- Deformation = three contour modes (1, 2, 3 half-waves, inharmonic phase ratios *(design)*) from `bodyBands` groups low (b60-b240), mid (b480-b1920), high (b3840-b7680); amplitude 1.5-3 px × `available` (UI:355, constant 1.43 in the fixed field); `bodyOnset` adds the kick, `bodyViz` wet the decay. Off: brightness carries the information.
+- `lineModes{A,B,C}` (16 slot-mode energies of the dominant body in **fixed recipe index order**; identity from `bodies.json[lineState*.dominantBody]`) draw ≤ 16 faint standing-wave markers along contour 0, opacity from mode energy; active line only.
+- `lineState*`: `listenEnergy` → tab lamp, `engine0..10` → morph weight bars, `rootHz`/`t60` → caption, `followHz` → Follow readout, `hold` → Hold state, `wet` → ghost brightness. Subscribed: only the 10 declared outputs, each through `unpack` + finite check (UI:37, :329).
+- **Refresh only the active line's controls on morph moves (F7):** `refreshMorph` updates that line's Tune (note vs %), Decay (seconds) and the caption; hidden sets refresh on a tab switch, not 73 × ~8 attribute writes per pointermove (UI:341).
 
-## 4. Energy response of the silhouette
-- Per-layer vibration amplitude table: membrane/head 1.0, strings 0.8, openings 0.5, body 0.4, fittings 0.15 (physically plausible: fittings do not flex).
-- Deformation = superposition of three contour modes (1, 2, 3 half-waves, inharmonic phase ratios) driven by `bodyBands` low/mid/high groups; amplitude 1.5-3 px scaled by the field size (R11 R6), onset kick from `bodyOnset`, decay with the wet tail. Under reduced motion brightness carries the information instead of motion.
-- `lineModesA/B/C` (16 loudest modes of the active line) draw faint standing-wave markers along contour 0, fading with mode energy.
-- `lineState*.engine0..engine10` feed the morph slider's weight bars (§5).
-
-## 5. Controls: the original, extended
-- **Morph row as hero** (R11 R4): 3 px engraved groove, detents that grow when the thumb approaches, 14 px lit thumb, ≥28 px hit height, hairline weight bars from `lineState*.engine0..engine10`, anchors ≥10 px with abbreviations where the name is wider than its cell; anchor list and order come from the shared anchors table (11 anchors, `22_BODIES.md` §0), generated into `plugin/bodies.json`.
-- **Deck**: four main dials Tune, Decay, Material, Mix as dial v2 (R11 R3: 64-72 px, 3 px arc, static specular crescent, pressed/hover states, default tick, typed entry as in UI:360-426).
-- **Advanced strip**: Size, Position, Bright, Body, Touch, Stretch and the four physics dials as 40 px dials (Width sits in the deck as a small dial), collapsible via a "MORE" button; collapsed state stored UI-only.
-- Bypass switch and state lamp (R11 R7): `--lamp` 1 active, 0.7 no input, 0.25 bypass, text state in the caption, never colour alone.
-- Keyboard, wheel, dblclick reset, Shift fine, ARIA slider semantics as in the original `BodyDial` (UI:103-248); Delete resets the focused control (R11 R8).
-- Typography pass (R11 R1): all text ≥4.5:1, tracks ≥3:1; the HONE-dim greys are lifted only where readability needs it.
-- Grain and vignette baked once as an inline data URI (R11 R9).
+## 5. Controls (review B7, B10, D2, D6)
+- **One plain helper class `Control`** (core-ui §1: one helper + one HTMLElement subclass); the field, tabs and Copy action are view methods. `kind` sets geometry and wiring: **dial** 70 px (Tune, Decay, Material, Mix) · **small** 44 px (Level, Follow, Blend, Pan, Width, Low Cut, Sensitivity, Touch) · **mini** 34 px (Position, Bright, Size, Body, Stretch, Stiffness, Coupling, Air, Reed) · **slider** (Morph) · **segmented** (Listen, Excite; also the UI-only Motion switch, without `data-param`) · **button** (Enable, Hold, Bypass). Mapping from `spec.json` `ui`: dial, small, button, segmented, slider as is; `advanced` and `physics` → mini; Touch is `advanced` there but sits in strip 1 as small (spec to be aligned).
+- Ranges come from `data-min/max/step/init` (generated from spec): drag `Δ·range/240` (Shift `/1200`, UI:145), Home/End = min/max (UI:171-172), arrows ±1 %, Shift ±0.1 %, Page ±10 % of range rounded to `step` (UI:176), wheel focus-gated (UI:179), dblclick and Delete reset to init (R11 R8), bipolar arcs start at zero (Size, Stretch, Pan), default tick on the arc, Low Cut with a log taper (UI-only mapping *(design)*). Tune shows note names while its line is pitched (UI:34-36, :186, per line), Timpani greys the arc above C4 (N7); Decay shows seconds from the morph-weighted `bodies.json` mapping (UI:21-27, :200).
+- **Value editor** (UI:360-426) generalised: note-name parse and the C2-C5 datalist for Tune, seconds↔value inversion for Decay, unit-stripping (`%`, `s`, `dB`, `Hz`) with clamp and step rounding from the range; mini dials show the value in place of the label on hover, drag or focus.
+- **Dial v2 geometry in viewBox units** (viewBox 0 0 200 200, radius 91 as UI:39-40; original stroke 5 units = 1.75 px at 70 px, B7): stroke = px × 200/size, i.e. main 3 px = **8.6** units, small 2.5 px = 11.4, mini 2 px = 11.8; informational track ≥ 3:1, conic cap, static specular crescent, pressed (cap 1 px down), hover rim, fine-mode inner ring (Shift) (R11 R3).
+- **Init is painted in the constructor** with `setValue(init, false)` (D2, as UI:184); the `values` map is built from `data-init`, never hard-coded as UI:253; `--` exists only in the HTML template.
+- **Morph row hero** (R11 R4): 3 px engraved groove, 11 detents growing near the thumb, 14 px lit thumb, ≥ 28 px hit height, hairline weight bars from `lineState*.engine0..10`, `--morph = v/10`, tick `--anchor/10` (UI:288), margin `100%/22` (UI:285), grid `repeat(11, …)` (UI:289), anchors ≥ 10 px (UI:290); dblclick resets to the line's init (A 7, B 0, C 3); pointer/keyboard/wheel logic from UI:320-325, :341-345 with range 0..10. Bypass lamp `--lamp` 1 / 0.7 / 0.25 plus text, never colour alone (R11 R7); text ≥ 4.5:1 (R11 R1).
 
 ## 6. Sandbox compliance
-Single ES module, default export `createPatchView`, light DOM with `classList.add("patch-root")` on the host, one HTMLElement subclass with `customElements.get` guard, mount once in `connectedCallback` (idempotent), set both `view.pc` and `view.patchConnection`, no imports/remote assets/web fonts, no `backdrop-filter`, no `vw/vh`, `touch-action: none` on every drag control, pointer events on the element with `setPointerCapture` for drags only, value labels painted `--` until the first host value arrives, `.control[data-param]` once per parameter with `data-min/max/init`, `addAllParameterListener` → `requestParameterValue` order, full teardown in `disconnectedCallback` (listeners, rAF, capture), no ResizeObserver (host sizing per 07_SCALING instead), only declared output endpoints subscribed (P03 §2d, §7).
+Single ES module, default export `createPatchView`, light DOM with `classList.add("patch-root")` on the host, one HTMLElement subclass behind a `customElements.get` guard, mounted once in `connectedCallback` (idempotent), both `view.pc` and `view.patchConnection` set, no imports/remote assets/web fonts, no `backdrop-filter`, no `vw/vh`, `touch-action: none` on every drag control, pointer events on the element with `setPointerCapture` for drags only, `.control[data-param]` exactly once per parameter (73) with `data-min/max/step/init`, `addAllParameterListener` before `requestParameterValue`, full teardown in `disconnectedCallback` (listeners, rAF, timers, capture), only declared output endpoints subscribed (P03 §2d, §7); **plus D2** (init painted in the constructor, no visible `--`).
+**07_SCALING deviation list** (written to `docs/dev/02_UI_DEVIATIONS.md` at U7): fixed chassis + `zoom` (07 option 2) instead of core-ui §5 fluid layout (D4); **kept** from 07: JS host sizing from `innerWidth/innerHeight` with the measured `eff` probe, `window` resize listener, 250 ms re-measure timer, 0.05 zoom steps (clamp 0.5-2.0), transparent host, wrapper walk-up, and **§3 render suspension** (180 ms `resizing()` flag, zoom change deferred to a 190 ms settle timer, rAF body returns early); **dropped**: `ResizeObserver` (core-ui §6; the fixed chassis needs none) and `height: 100vh` (kit rule 9, upstream wins). `clientWidth` ignores zoom, so nothing is measured from it; pointer maths uses `getBoundingClientRect()`. **Carried-over CSS loses `12vw` (UI:292) and both viewport media queries (UI:309-310)** (D5).
 
 ## 7. Verification
-- `run_ui_probe` on the real Amorph build: `data-param` audit, custom endpoint delivery, pointermove delivery inside a DAW.
-- Frame time with up to 19 compositing layers at 720×460 and at zoom 2.0 in WebKit and WebView2; target ≤4 ms per frame while moving, 0 when idle.
-- Reduced-motion and Motion-switch states reviewed visually; contrast checked numerically.
+- **P1 host spike (T4)** with stub DSP (73 parameters, 10 outputs, `struct Line` × 3), three hidden control sets, MORE, the 11-layer field: `run_ui_probe` on hidden controls (`display: none` versus stacked `visibility: hidden`), custom-endpoint delivery of all 10 outputs (D13), `pointermove`/`pointerleave` delivery inside the DAW (F8), pointer hits through the transparent hit layer under tilt, equal stroke weight across the scale-compensated layers, compile time. Recorded in `docs/dev/00_HOST_SPIKE.md`; hand-over = repo, branch and path.
+- **Frame time** at zoom 0.5 / 1 / 2 in WebKit **and** WebView2 (F5: `zoom` × `perspective` may scale parallax differently per engine); target ≤ 4 ms per frame while moving, 0 when idle.
+- **The hidden-control probe result decides tabs versus the fallback strip (D39).** Later: `ui_lint.py --strict`, `check_sync.py`, headless render at zoom 0.5/1/2, reduced-motion snapshot, numeric contrast check.
 
 ## 8. Steps
-U0 tokens, typography, lamp, grain · U1 field: layer stack, z-table, scale compensation, fog, light · U2 motion sources, smoothing, reduced motion, Motion switch · U3 telemetry binding (bodyBands, bodyOnset, analysisViz, lineState*, lineModes*) · U4 morph hero and anchors table · U5 dial v2, main deck, advanced strip · U6 07_SCALING chassis, manifest, probes.
+U0 functional UI (plain controls, 73 `data-param`, three sets, core-ui shell) is delivered in P1 · U1 tokens, typography, lamp, grain, brand line; field layer stack, z-table, fog, light (gate: ≤ 12 layers, light as one moved layer) · U2 motion sources, Motion switch, reduced motion (gate: vibration on ≤ 3 layers, rendering suspended in resize) · U3 telemetry binding · U4 morph hero + Hold · U5 `Control` helper, dial v2, deck, strips · U6 line tabs, three control sets, inactive silhouettes, chain thread, Copy A → B/C · U7 07_SCALING chassis, manifest sizes, `docs/dev/02_UI_DEVIATIONS.md`.
 
-## 9. Fine questions (later)
-Whether strip 2 starts collapsed; exact grey levels; tab placement left or right of the title.
+## 9. Open questions
+Tab placement (left or right of the title); grey levels (text ≥ 4.5:1, tracks ≥ 3:1); strip 2 collapsed by default? (only if hidden controls pass the probe); geometry of the B/C fallback strip (only if the probe fails: the field must stay ≥ 230 px).
 
 ## 10. Lines in the UI (20 §12)
-- **Tabs A · B · C** in the header select the *active line*. Each tab has a small lamp driven by `lineState*.listenEnergy` and a dot for Enable. Keyboard: 1/2/3.
-- **One control per parameter, always in the DOM.** The morph row, deck and strips exist three times (one set per line) and only the active set is visible (`hidden` on the others). Every `paramN` keeps exactly one `.control[data-param]`, so the host's `run_ui_probe` audit and preset recall work regardless of the selected tab (P03 §2d).
-- **Field = lines at depth.** The active line owns the full 16-layer stack in the light. The two other lines appear as one flat silhouette each (their own morph shape, no inner layers) at z −600 and −750, dimmer and foggier, breathing with their own `lineState*.wet`; clicking a silhouette activates that line (then the stacks swap with a 250 ms cross-fade of fog and light, geometry stays). A line with Enable Off is drawn as a thin ghost.
-- **Chain** is drawn as a faint curved thread from the source silhouette to the chained body; **Follow** shows the tracked note under the caption; **Hold** lights the morph-row button, freezes the energy breathing of that line's silhouette and dims its listen lamp (injection muted).
-- **Listen feedback**: the segmented Listen buttons carry hairline meters from `analysisViz` (transient, sustain, low, mid, high), so the user sees what each choice would hear before choosing.
-- Layer count stays 16 + 2 (inactive silhouettes) + 1 (chain thread) ≤ 19 compositing layers.
+- **Tabs A · B · C** select the active line (keys 1/2/3 on the host element): Enable button ≥ 24 px, lamp from `lineState*.listenEnergy`. **Copy A → B/C** (UI-only, in the tab bar): writes A's values into B/C through ordinary parameter events (Enable and Hold excluded, one gesture per parameter), one-step undo snapshot *(design)*.
+- **Three control sets in the DOM** (one `.control[data-param]` per parameter, 73 in all); only the active set is visible (`hidden` on the others), the globals zone is never duplicated. If the probe fails: the spike's ladder (stacked `visibility: hidden`, then the D39 compact strip) applies.
+- **Inactive lines = 2 flat silhouettes at depth** (layers 2-3, z −750 / −600, offset ±0.34·W, scale 0.55 *(design)*): their own morph shape from contour 0 only, fog stroke, breathing with their `lineState*.wet`, Enable Off = thin ghost; clicking one (hit layer 4) activates that line with a 250 ms fog/light cross-fade, geometry stays.
+- **Chain thread:** a faint curved path in layer 3 from the source line's silhouette to the chained body, drawn only while a line's Listen = Chain.
+- **Hold** lights the morph-row button (tooltip "Hold sustains the body resonance; strings and bores ring out naturally"), shows HELD in the caption, freezes that silhouette's breathing and dims the tab lamp (injection muted while held, 20 §14); **Follow** shows "FOLLOW ▸ note" in the caption and a lock lamp on the Follow dial (`analysisViz.pitchConfidence`). **Listen meters:** hairlines under the Listen segments from `analysisViz` (transient, sustain, low, mid, high; All = their max; Chain = source `lineState.wet`), under Excite from `listenEnergy` (Through) and `onset` (strikers) *(design)*.
 
-## 11. Preservation contract: the original GUI stays, RE·BODY only extends it
-1. **Stylesheet base = the original.** The CSS block of `index.js:266-310` is carried over verbatim as the base stylesheet (same class names, same values). RE·BODY adds tokens and new selectors; existing rules are changed only in the five documented places below, each with before/after and the research reason: track/arc contrast to ≥3:1 (`:296`, `:286`), caption 9 → 13 px (`:282`), dial arc 5 → 3 px with 64-72 px dials (`:294-297`), anchor font 9 → ≥10 px (`:290`), light-style focus ring (`:308`).
-2. **Geometry base = the original's own large layout.** The `min-height: 440px` media query (`:310`: padding 21/30/20, rows 30 / 1fr / 63 / 92 px, 70 px dials, 11 px anchors, 10 px caption) is the base layout at 720 × 460; the four original rows keep their sizes, the field takes the surplus; new rows (tabs in the header, strips under the deck) are inserted, nothing is moved.
-3. **Behaviour reused, not re-implemented.** `BodyDial` (`:103-248`), the typed value editor with note names (`:360-426`), morph slider pointer/keyboard/wheel logic (`:320-325`, `:341-345`), anchors, bypass, `refreshProcessing`, the reduced-motion query and the `bodyViz` listener are taken over as code; extensions wrap or subclass them.
-4. **Silhouettes reused.** `instrumentPaths` and `hybridPaths` (`:47-97`) stay the geometry of the eight original templates; the three new bodies follow the same ten-path convention and the same resampling (`:78-82`); the morph/scale/flex maths (`:349-359`) stays, depth is added around the paths.
-5. **Classic view.** With strips collapsed and only Line A enabled, the panel is the original composition plus the brand line and the tabs. A UI-only **Classic** toggle (stored state) hides tabs, strips and the inactive-line silhouettes, so the original look is one click away.
-6. **Wording.** The eight original anchor labels, `MORPH`, `TUNE`, `DECAY`, `MIX`, `Bypass` keep their text; new labels use the same typographic style.
-7. Every deviation from 1-6 is logged in `docs/dev/02_UI_DEVIATIONS.md` with before/after.
+## 11. Preservation contract: the original GUI is extended, not reproduced (review H, B9, B10)
+1. **Carried over verbatim** (same class names and values): the CSS rules not tied to the 8 anchors or the viewport. Of the 44 CSS lines UI:267-310, **18 stay verbatim** (:267, :269, :272-277, :291, :293, :295, :298-301, :304-305, :307: reset, title, utilities, button base, Bypass look, anchor states, control column, dial graphic, **dial look as base** = inner cap, pointer, dragging border, value hover/editor, bypass arc), **3 take only a value from the large-layout query** (:290 anchor 11 px, :302 label 10 px, :303 value 13 px), and **23 change or are deleted**.
+2. **Necessarily changed (logged line by line with before/after in `docs/dev/02_UI_DEVIATIONS.md`):** :268 host sizing (JS-sized, `!important` dropped), :270-271 panel rows/padding and header (tabs, brand, Motion), :278-281 field and contour look (perspective frame, hit layer, 60 % fill, stroke weight per layer), :282 caption 10 → 13 px, :283-289 morph row (8 → 11 anchors, groove 3 px, thumb 14 px, `/7` → `/10`, `repeat(8)` → `repeat(11)`), :292 deck gap (`12vw`), :294, :296-297 dial sizes by kind, arc stroke (B7), track contrast, :306 `data-process` re-aimed at layers 2-11 with a 400 ms ease, :308 light focus ring, :309-310 deleted (viewport media queries, D5); greys lifted where text < 4.5:1 or tracks < 3:1.
+3. **Behaviour reused as code, with the edits B10 names:** `BodyDial` (UI:103-248) becomes `Control` (ranges :145, :171-172, :189, :206-207; note mode :186; seconds :200; init :184/:253), editor (:360-426), morph logic (:320-325, :341-345), bypass (:326, :346-347), reduced-motion query (:330), `bodyViz` listener (:329); removed: `ResizeObserver` and `resize()` (:332, :348; the chassis is fixed), the unconditional rAF (:337).
+4. **Silhouettes:** `instrumentPaths` and `hybridPaths` (UI:47-97) and the resampling (:78-82) stay for the eight original templates; Timpani, Guitar, Fiddle follow the ten-path convention (new drawings); morph/scale/flex maths (:349-359) stays with `scaleFor` indexed for 11 anchors; depth is added around the paths.
+5. **Honestly different from the original:** 620 × 340 media-query panel → 960 × 600 zoom chassis; 8 → 11 anchors in a new order (Ukulele and Clarinet move), abbreviations in the row (`OBOSAXOLELE` → `OBOSAX·`, D14, full names in the caption); header 30 → 36 px with brand, tabs, Motion; deck 3 → 4 main + 6 small dials with Material main; every dial redrawn (dial v2); 1 px rail → groove with detents, weight bars and Hold; flat outline → 11-layer 3D field. **No Classic view (D37):** the original look is not restorable by a toggle.
+6. **Wording:** `MORPH`, `TUNE`, `DECAY`, `MIX`, `Bypass` and the eight original instrument names (caption) keep their text; new labels use the same typographic style.
