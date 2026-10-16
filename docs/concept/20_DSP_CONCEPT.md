@@ -55,23 +55,41 @@ Capacity: 48 modes × ~11 bodies ≈ 530 complex stereo modes ≈ 1 % of one cor
 ## 4. Damping law and the Material axis
 Per mode: `T60 = ln(1000) / (αG + αR·ω)` with per-body (αG, αR) presets, scaled by Decay (param2, log as BODY `anchorSeconds`) and tilted by Material (param6): 0 = damped/soft (αR high, soundboard-like η 3 %), 50 = recipe default, 100 = hard/ringing (αR low, metal/bell-like). Anchors: soundboard η≈2.3 % → T60≈96/f s; violin corpus ζ∝f^−0.45; membranes short, metal long (R10 B4, PHYSIFY `DSP:568-585`). Control rate only (one `exp` per mode per 32 samples, BODY's stepping idiom).
 
-## 5. Parameters (append-only after the original five)
-| id | name | range / init | DSP meaning | UI |
+## 5. Parameters (append-only after the original five; line blocks, see §12)
+Three identical **lines** A, B, C (§12). `param1..param5` keep BODY's meaning: Tune, Decay and Morph of **Line A**, Mix and Bypass global. Every other parameter is appended in fixed blocks so the scheme is mechanical for DSP, UI and tools.
+
+**Global**
+| id | name | range / init | meaning |
+|---|---|---|---|
+| param3 | Mix | 0..100 / 45 | dry/wet of the summed lines |
+| param5 | Bypass | 0/1 | as BODY |
+| param6 | Width | 0..100 / 50 | stereo: L/R mode-position offsets, all lines |
+
+**Line block** (A: `param1`, `param2`, `param4` + `param7..param24`; B: `param25..param45`; C: `param46..param66`). Order inside a block:
+| # | name | range / init | DSP meaning | UI |
 |---|---|---|---|---|
-| param1 | Tune | 0..100 / 58 | as BODY (drums continuous, pitched bodies note-quantised C2..C5) | main dial |
-| param2 | Decay | 0..100 / 50 | global αG scale, log seconds as BODY | main dial |
-| param3 | Mix | 0..100 / 45 | dry/wet | main dial |
-| param4 | Morph | 0..10 / 5 | body position over 11 anchors (22 §0); anchors table shared with UI | hero slider |
-| param5 | Bypass | 0/1 | as BODY | switch |
-| param6 | Material | 0..100 / 50 | damping-vs-frequency law (§4) | main dial |
-| param7 | Size | −100..100 / 0 | log shift of fixed-Hz body resonances ±1 octave (Sculpture Formant Shift) | advanced |
-| param8 | Position | 0..100 / per-body default | excitation point: cosine mode gains, string pick / cone blow point β | advanced |
-| param9 | Bright | 0..100 / 50 | contact low-pass + upper-mode gain tilt (Rings brightness law) | advanced |
-| param10 | Body | 0..100 / per-body | balance line engine ↔ modal body, air-mode amount for boxes | advanced |
-| param11 | Width | 0..100 / 50 | stereo: L/R position offsets of mode gains | advanced |
-| param12 | Touch | 0..100 / 50 | onset sensitivity vs sustained excitation (BODY per-body `sustain` made adjustable) | advanced |
-| param13 | Stretch | −100..100 / 0 | mode spacing around 1 kHz (Sculpture Formant Stretch) | advanced |
-All event handlers NaN/Inf-guarded and clamped (BODY:120-124); smoothing via BODY's 32-sample target stepping; ids exactly `paramN` (P03 §2a).
+| 1 | Tune | 0..100 / 58 | as BODY (drums size law, pitched note law C2..C5); ignored by `fixed` modes | main dial |
+| 2 | Decay | 0..100 / 50 | global αG scale, log seconds per body | main dial |
+| 3 | Morph | 0..10 / 5 | anchor position (22 §0) | hero slider |
+| 4 | Enable | Off/On / A On, B Off, C Off | line runs and sums; Off gates all its engines | tab lamp |
+| 5 | Level | −60..+6 dB / 0 | line wet level before the shared balance stage | small dial |
+| 6 | Listen | All / Transient / Sustain / Low / Mid / High / Chain | which analysed component excites the line (§13); Chain = previous line's body output (A: falls back to All) | segmented buttons |
+| 7 | Sensitivity | 0..100 / 50 | gain of the listened component into the contact stage | small dial |
+| 8 | Excite | Through / Hammer / Pluck / Breath | Through = BODY contact; others = onset-triggered strikers (§14) | segmented buttons |
+| 9 | Touch | 0..100 / per body | onset sensitivity vs sustained excitation; in Strike modes = velocity curve | advanced dial |
+| 10 | Material | 0..100 / 50 | damping-vs-frequency law (§4) | main dial |
+| 11 | Size | −100..100 / 0 | log shift of fixed-Hz resonances ±1 oct | advanced dial |
+| 12 | Position | 0..100 / per body | excitation point (mode gains, pick/blow point β) | advanced dial |
+| 13 | Bright | 0..100 / 50 | contact low-pass + upper-mode tilt | advanced dial |
+| 14 | Body | 0..100 / per body | line engine ↔ modal body balance | advanced dial |
+| 15 | Stretch | −100..100 / 0 | mode spacing around 1 kHz | advanced dial |
+| 16 | Stiffness | 0..100 / per body | string dispersion, plate/bar inharmonicity (§15) | physics dial |
+| 17 | Coupling | 0..100 / per body | string/bore → body feed, >50 adds bounded bridge reflection (§15) | physics dial |
+| 18 | Air | 0..100 / per body | Helmholtz/air modes, air-loaded drum ratios, breath noise (§15) | physics dial |
+| 19 | Reed | 0..100 / per body | reed stiffness/asymmetry, head tension, pick hardness (§15) | physics dial |
+| 20 | Follow | 0..100 / 0 | Tune follows the tracked input pitch (0 = fixed Tune, 100 = full), 40 ms glide (§13) | small dial |
+| 21 | Hold | Off/On / Off | freezes the line's tails (loop gains → 1 − ε under governor) (§14) | button |
+66 parameters in total. All event handlers NaN/Inf-guarded and clamped (BODY:120-124); smoothing via BODY's 32-sample target stepping; ids exactly `paramN` (P03 §2a). Enum parameters use `text:` annotations and real buttons in the UI.
 
 ## 6. Morph
 - Anchor order v1 (decided, see 22 §0): Bass Drum, Snare, Timpani, Piano, Guitar, Ukulele, Fiddle, Clarinet, Oboe, Sax, Obosaxolele. The hybrid segment is 9→10.
@@ -85,15 +103,15 @@ All event handlers NaN/Inf-guarded and clamped (BODY:120-124); smoothing via BOD
 - Loudness: generalise BODY's closed-form modal energy normalisation with cross terms (BODY:282-301) to every modal body, cached at control rate; per-body `out_gain` from the recipe; balance + protector + knee unchanged.
 - Modal feedback never exceeds |r|<1 by construction; DC-block wet per channel (P03 §2c).
 
-## 8. Telemetry (output events, ~30 Hz, all cheap host-rate meters)
+## 8. Telemetry (output events, ~30 Hz, host-rate meters, zero cost when idle)
 | endpoint | type | content | UI use |
 |---|---|---|---|
 | bodyViz | float<4> | input, wet, L, R peaks (BODY compat) | lamp, breathing |
-| bodyBands | float<8> | wet energy in 8 log bands (one-pole bank, 60 Hz-10 kHz) | layer vibration modes |
-| bodyOnset | float | `onset` 0..1 (BODY:593) | strike push, ripple |
-| bodyEngines | float<16> | wet energy per anchor body | morph slider weight bars |
-| bodyModes | float<16> | energy of the 16 loudest modes of the dominant body | standing-wave markers on the contour |
-| bodyRegister | float<2> | shared root Hz, shared T60 s | captions (note name, seconds) |
+| bodyBands | float<8> | summed wet energy in 8 log bands (60 Hz-10 kHz) | layer vibration modes |
+| bodyOnset | float | shared `onset` 0..1 (BODY:593) | strike push, ripple |
+| lineStateA/B/C | float<16> | [wet, onset, listenEnergy, followHz, holdFlag, engine0..engine10] per line | tabs, weight bars, silhouettes, captions |
+| lineModesA/B/C | float<16> | energy of the 16 loudest modes of the line's dominant body | standing-wave markers |
+| analysisViz | float<6> | transient, sustain, low, mid, high energies, pitch confidence | listen selector feedback |
 
 ## 9. Validation plan (ported from PHYSIFY tooling, R10 §4 rec. 8)
 - `cmaj test`: tables finite and sorted, every |r|<1, row sums, recipe → coefficient round trip.
@@ -102,7 +120,44 @@ All event handlers NaN/Inf-guarded and clamped (BODY:120-124); smoothing via BOD
 - CPU: bench at the end, JIT, 48 and 96 kHz, all bodies with tails active.
 
 ## 10. Milestones
-M0 recipe format + `bodytab.py` + table emission validated in `cmaj` · M1 unified modal bank replacing BODY's modal parts with recipes that reproduce the original voicings · M2 damping law + Material/Size/Position/Bright/Body/Width/Touch/Stretch · M3 cones and lattice cutoffs, dense soundboard, box air modes · M4 new bodies · M5 telemetry · M6 tests, QA probe, CPU bench.
+See `docs/plan/30_DEV_PLAN.md` §1 (P1-P8). Line A is verified completely before B and C are enabled; the line structure exists from P1 on (enabling, not rebuilding).
 
 ## 11. Fine questions (later)
 Per-body *(design)* values in 22; whether Stretch stays; hybrid anchor label.
+
+## 12. Lines: three bodies listening to different parts of the input
+A **line** = one complete BODY-style chain (feeds, engines, modal bank slots, calibration, tail holding) with its own parameter block (§5). Three lines run in parallel; each line's wet goes through Level, then the shared balance and protector stage (BODY:844-889), then Mix. The structure is an array of three identical line states in one processor; Line A alone reproduces BODY.
+```
+in → conditioning → ANALYSIS (transient/sustain split, 3-band split, onset, pitch) ─┬→ Line A ─┐
+                                                                                   ├→ Line B ─┼→ Level → balance/protector → mix → out
+                                                                                   └→ Line C ─┘
+Chain: Line B may take Line A's body output instead of the analysis bus; C may take B's. Never backwards (acyclic, stable).
+```
+Loudness: per-line energy normalisation as today, the protector works on the sum against the input peak reference; Level is pre-balance so lines can be mixed without re-triggering the protector.
+Cost: three banks ≈ 3 × (≈1 % core) at 48 kHz by PHYSIFY's bench; disabled lines cost nothing (engine gating §7).
+
+## 13. Analysis stage (host rate, shared by the lines)
+- **Transient / sustain split**: two envelope followers on the conditioned input (fast 1 ms / 20 ms, slow 20 ms / 150 ms); transient gain `g = clamp((fast − k·slow) / (fast + ε))` smoothed; `transient = x·g`, `sustain = x − transient`. Sum is exactly the input (complementary) *(design, classic transient-designer split)*.
+- **Band split**: Linkwitz-Riley 2nd-order pairs at 200 Hz and 2 kHz → Low / Mid / High, allpass-complementary so the sum equals the input (R10 B1 stability rules do not apply: feed-forward).
+- **Onset**: BODY's novelty detector (BODY:591-594) shared; each line scales it with Touch and gates its strikers (§14) with hysteresis and a 30 ms refractory time.
+- **Pitch** (for Follow): decimated-by-4 copy (12 kHz), YIN-style difference function over lags for 40 Hz-1.2 kHz, window 512, hop 128, confidence gate, median of 3, output in semitones; glide 40 ms; runs only while any line has Follow > 0 *(design; cost ≈ 1-2 k flops/sample while active, measured in P7)*.
+- `analysisViz` reports the five energies and the pitch confidence.
+
+## 14. Excite modes, Chain and Hold
+- **Through**: BODY's contact law `x·feed·(sustain + (1−sustain)·novelty)` per body.
+- **Hammer**: onset triggers a Hertz-contact force pulse (PHYSIFY `DSP:913-1004`, `:2060-2131`), velocity from onset energy (log map, Touch = curve), 1-4 ms, into the line engine or modal input; the audio itself is not injected.
+- **Pluck**: onset triggers a one-period displacement burst at the line's pitch with the position comb (BODY uke contact), for non-string bodies a position-filtered impulse.
+- **Breath**: onset triggers a noise burst (20-80 ms envelope) through the reed shaping into bores, through the contact low-pass into modal bodies; while the listened component stays above threshold the burst sustains (breath follows the pad).
+- Strikers live in `namespace strikers`, shared by the lines; velocity and position come from the line parameters.
+- **Chain**: Listen = Chain feeds the previous line's body output (post-calibration, pre-Level) × Sensitivity into this line's contact stage; onsets for strikers are detected on that chained signal.
+- **Hold**: loop gains and modal radii of the line move to `1 − ε` through PHYSIFY's T60-exact loss compensation with the governor (`CORE:67-79`) at every injection point; Through feed is attenuated −12 dB while held; releasing restores the recipe decay with the 32-sample ramps.
+
+## 15. Physics knobs: one meaning per knob, mapped per body
+Each recipe carries a `physics_map` (22 §13) so the same knob is sensible on every anchor:
+| knob | strings (piano, guitar, uke, fiddle) | drums (bass, snare, timpani) | bores (clarinet, oboe, sax) | modal-only bodies |
+|---|---|---|---|---|
+| Stiffness | dispersion allpass coefficient (BODY:70, :357-358) | mode-ratio stretch `r_k·√(1 + B·k²)` | slight bore dispersion | plate/bar inharmonicity |
+| Coupling | string → body feed; >50: PHYSIFY 3-port bridge reflection ρ ≤ 0.25 (bounded ≤ 0.99) | head ↔ shell feed | bell reflection coefficient | body → body feed in Chain |
+| Air | Helmholtz/air-mode gain and A0/T1 coupling | ideal ↔ air-loaded ratio blend, kettle mode | breath-noise amount | air-mode gain |
+| Reed | pick/hammer hardness (contact low-pass) | head tension: glide depth and (0,1) damping | reed offset/slope, asymmetry | contact low-pass |
+Not offered: editing single modes (that is Modalys, not BODY).

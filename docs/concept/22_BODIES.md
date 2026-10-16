@@ -106,4 +106,20 @@ chosen by us where no open measurement exists; they are the first thing to tune 
 - Validation: acyclic graph (no loop between the three engines); energy at the end stop within ±1 dB of the Sax stop for pink noise.
 
 ## 12. Still open (fine questions)
-Anchor label for the hybrid (`OBOSAXOLELE` is wider than its cell at 11 anchors); timpani compass; whether Fiddle gets a mild bow-friction nonlinearity later; all *(design)* values are first-listen candidates.
+Whether Fiddle gets a mild bow-friction nonlinearity later; all *(design)* values are first-listen candidates. Decided: hybrid label `OBOSAX·`, timpani C2..C4 (00_DECISIONS D14, D15).
+
+## 13. Physics map per anchor (20 §15) and striker defaults (20 §14)
+| anchor | Stiffness | Coupling | Air | Reed | default Excite / striker target |
+|---|---|---|---|---|---|
+| Bass Drum | head mode stretch B 0..0.02 | head ↔ shell feed 0..0.4 | ideal → air-loaded ratios (1.59→1.50 …), pair split | head tension: glide 0..0.5 oct, (0,1) damping | Through; Hammer into the batter head |
+| Snare | head stretch | heads ↔ shell, wires sensitivity | air between heads: pair split 0.92/1.10 ↔ 0.97/1.03 | tension; rattle band width | Through; Hammer |
+| Timpani | ratio stretch | head ↔ kettle mode | kettle load: (0,1) damping, ratio set | tension glide 0..0.3 oct | Through; Hammer (mallet 0.25 radius) |
+| Piano | string dispersion −0.6..−0.95 | string → board feed, >50 bridge ρ ≤ 0.25 | board air (low-mode gain) | hammer hardness (low-pass 4-12 kHz) | Through; Hammer |
+| Guitar | dispersion | string → box, bridge ρ | A0/T1 coupling and gain | pick hardness | Through; Pluck |
+| Ukulele | dispersion | string → box, bridge ρ | A0/T1 | pick hardness | Through; Pluck |
+| Fiddle | dispersion | string → body, bridge ρ (wolf region near B1 when high) | A0 gain | contact low-pass (bow hair) | Through; Pluck |
+| Clarinet | slight dispersion | bell reflection 0.8..0.98 | breath noise 0..0.3 | reed offset/slope | Through; Breath |
+| Oboe | slight dispersion | bell reflection; cluster feed | breath noise | double-reed asymmetry 1..2 | Through; Breath |
+| Sax | slight dispersion | bell reflection | breath noise (BODY `saxBreath`) | reed offset/slope (BODY asymmetry) | Through; Breath |
+| Obosaxolele | Uke row | hybrid coupling gains (BODY 0.95/0.60) | Sax row | Oboe row | Through; Pluck into the uke bridge |
+

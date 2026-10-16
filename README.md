@@ -19,6 +19,7 @@ metadata); `RE_BODY` (ASCII underscore) for code identifiers, targets, folders a
   - `10_PM_BODY_RESEARCH.md` — physically modelled bodies: papers, products, open code, measured data, morphing
   - `11_UI_UX_RESEARCH.md` — premium plugin UI, depth/parallax techniques, interaction, visualisation
 - `docs/concept/` — the agreed target design:
+  - `00_DECISIONS.md` — owner decision log
   - `20_DSP_CONCEPT.md` — recipe-driven modal bank + line engines, damping law, parameters, morph, telemetry
   - `21_UI_CONCEPT.md` — original panel with a layered parallax instrument field, motion model, controls
   - `22_BODIES.md` — every morph anchor: generators, measured modes, line engines, contact, depth, validation

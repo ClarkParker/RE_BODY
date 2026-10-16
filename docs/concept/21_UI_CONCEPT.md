@@ -11,8 +11,8 @@ LALAFY prototype v0.71 (`styles.css:55-137`, `js/08-main.js:95-99`), platform ru
 - Telemetry from the DSP is available: `bodyViz`, `bodyBands`, `bodyOnset`, `bodyEngines`, `bodyModes`, `bodyRegister` (see `20_DSP_CONCEPT.md` §8).
 
 ## 1. Chassis and layout
-Design chassis 720 × 420 (original 620 × 340 proportions, field enlarged to ≥55 % height, R11 §3 W2), scaled with CSS `zoom` per 07_SCALING; manifest `view.resizable: true`, `// WINDOW SIZE: 720x420` on line 2.
-Rows: header 32 px (title `RE·BODY` with the brand `CLΞΛRPΞΛK` small, left-aligned directly beneath it per kit `docs/15_BRANDING.md`; state caption; Bypass; Motion switch) · field (flex) · morph row 44 px (slider + anchors merged, R11 R4/R11) · deck 110 px (4 main dials) · advanced strip 34 px (7 small dials, collapsible).
+Design chassis 720 × 460 (original 620 × 340 proportions, field enlarged to ≥50 % height, R11 §3 W2; +40 px for the line tabs and the physics dials), scaled with CSS `zoom` per 07_SCALING; manifest `view.resizable: true`, `// WINDOW SIZE: 720x460` on line 2.
+Rows: header 36 px (title `RE·BODY` with the brand `CLΞΛRPΞΛK` small, left-aligned directly beneath it per kit `docs/15_BRANDING.md`; **line tabs A · B · C** with activity lamps; state caption; Bypass; Motion switch) · field (flex) · morph row 44 px (slider + anchors merged, Hold button at its end, R11 R4/R11) · deck 110 px (4 main dials + Level/Follow small) · strip 1 34 px (Listen and Excite segmented buttons, Sensitivity) · strip 2 34 px (advanced + physics dials, collapsible).
 Everything is SVG or DOM; no canvas, so zoom stays crisp (R11 §6 Q1).
 
 ## 2. The field: depth model
@@ -78,4 +78,12 @@ Single ES module, default export `createPatchView`, light DOM, one HTMLElement s
 U0 tokens, typography, lamp, grain · U1 field: layer stack, z-table, scale compensation, fog, light · U2 motion sources, smoothing, reduced motion, Motion switch · U3 telemetry binding (bands, onset, modes, engines, register) · U4 morph hero and anchors table · U5 dial v2, main deck, advanced strip · U6 07_SCALING chassis, manifest, probes.
 
 ## 9. Fine questions (later)
-Final chassis size; Motion switch default (Calm?); abbreviations for anchor labels; whether the advanced strip starts collapsed; exact grey levels.
+Whether strip 2 starts collapsed; exact grey levels; tab placement left or right of the title.
+
+## 10. Lines in the UI (20 §12)
+- **Tabs A · B · C** in the header select the *active line*. Each tab has a small lamp driven by `lineState*.listenEnergy` and a dot for Enable. Keyboard: 1/2/3.
+- **One control per parameter, always in the DOM.** The morph row, deck and strips exist three times (one set per line) and only the active set is visible (`hidden` on the others). Every `paramN` keeps exactly one `.control[data-param]`, so the host's `run_ui_probe` audit and preset recall work regardless of the selected tab (P03 §2d).
+- **Field = lines at depth.** The active line owns the full 16-layer stack in the light. The two other lines appear as one flat silhouette each (their own morph shape, no inner layers) at z −600 and −750, dimmer and foggier, breathing with their own `lineState*.wet`; clicking a silhouette activates that line (then the stacks swap with a 250 ms cross-fade of fog and light, geometry stays). A line with Enable Off is drawn as a thin ghost.
+- **Chain** is drawn as a faint curved thread from the source silhouette to the chained body; **Follow** shows the tracked note under the caption; **Hold** lights the morph-row button and freezes the energy breathing of that line's silhouette.
+- **Listen feedback**: the segmented Listen buttons carry hairline meters from `analysisViz` (transient, sustain, low, mid, high), so the user sees what each choice would hear before choosing.
+- Layer count stays 16 + 2 (inactive silhouettes) + 1 (chain thread) ≤ 19 compositing layers.
