@@ -14,6 +14,12 @@ metadata); `RE_BODY` (ASCII underscore) for code identifiers, targets, folders a
   - `02_LALAFY.md` — LALAFY voice synth: DSP, UI, reusable blocks
   - `03_AMORPH_PLATFORM.md` — Amorph host rules, DEV-Kit recipes, submission checklist
   - `04_PHYSIFY.md` — PHYSIFY physical-modelling blocks worth reusing
+- `docs/research/` — web research, bucket method with sources:
+  - `10_PM_BODY_RESEARCH.md` — physically modelled bodies: papers, products, open code, measured data, morphing
+  - `11_UI_UX_RESEARCH.md` — premium plugin UI, depth/parallax techniques, interaction, visualisation
+- `docs/concept/` — the agreed target design:
+  - `20_DSP_CONCEPT.md` — recipe-driven modal bank + line engines, damping law, parameters, morph, telemetry
+  - `21_UI_CONCEPT.md` — original panel with a layered parallax instrument field, motion model, controls
 
 Related repositories (same owner, branch `claude/gallant-mendel-xg901g`):
 `Amorph_DEV_KIt` (rules + recipes), `amorph-for-agents` (upstream host docs), `lalafy-cmajor`, `PHYSIFY`.
