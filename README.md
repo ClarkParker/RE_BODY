@@ -9,8 +9,8 @@ metadata); `RE_BODY` (ASCII underscore) for code identifiers, targets, folders a
 
 ## Layout
 - `reference/body_original/` — the unmodified original BODY (`dsp.cmajor`, `index.js`, `PROVENANCE.md`). Baseline, never edited.
-- `plugin/spec.json` — single source of truth for the 69 parameters, anchors and the 10 telemetry outputs.
-- `docs/review/` — concept review and consistency checks.
+- `plugin/spec.json` — single source of truth for the 73 parameters, anchors and the 10 telemetry outputs.
+- `docs/review/` — `40_CONCEPT_REVIEW.md` (adversarial review), `41`/`43_CONSISTENCY_CHECK*.md` (mechanical checks), `42_REVIEW_TRIAGE.md` (decisions).
 - `docs/index/` — the research index built before concept work:
   - `00_MATERIAL_INDEX.md` — inventory of the LALAFY archive export (versions, duplicates, newest state)
   - `01_BODY_ORIGINAL.md` — architecture of the original plugin
