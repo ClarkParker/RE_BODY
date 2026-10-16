@@ -5,7 +5,7 @@ Companion to `20_DSP_CONCEPT.md` (recipe format §3, damping law §4, parameters
 chosen by us where no open measurement exists; they are the first thing to tune by ear.
 
 ## 0. Common rules
-- **Anchor order (param4 Morph 0..10):** 0 Bass Drum · 1 Snare · 2 Timpani · 3 Piano · 4 Guitar · 5 Ukulele · 6 Fiddle · 7 Clarinet · 8 Oboe · 9 Sax · 10 Obosaxolele. Drums, then strings, then reeds, the hybrid last as in BODY's title. Default Morph = 5 (Ukulele, BODY's default was its Ukulele stop too).
+- **Anchor order (param4 Morph 0..10):** 0 Bass Drum · 1 Snare · 2 Timpani · 3 Piano · 4 Guitar · 5 Ukulele · 6 Fiddle · 7 Clarinet · 8 Oboe · 9 Sax · 10 Obosaxolele. Drums, then strings, then reeds, the hybrid last as in BODY's title. Default Morph = 7 (Clarinet: BODY's init 4.0 in its series (0,1,3,6,2,4,5) is the Clarinet stop, see index.js:313 "Clarinet illustration at rest").
 - **Tune (param1):** drums use BODY's continuous size law (BODY:177-178); timpani and all pitched bodies use the note law C2..C5 (BODY:179-180). Modes flagged `fixed` ignore Tune and follow Size (param7).
 - **Decay (param2):** per-body `seconds = base × ratio^decay` exactly as BODY `anchorSeconds` (BODY:183-192) for the original seven; new bodies get the values below. Modal bodies additionally obey the damping law; `ρ = T60(2 kHz) / T60(200 Hz)` at Material 50 is given per body; Material 0 → ρ/4, Material 100 → min(1, 4ρ).
 - **Contact:** `sustain` is BODY's per-body constant (BODY:23, :194-201), now the default of Touch (param12). Position (param8) defaults are per body.

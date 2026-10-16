@@ -70,7 +70,7 @@ Three identical **lines** A, B, C (§12). `param1..param5` keep BODY's meaning: 
 |---|---|---|---|---|
 | 1 | Tune | 0..100 / 58 | as BODY (drums size law, pitched note law C2..C5); ignored by `fixed` modes | main dial |
 | 2 | Decay | 0..100 / 50 | global αG scale, log seconds per body | main dial |
-| 3 | Morph | 0..10 / 5 | anchor position (22 §0) | hero slider |
+| 3 | Morph | 0..10 / 7 | anchor position (22 §0); 7 = Clarinet = BODY's default stop | hero slider |
 | 4 | Enable | Off/On / A On, B Off, C Off | line runs and sums; Off gates all its engines | tab lamp |
 | 5 | Level | −60..+6 dB / 0 | line wet level before the shared balance stage | small dial |
 | 6 | Listen | All / Transient / Sustain / Low / Mid / High / Chain | which analysed component excites the line (§13); Chain = previous line's body output (A: falls back to All) | segmented buttons |
@@ -90,11 +90,12 @@ Three identical **lines** A, B, C (§12). `param1..param5` keep BODY's meaning: 
 | 20 | Follow | 0..100 / 0 | Tune follows the tracked input pitch (0 = fixed Tune, 100 = full), 40 ms glide (§13) | small dial |
 | 21 | Hold | Off/On / Off | linear freeze of the line's tails: injection muted, loop gains and modal radii → 1 − ε, no governor (§14) | button |
 | 22 | Blend | 0..100 / 0 | in strike modes only: 0 = striker alone, 100 = Through alone, in between both excite the same body (§14) | small dial |
+Display names carry the line letter (`A Tune`, `B Listen` …) so DAW automation lanes stay distinguishable; global names stay `Mix`, `Bypass`, `Width`. The machine-readable source of truth is `plugin/spec.json`.
 69 parameters in total. All event handlers NaN/Inf-guarded and clamped (BODY:120-124); smoothing via BODY's 32-sample target stepping; ids exactly `paramN` (P03 §2a). Enum parameters use `text:` annotations and real buttons in the UI.
 
 ## 6. Morph
 - Anchor order v1 (decided, see 22 §0): Bass Drum, Snare, Timpani, Piano, Guitar, Ukulele, Fiddle, Clarinet, Oboe, Sax, Obosaxolele. The hybrid segment is 9→10.
-- Between two modal-bank bodies: **mode-level melt** — tables sorted by frequency, rank-paired, polar interpolation of log f, log T60 and gain, stepped every 32 samples (R10 B5, PHYSIFY `CORE:148-165`).
+- Between two modal-bank bodies: **mode-level melt** — tables sorted by frequency, rank-paired *within the same class* (Tune-following modes with Tune-following, fixed-Hz with fixed-Hz; unmatched modes fade in/out by gain), polar interpolation of log f, log T60 and gain, stepped every 32 samples (R10 B5, PHYSIFY `CORE:148-165`).
 - Between a line engine and anything: BODY's sqrt-weight energy crossfade with tail holding (BODY:147-172, :203-272).
 - Hybrid segment: BODY's acyclic coupling (uke bridge → oboe cluster → sax bell) retained.
 - Shared register/decay blending across active bodies as BODY:203-272.
@@ -103,6 +104,7 @@ Three identical **lines** A, B, C (§12). `param1..param5` keep BODY's meaning: 
 - Skip a line or modal engine when its weight is 0 and all its states are below the flush threshold (BODY already flushes <1e-12).
 - Loudness: generalise BODY's closed-form modal energy normalisation with cross terms (BODY:282-301) to every modal body, cached at control rate; per-body `out_gain` from the recipe; balance + protector + knee unchanged.
 - Modal feedback never exceeds |r|<1 by construction; DC-block wet per channel (P03 §2c).
+- Nyquist culling: modes and bore/formant targets above 0.45 × fs are skipped or clamped at every sample rate (PHYSIFY `DSP:625-634`, Rings `resonator.cc`); delay buffers sized for 96 kHz.
 
 ## 8. Telemetry (output events, ~30 Hz, host-rate meters, zero cost when idle)
 | endpoint | type | content | UI use |
@@ -117,6 +119,7 @@ Three identical **lines** A, B, C (§12). `param1..param5` keep BODY's meaning: 
 ## 9. Validation plan (ported from PHYSIFY tooling, R10 §4 rec. 8)
 - `cmaj test`: tables finite and sorted, every |r|<1, row sums, recipe → coefficient round trip.
 - Render tests (`cmaj render`, init-patching trick from `tools/golden_ci.py`): impulse and zero-mean noise per anchor at default and extreme Decay/Material → peak positions vs table, band T60, A0 peak for boxes, |DC|<0.01, finite decay, tri-rate 44.1/48/96 kHz.
+- Loudness gate per anchor: pink noise at default settings, Mix 100 → wet within ±3 dB of dry (BS.1770 short-term, PHYSIFY `analyze.py`); no gain jumps > 2 dB across a full Morph sweep.
 - Amorph `run_qa_probe` conditions (P03 §2c), then listening.
 - CPU: bench at the end, JIT, 48 and 96 kHz, all bodies with tails active.
 
@@ -139,7 +142,7 @@ Cost: three banks ≈ 3 × (≈1 % core) at 48 kHz by PHYSIFY's bench; disabled 
 
 ## 13. Analysis stage (host rate, shared by the lines)
 - **Transient / sustain split**: two envelope followers on the conditioned input (fast 1 ms / 20 ms, slow 20 ms / 150 ms); transient gain `g = clamp((fast − k·slow) / (fast + ε))` smoothed; `transient = x·g`, `sustain = x − transient`. Sum is exactly the input (complementary) *(design, classic transient-designer split)*.
-- **Band split**: Linkwitz-Riley 2nd-order pairs at 200 Hz and 2 kHz → Low / Mid / High, allpass-complementary so the sum equals the input (R10 B1 stability rules do not apply: feed-forward).
+- **Band split**: Linkwitz-Riley 2nd-order pairs at 200 Hz and 2 kHz → Low / Mid / High; LR2 sums flat only with the high-pass inverted, LR4 sums flat in phase: use LR4 (two cascaded Butterworth biquads per side) so Low + Mid + High equals the input in magnitude (allpass sum). Feed-forward, no stability concern.
 - **Onset**: BODY's novelty detector (BODY:591-594) shared; each line scales it with Touch and gates its strikers (§14) with hysteresis and a 30 ms refractory time.
 - **Pitch** (for Follow): decimated-by-4 copy (12 kHz), YIN-style difference function over lags for 40 Hz-1.2 kHz, window 512, hop 128, confidence gate, median of 3, output in semitones; glide 40 ms; runs only while any line has Follow > 0 *(design; cost ≈ 1-2 k flops/sample while active, measured in P7)*.
 - `analysisViz` reports the five energies and the pitch confidence.
@@ -150,7 +153,7 @@ Cost: three banks ≈ 3 × (≈1 % core) at 48 kHz by PHYSIFY's bench; disabled 
 - **Pluck**: onset triggers a one-period displacement burst at the line's pitch with the position comb (BODY uke contact), for non-string bodies a position-filtered impulse.
 - **Breath**: onset triggers a noise burst (20-80 ms envelope) through the reed shaping into bores, through the contact low-pass into modal bodies; while the listened component stays above threshold the burst sustains (breath follows the pad).
 - Strikers live in `namespace strikers`, shared by the lines; velocity and position come from the line parameters.
-- **Chain**: Listen = Chain feeds the previous line's body output (post-calibration, pre-Level) × Sensitivity into this line's contact stage; onsets for strikers are detected on that chained signal.
+- **Chain**: Listen = Chain feeds the previous line's body output (post-calibration, pre-Level) × Sensitivity into this line's contact stage; onsets for strikers are detected on that chained signal. If the source line is disabled or held, the chained signal is its (muted or frozen) output, nothing else.
 - **Hold** (linear freeze): all injection into the line is muted, loop gains and modal radii move to `1 − ε` (T60 ≈ 60 s) via PHYSIFY's T60-exact loss maths (`CORE:79`), no governor and no nonlinearity in the path; the stored state rings on unchanged. Releasing restores the recipe decay and the injection with the 32-sample ramps (click-free). Rule: Hold off = the identical code path as without Hold. Playing *into* a held body is done with a second line in Chain mode fed by the held line.
 - **Blend**: in strike modes the striker and the Through contact can excite the same body; Blend crossfades them (equal-power). At 0 the audio is not injected at all (pure striker).
 

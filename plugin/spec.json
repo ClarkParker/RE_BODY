@@ -195,7 +195,7 @@
    "min": 0,
    "max": 10,
    "step": 0.001,
-   "init": 5,
+   "init": 7,
    "unit": "",
    "text": "",
    "ui": "slider",
@@ -510,7 +510,7 @@
    "min": 0,
    "max": 10,
    "step": 0.001,
-   "init": 5,
+   "init": 7,
    "unit": "",
    "text": "",
    "ui": "slider"
@@ -796,7 +796,7 @@
    "min": 0,
    "max": 10,
    "step": 0.001,
-   "init": 5,
+   "init": 7,
    "unit": "",
    "text": "",
    "ui": "slider"

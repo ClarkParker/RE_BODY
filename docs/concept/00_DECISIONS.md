@@ -17,7 +17,7 @@
 | D13 | 2026-10-16 | Repository, docs and plugin in English; chat in German. Concept freeze before any code. |
 | D14 | 2026-10-16 | Hybrid anchor label `OBOSAX·` in the morph row, full name in the caption. |
 | D15 | 2026-10-16 | Timpani compass C2..C4. |
-| D16 | 2026-10-16 | Design chassis 720 × 420 (may grow for the line tabs, see 21 §1). |
+| D16 | 2026-10-16 | Design chassis 720 × 460 (720 × 420 grown by 40 px for line tabs and physics dials, 21 §1). |
 | D17 | 2026-10-16 | Motion switch default **Calm**. |
 | D18 | 2026-10-16 | Stretch stays as a parameter. |
 | D19 | 2026-10-16 | Concept extended by multi-line architecture (Lines A/B/C, Listen, Excite, Follow, Chain, Hold, physics knobs); details in 20 §12-§15, 21 §10, 22 §13. Owner's framing: ideas, not obligations; to be discussed after the extension. |
@@ -25,3 +25,5 @@
 | D21 | 2026-10-16 | Strike modes stay pure; a per-line **Blend** dial mixes striker and Through into the same body (69 parameters). Different bodies or sources for strike and sustain = second line. |
 | D22 | 2026-10-16 | Breath striker sustains while the listened component stays above threshold. |
 | D23 | 2026-10-16 | **Hold = linear freeze**: injection muted, radii → 1 − ε, no governor; Hold off is the identical code path as without Hold. Playing into a held body = second line in Chain mode. |
+| D24 | 2026-10-16 | Original GUI is preserved and only extended: preservation contract 21 §11 (stylesheet and large layout of the original as base, behaviour and silhouettes reused, Classic toggle). |
+| D25 | 2026-10-16 | Default Morph = Clarinet (anchor 7), as in BODY. |
