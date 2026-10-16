@@ -10,6 +10,8 @@ Status: concept, no code yet. Sources: `docs/index/01_BODY_ORIGINAL.md`, `docs/i
 - Telemetry: as many output events as the UI needs.
 - CPU: no ceiling during design; measured at the end (cmaj JIT bench as in PHYSIFY `m0/BENCH.md`).
 - Credit "based on BODY by Artists in DSP" in manifest description and README.
+- Branding: manifest `manufacturer = "CLΞΛRPΞΛK"`, brand line in the UI header (DEV-Kit `docs/15_BRANDING.md`, 9ce8d6d). Rules and recipes from the newest kit branch `claude/vibrant-faraday-cmymob`.
+- All bodies are specified individually in `22_BODIES.md`.
 
 ## 1. How the professionals do it: tables *and* formulas
 The research (R10 §1-§2) shows three layers used together by every serious product and paper:
@@ -59,7 +61,7 @@ Per mode: `T60 = ln(1000) / (αG + αR·ω)` with per-body (αG, αR) presets, s
 | param1 | Tune | 0..100 / 58 | as BODY (drums continuous, pitched bodies note-quantised C2..C5) | main dial |
 | param2 | Decay | 0..100 / 50 | global αG scale, log seconds as BODY | main dial |
 | param3 | Mix | 0..100 / 45 | dry/wet | main dial |
-| param4 | Morph | 0..N / 4 | body position; anchors table shared with UI | hero slider |
+| param4 | Morph | 0..10 / 5 | body position over 11 anchors (22 §0); anchors table shared with UI | hero slider |
 | param5 | Bypass | 0/1 | as BODY | switch |
 | param6 | Material | 0..100 / 50 | damping-vs-frequency law (§4) | main dial |
 | param7 | Size | −100..100 / 0 | log shift of fixed-Hz body resonances ±1 octave (Sculpture Formant Shift) | advanced |
@@ -72,7 +74,7 @@ Per mode: `T60 = ln(1000) / (αG + αR·ω)` with per-body (αG, αR) presets, s
 All event handlers NaN/Inf-guarded and clamped (BODY:120-124); smoothing via BODY's 32-sample target stepping; ids exactly `paramN` (P03 §2a).
 
 ## 6. Morph
-- Anchor order v1: Bass Drum, Snare, Piano, Ukulele, Clarinet, Oboe, Sax, **new bodies inserted here**, Obosaxolele last (hybrid "ends" the line as in BODY's title). Candidate new bodies: Guitar (measured signature modes + A0/T1 pair), Fiddle (violin corpus means), Timpani/Tom (air-loaded coupled heads). Final list and order = fine question.
+- Anchor order v1 (decided, see 22 §0): Bass Drum, Snare, Timpani, Piano, Guitar, Ukulele, Fiddle, Clarinet, Oboe, Sax, Obosaxolele. The hybrid segment is 9→10.
 - Between two modal-bank bodies: **mode-level melt** — tables sorted by frequency, rank-paired, polar interpolation of log f, log T60 and gain, stepped every 32 samples (R10 B5, PHYSIFY `CORE:148-165`).
 - Between a line engine and anything: BODY's sqrt-weight energy crossfade with tail holding (BODY:147-172, :203-272).
 - Hybrid segment: BODY's acyclic coupling (uke bridge → oboe cluster → sax bell) retained.
@@ -103,4 +105,4 @@ All event handlers NaN/Inf-guarded and clamped (BODY:120-124); smoothing via BOD
 M0 recipe format + `bodytab.py` + table emission validated in `cmaj` · M1 unified modal bank replacing BODY's modal parts with recipes that reproduce the original voicings · M2 damping law + Material/Size/Position/Bright/Body/Width/Touch/Stretch · M3 cones and lattice cutoffs, dense soundboard, box air modes · M4 new bodies · M5 telemetry · M6 tests, QA probe, CPU bench.
 
 ## 11. Fine questions (later)
-New body list and anchor order; Oboe as cone or cluster; per-body Touch defaults; whether Stretch stays; Decay range in seconds per body.
+Per-body *(design)* values in 22; whether Stretch stays; hybrid anchor label.

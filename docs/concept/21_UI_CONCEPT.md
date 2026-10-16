@@ -12,7 +12,7 @@ LALAFY prototype v0.71 (`styles.css:55-137`, `js/08-main.js:95-99`), platform ru
 
 ## 1. Chassis and layout
 Design chassis 720 × 420 (original 620 × 340 proportions, field enlarged to ≥55 % height, R11 §3 W2), scaled with CSS `zoom` per 07_SCALING; manifest `view.resizable: true`, `// WINDOW SIZE: 720x420` on line 2.
-Rows: header 28 px (title `RE·BODY`, state caption, Bypass, Motion switch) · field (flex) · morph row 44 px (slider + anchors merged, R11 R4/R11) · deck 110 px (4 main dials) · advanced strip 34 px (7 small dials, collapsible).
+Rows: header 32 px (title `RE·BODY` with the brand `CLΞΛRPΞΛK` small, left-aligned directly beneath it per kit `docs/15_BRANDING.md`; state caption; Bypass; Motion switch) · field (flex) · morph row 44 px (slider + anchors merged, R11 R4/R11) · deck 110 px (4 main dials) · advanced strip 34 px (7 small dials, collapsible).
 Everything is SVG or DOM; no canvas, so zoom stays crisp (R11 §6 Q1).
 
 ## 2. The field: depth model
@@ -58,7 +58,7 @@ tilt smoothing: v += (target − v)·(1 − exp(−dt/0.12))  (same form as UI:3
 - `bodyEngines` feeds the morph slider's weight bars (§5).
 
 ## 5. Controls: the original, extended
-- **Morph row as hero** (R11 R4): 3 px engraved groove, detents that grow when the thumb approaches, 14 px lit thumb, ≥28 px hit height, hairline weight bars from `bodyEngines`, anchors ≥10 px with abbreviations where the name is wider than its cell; anchor list and order come from the shared anchors table (`20_DSP_CONCEPT.md` §6).
+- **Morph row as hero** (R11 R4): 3 px engraved groove, detents that grow when the thumb approaches, 14 px lit thumb, ≥28 px hit height, hairline weight bars from `bodyEngines`, anchors ≥10 px with abbreviations where the name is wider than its cell; anchor list and order come from the shared anchors table (11 anchors, `22_BODIES.md` §0), generated into `plugin/bodies.json`.
 - **Deck**: four main dials Tune, Decay, Material, Mix as dial v2 (R11 R3: 64-72 px, 3 px arc, static specular crescent, pressed/hover states, default tick, typed entry as in UI:360-426).
 - **Advanced strip**: Size, Position, Bright, Body, Width, Touch, Stretch as 40 px dials, collapsible via a "MORE" button; collapsed state stored UI-only.
 - Bypass switch and state lamp (R11 R7): `--lamp` 1 active, 0.7 no input, 0.25 bypass, text state in the caption, never colour alone.

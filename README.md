@@ -1,7 +1,8 @@
 # RE·BODY
 
 Working repository for **RE·BODY** (technical identifier `RE_BODY`), a new version of the
-Amorph plugin *BODY* that integrates parts of the owner's LALAFY / PHYSIFY work.
+Amorph plugin *BODY* by Artists in DSP, rebuilt on physically modelled bodies (PHYSIFY lineage)
+with a layered parallax UI (LALAFY lineage). Manufacturer: `CLΞΛRPΞΛK`.
 
 Naming rule: `RE·BODY` (U+00B7 middle dot) for every user-facing string (GUI header, DAW
 metadata); `RE_BODY` (ASCII underscore) for code identifiers, targets, folders and binaries.
@@ -20,6 +21,8 @@ metadata); `RE_BODY` (ASCII underscore) for code identifiers, targets, folders a
 - `docs/concept/` — the agreed target design:
   - `20_DSP_CONCEPT.md` — recipe-driven modal bank + line engines, damping law, parameters, morph, telemetry
   - `21_UI_CONCEPT.md` — original panel with a layered parallax instrument field, motion model, controls
+  - `22_BODIES.md` — every morph anchor: generators, measured modes, line engines, contact, depth, validation
+- `docs/plan/30_DEV_PLAN.md` — phases, gates, branches, branding, risks, definition of done
 
 Related repositories (same owner, branch `claude/gallant-mendel-xg901g`):
 `Amorph_DEV_KIt` (rules + recipes), `amorph-for-agents` (upstream host docs), `lalafy-cmajor`, `PHYSIFY`.
