@@ -1,0 +1,153 @@
+// RE-BODY modal bodies (concept sections 2, 3, 4, 16). Per line, the body is
+//  (a) one shared log pole GRID (96 poles, 60 Hz .. 8 kHz) that carries the dense fixed-Hz
+//      response (soundboard, box hump, bridge hill, bell and brass radiation); each body owns a
+//      signed L/R gain vector over the grid, Size shifts the grid, Material/Decay set the T60 law;
+//  (b) per-body SLOTS: up to 8 fixed-Hz feature modes and 10 Tune-following modes per body,
+//      for 11 bodies, with BODY-style tail holding (a body at weight 0 keeps its last voicing).
+// Every mode is a complex one-pole (phasor, coupled form) as BODY:604-613: click-free under
+// modulation by construction. Coefficients are stepped from a target at the 32-sample control
+// tick (BODY:579), so the per-sample cost is the coupled-form update only.
+//
+// P1 provides the final-size state and the pure step helpers; the table-driven control logic
+// (blended T60, normalisation, Size shift, staggered recompute) is P2.
+
+namespace rebody::modal
+{
+    // Slot mode layout inside the flat slot arrays (index = slot mode number):
+    //   feature mode k of body b   -> b * 8 + k                      (0 .. 87)
+    //   following mode k of body b -> 88 + b * 10 + k                (88 .. 197)
+    int featureIndex (int body, int k)
+    {
+        return clamp (body, 0, numBodies - 1) * featureStride + clamp (k, 0, featureStride - 1);
+    }
+
+    int followIndex (int body, int k)
+    {
+        return numBodies * featureStride + clamp (body, 0, numBodies - 1) * followStride + clamp (k, 0, followStride - 1);
+    }
+
+    // The 96 shared poles of one line. re/im hold the L/R phasor state; the pole (cos/sin form)
+    // and the per-channel drive ramp from the current value to the target over one control tick.
+    struct GridState
+    {
+        float<2>[96] re;
+        float<2>[96] im;
+        float[96] poleRe;
+        float[96] poleIm;
+        float[96] targetPoleRe;
+        float[96] targetPoleIm;
+        float[96] stepPoleRe;
+        float[96] stepPoleIm;
+        float<2>[96] drive;             // signed L/R input gain of each pole (blended body gains)
+        float<2>[96] targetDrive;
+        float<2>[96] stepDrive;
+    }
+
+    // The 198 slot modes of one line (11 bodies x (8 feature + 10 following)). Same layout as the
+    // grid; weight-0 bodies keep their coefficients and ring out (tail holding, BODY:226-266).
+    struct SlotState
+    {
+        float<2>[198] re;
+        float<2>[198] im;
+        float[198] poleRe;
+        float[198] poleIm;
+        float[198] targetPoleRe;
+        float[198] targetPoleIm;
+        float[198] stepPoleRe;
+        float[198] stepPoleIm;
+        float<2>[198] drive;
+        float<2>[198] targetDrive;
+        float<2>[198] stepDrive;
+        float[198] energy;              // control-rate energy estimate per mode (gating, lineModes telemetry)
+    }
+
+    // T60 in seconds of a mode at `hz` under the damping law alpha(w) = alphaG + alphaR * w
+    // (concept 4): T60 = ln(1000) / (alphaG + alphaR * 2 pi f). Never returns less than 1 ms.
+    float t60FromDamping (float hz, float alphaG, float alphaR)
+    {
+        float alpha = max (alphaG, 0.0f) + max (alphaR, 0.0f) * float (twoPi) * max (hz, 0.0f);
+        return max (0.001f, 6.907755f / max (alpha, 0.000001f));
+    }
+
+    // Pole radius for a given T60: the amplitude falls by 60 dB in t60 seconds (BODY: exp(-ln(1000)/(sr*t))).
+    float poleRadius (float t60Seconds, float sr)
+    {
+        return float (exp (-6.907755f / (max (t60Seconds, 0.001f) * max (sr, 1000.0f))));
+    }
+
+    // Cos/sin form of a pole at `hz` with the given radius. Frequencies are limited to 0.45 * sr
+    // (Nyquist culling, concept 7); the radius stays below 1 by construction.
+    float poleReal (float hz, float radius, float sr)
+    {
+        float angle = float (twoPi) * clamp (hz, 0.0f, 0.45f * max (sr, 1000.0f)) / max (sr, 1000.0f);
+        return min (radius, 0.999999f) * float (cos (angle));
+    }
+
+    float poleImag (float hz, float radius, float sr)
+    {
+        float angle = float (twoPi) * clamp (hz, 0.0f, 0.45f * max (sr, 1000.0f)) / max (sr, 1000.0f);
+        return min (radius, 0.999999f) * float (sin (angle));
+    }
+
+    // Input scaling that keeps a mode's response level independent of its radius (BODY ukeBodyDrive).
+    float driveNormalisation (float radius)
+    {
+        return 2.0f * (1.0f - min (radius, 0.999999f));
+    }
+
+    // Per-sample step that moves `current` onto `target` within `ticks` samples (control tick).
+    float rampStep (float current, float target, int ticks)
+    {
+        return (target - current) / float (max (ticks, 1));
+    }
+
+    // One coupled-form update of a stereo mode (BODY:604-613):
+    //   re' = poleRe * re - poleIm * im + drive * excitation
+    //   im' = poleIm * re + poleRe * im
+    // The modal output is re. |pole| < 1 keeps it stable.
+    void stepMode (float poleRe, float poleIm, float<2> drive, float<2> excitation, float<2>& re, float<2>& im)
+    {
+        float<2> oldRe = re;
+        float<2> oldIm = im;
+        re = poleRe * oldRe - poleIm * oldIm + drive * excitation;
+        im = poleIm * oldRe + poleRe * oldIm;
+    }
+
+    // Zero a mode whose state has decayed below `floorLevel` (flush at control rate, not per
+    // sample; BODY's 1e-12 is -240 dB, concept 7 gates at -120 dB relative).
+    void flushMode (float<2>& re, float<2>& im, float floorLevel)
+    {
+        for (int ch = 0; ch < 2; ch += 1)
+        {
+            if (abs (re.at (ch)) + abs (im.at (ch)) < floorLevel)
+            {
+                re.at (ch) = 0.0f;
+                im.at (ch) = 0.0f;
+            }
+        }
+    }
+
+    void resetGrid (GridState& g)
+    {
+        for (int i = 0; i < gridPoles; i += 1)
+        {
+            g.re.at (i) = float<2> (0.0f);
+            g.im.at (i) = float<2> (0.0f);
+            g.drive.at (i) = float<2> (0.0f);
+            g.targetDrive.at (i) = float<2> (0.0f);
+            g.stepDrive.at (i) = float<2> (0.0f);
+        }
+    }
+
+    void resetSlots (SlotState& s)
+    {
+        for (int i = 0; i < slotModes; i += 1)
+        {
+            s.re.at (i) = float<2> (0.0f);
+            s.im.at (i) = float<2> (0.0f);
+            s.drive.at (i) = float<2> (0.0f);
+            s.targetDrive.at (i) = float<2> (0.0f);
+            s.stepDrive.at (i) = float<2> (0.0f);
+        }
+    }
+}

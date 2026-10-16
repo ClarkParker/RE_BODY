@@ -1,0 +1,259 @@
+// RE-BODY line state (concept sections 2, 12, 16). A LINE is one complete BODY-style chain:
+// listened signal, its own onset detector (T9), strikers, per-body feeds with sqrt-weight
+// crossfade, the four line engines, grid and slots, the loudness stage and tail holding. Three
+// identical lines run in parallel as `Line[3]` inside the single processor (P1 checks that the
+// compiler accepts that struct array, Cmajor #94; fallback = three members, see 90_main).
+//
+// Memory per line (floats): bore 8192 + sax 8192 + shared string 8192 + pick comb 4096 + piano
+// pair 32768 = 61 440 in delay lines, plus about 6 k of modal and control state. Three lines are
+// about 184 k floats, above the 131 072-float stall guideline of core-dsp, hence the T4 measurement
+// recorded in docs/dev/01_TABLE_EMISSION.md.
+//
+// Struct fields are declarations only (no initialisers); initLine() sets the non-zero defaults.
+// P1 fills the state with stubs: the engines only advance their write heads, the line output is
+// silence. The field names follow BODY's state (BODY:40-118) so P2 can port engine by engine.
+
+namespace rebody::line
+{
+    // Clarinet: closed cylinder, negative reflection each half period = odd modes (BODY:54-61).
+    struct BoreEngine
+    {
+        float<2>[4096] buffer;
+        int write;
+        float delay, delayTarget, delayStep;       // loop delay in samples (pitch)
+        float gain, gainTarget, gainStep;          // loop gain (decay)
+        float drive, driveTarget, driveStep;       // reed drive
+        float<2> lowpass;                          // in-loop low-pass state (1.75 kHz default, T6)
+        float<2> radiation;                        // radiation filter outside the loop (1.4 kHz, T6)
+        float<2> reedLowpass, reedEnvelope, reedPeak;
+    }
+
+    // Sax: positive full-period bore with continuous asymmetric reed (BODY:86-96).
+    struct SaxEngine
+    {
+        float<2>[4096] buffer;
+        int write;
+        float delay, delayTarget, delayStep;
+        float gain, gainTarget, gainStep;
+        float drive, driveTarget, driveStep;
+        float<2> lowpass;                          // in-loop low-pass state (6.6 kHz default, T6)
+        float<2> radiation;                        // radiation filter outside the loop (1.0 kHz, T6)
+        float<2> reedPrevious, reedDC;
+        float<2> breathEnvelope, breathLow, breathHigh, formantLow, formantHigh;
+        int[2] noiseState;
+    }
+
+    // One shared string for Guitar, Ukulele and Fiddle: same physical object retuned by the shared
+    // register (BODY:74-83), with the pick/position comb (BODY:376, :689-690).
+    struct StringEngine
+    {
+        float<2>[4096] buffer;
+        int write;
+        float delay, delayTarget, delayStep;
+        float gain, gainTarget, gainStep;
+        float drive, driveTarget, driveStep;
+        float<2> lowpass, contact, previous;
+        float<2> dispersionState;
+        float<2>[2048] pickBuffer;
+        int pickWrite;
+        float pickDelay, pickDelayTarget, pickDelayStep;
+    }
+
+    // Piano: two detuned, dispersive strings, positive reflection supports all harmonics (BODY:63-71).
+    struct PianoEngine
+    {
+        float<2>[8192] string0;
+        float<2>[8192] string1;
+        int write;
+        float[2] delay, delayTarget, delayStep;
+        float[2] gain, gainTarget, gainStep;
+        float[2] drive, driveTarget, driveStep;
+        float<2>[2] lowpass, dispersionState;
+        float<2> hammerLowpass, hammerPrevious;
+    }
+
+    struct Line
+    {
+        // Modal body: shared grid plus per-body slots (T1).
+        rebody::modal::GridState grid;
+        rebody::modal::SlotState slots;
+
+        // Line engines.
+        BoreEngine clarinet;
+        SaxEngine sax;
+        StringEngine stringEngine;
+        PianoEngine piano;
+
+        // Onset detector (T9) and strikers (N11).
+        rebody::analysis::OnsetState onset;
+        rebody::strikers::StrikerState striker;
+
+        // Smoothed block parameters in physical units, in slot order (rebody::params::slot*).
+        float[23] control;
+        bool enabled;
+
+        // Morph: per-anchor weights, sqrt-weight feeds (BODY:147-172), anchor order 0..10.
+        float[11] weight;
+        float[11] feed;
+        int dominant;                              // anchor with the largest weight
+        float pitchedWeight;                       // summed weight of the pitched bodies (all but Bass Drum, Snare)
+
+        // Register, decay and contact state shared by the active bodies; withdrawn bodies keep
+        // their last values while their tails drain (BODY:226-266).
+        float[11] logRoot, logSeconds, sustain, sizeNow;
+        float rootHz, t60, sustainEff;
+
+        // Follow, Hold and the listened signal.
+        float followHz, holdState, listenEnergy;
+        float<2> listened;
+
+        // Loudness stage: pitched balance AGC with the line's own pitchedWeight (BODY:844-855).
+        float balanceInputPower, balanceOutputPower, balanceGain, balanceTarget;
+
+        // Line output: after the loudness stage and before Level (Chain source), then after Level and Pan.
+        float<2> bodyOut;
+        float<2> wet;
+
+        // Telemetry accumulators, peak-held between 30 Hz frames and reset by takeState().
+        float wetPeakL, wetPeakR, onsetHold;
+        float[16] modeEnergy;
+    }
+
+    // State that belongs to the sum of the lines (not to one line): the global Low Cut, the final DC
+    // block of the wet sum and the shared protector + knee referenced to the input peak (BODY:857-889).
+    struct Protector
+    {
+        float protect;
+        int protectHold;
+        float protectGain;
+        float inputPeakReference;
+        int referenceQuietSamples;
+        float<2> lowCutIn1, lowCutIn2, lowCutOut1, lowCutOut2;   // Low Cut, 12 dB/oct biquad
+        float<2> dcPrevious, dcState;                              // DC block of the wet sum
+    }
+
+    void initProtector (Protector& p)
+    {
+        p.protect = 0.0f;
+        p.protectHold = 0;
+        p.protectGain = 1.0f;
+        p.inputPeakReference = 0.0f;
+        p.referenceQuietSamples = 0;
+    }
+
+    // Non-zero defaults; everything else starts at zero. `seed` differs per line so Breath noise
+    // is decorrelated between lines.
+    void initLine (Line& l, int seed)
+    {
+        rebody::modal::resetGrid (l.grid);
+        rebody::modal::resetSlots (l.slots);
+        rebody::analysis::onsetReset (l.onset);
+        rebody::strikers::reset (l.striker);
+        l.striker.noiseState = 17431 + 7919 * seed;
+        l.sax.noiseState.at (0) = 281391 + 7919 * seed;
+        l.sax.noiseState.at (1) = 891137 + 7919 * seed;
+        l.balanceGain = 1.0f;
+        l.balanceTarget = 1.0f;
+        l.weight.at (0) = 1.0f;
+        l.feed.at (0) = 1.0f;
+        l.dominant = 0;
+    }
+
+    // Anchor weights from the Morph position 0..10: linear between the two neighbouring anchors,
+    // sqrt-weight feeds as BODY (BODY:126-172). P1 placeholder: the hybrid segment 9 -> 10 is a plain
+    // interpolation here; P4 replaces it with the re-coupled Obosaxolele and tail holding.
+    void updateMorphWeights (Line& l)
+    {
+        float morph = clamp (l.control.at (rebody::params::slotMorph), 0.0f, float (rebody::numBodies - 1));
+        int left = min (rebody::numBodies - 2, int (floor (morph)));
+        float fraction = morph - float (left);
+
+        for (int body = 0; body < rebody::numBodies; body += 1)
+        {
+            l.weight.at (body) = 0.0f;
+            l.feed.at (body) = 0.0f;
+        }
+
+        l.weight.at (left) = 1.0f - fraction;
+        l.weight.at (left + 1) = fraction;
+        l.feed.at (left) = float (sqrt (1.0f - fraction));
+        l.feed.at (left + 1) = float (sqrt (fraction));
+        l.dominant = fraction < 0.5f ? left : left + 1;
+
+        float pitched = 0.0f;
+        for (int body = 2; body < rebody::numBodies; body += 1)
+            pitched += l.weight.at (body);
+        l.pitchedWeight = pitched;
+    }
+
+    // P1 stub of one line sample: advance the engine write heads with the listened signal (so the
+    // full-size state is live) and produce no sound. Returns the line's wet contribution (silence).
+    float<2> stubProcess (Line& l, float<2> listenedSignal)
+    {
+        l.listened = listenedSignal;
+
+        l.clarinet.buffer.at (l.clarinet.write) = listenedSignal;
+        l.clarinet.write = (l.clarinet.write + 1) % rebody::boreBufferSize;
+
+        l.sax.buffer.at (l.sax.write) = listenedSignal;
+        l.sax.write = (l.sax.write + 1) % rebody::saxBufferSize;
+
+        l.stringEngine.buffer.at (l.stringEngine.write) = listenedSignal;
+        l.stringEngine.write = (l.stringEngine.write + 1) % rebody::stringBufferSize;
+        l.stringEngine.pickBuffer.at (l.stringEngine.pickWrite) = listenedSignal;
+        l.stringEngine.pickWrite = (l.stringEngine.pickWrite + 1) % rebody::pickBufferSize;
+
+        l.piano.string0.at (l.piano.write) = listenedSignal;
+        l.piano.string1.at (l.piano.write) = listenedSignal;
+        l.piano.write = (l.piano.write + 1) % rebody::pianoBufferSize;
+
+        l.bodyOut = float<2> (0.0f);
+        l.wet = float<2> (0.0f);
+        return l.wet;
+    }
+
+    // Peak-hold the telemetry accumulators (cheap, every sample).
+    void accumulate (Line& l)
+    {
+        l.wetPeakL = max (l.wetPeakL, abs (l.wet[0]));
+        l.wetPeakR = max (l.wetPeakR, abs (l.wet[1]));
+        l.onsetHold = max (l.onsetHold, l.onset.onset);
+    }
+
+    // The lineStateA/B/C frame (spec.json outputs): wet, onset, listenEnergy, followHz, hold, rootHz,
+    // t60, sustainEff, dominantBody, engine0..engine10 (anchor weights), 4 spare. Reads the
+    // peak-hold accumulators and resets them.
+    float<24> takeState (Line& l)
+    {
+        float<24> v = float<24> (0.0f);
+        v[0] = max (l.wetPeakL, l.wetPeakR);
+        v[1] = l.onsetHold;
+        v[2] = l.listenEnergy;
+        v[3] = l.followHz;
+        v[4] = l.holdState;
+        v[5] = l.rootHz;
+        v[6] = l.t60;
+        v[7] = l.sustainEff;
+        v[8] = float (l.dominant);
+
+        for (int body = 0; body < rebody::numBodies; body += 1)
+            v.at (9 + body) = l.weight.at (body);
+
+        l.wetPeakL = 0.0f;
+        l.wetPeakR = 0.0f;
+        l.onsetHold = 0.0f;
+        return v;
+    }
+
+    // The lineModesA/B/C frame: energy of the first 16 slot modes of the dominant body in fixed
+    // recipe index order. P1 reports the (zero) accumulator.
+    float<16> modesState (Line& l)
+    {
+        float<16> v = float<16> (0.0f);
+
+        for (int k = 0; k < 16; k += 1)
+            v.at (k) = l.modeEnergy.at (k);
+
+        return v;
+    }
+}

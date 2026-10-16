@@ -1,0 +1,391 @@
+// RE-BODY main processor (Amorph FX: audio in, bodies, audio out, no MIDI).
+//
+// P1 skeleton: all 73 parameters and 10 telemetry endpoints exist with their final ids and
+// ranges, the three lines carry their final-size state, and the signal path conditions the input
+// as BODY does (NaN guard, DC block, clamp, bypass fade). The wet path is silent for now, so the
+// output is dry * (1 - mix); the DSP of the bodies arrives from P2 on.
+//
+// Signal path per sample (concept 20 section 2):
+//   in -> NaN guard, DC block, clamp, bypass fade                         (BODY:587-590)
+//      -> per enabled line: onset detector, stubs                          (P2+: engines, grid, slots)
+//      -> sum of lines                                                     (P2+: Low Cut, protector, knee)
+//      -> Mix, linear as BODY on purpose                                   (BODY:890)
+//   meters and telemetry every max(1, int(sr / 30)) samples               (BODY:893)
+//
+// Cmajor #94 check: the three lines are `Line[3] lines`. If a compiler version rejects a struct
+// array that contains arrays, replace it by three members lineA, lineB, lineC and call the same
+// functions on each; nothing else depends on the array.
+
+processor RE_BODY [[ main ]]
+{
+    // BEGIN ENDPOINTS (generated from plugin/spec.json)
+    input stream float<2> in;
+    output stream float<2> out;
+    input event float param1 [[ name: "A Tune", min: 0.0, max: 100.0, init: 58.0, step: 0.1, unit: "%" ]];
+    input event float param2 [[ name: "A Decay", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param3 [[ name: "Mix", min: 0.0, max: 100.0, init: 45.0, step: 0.1, unit: "%" ]];
+    input event float param4 [[ name: "A Morph", min: 0.0, max: 10.0, init: 7.0, step: 0.001 ]];
+    input event float param5 [[ name: "Bypass", min: 0.0, max: 1.0, init: 0.0, step: 1.0, text: "Off|On" ]];
+    input event float param6 [[ name: "Width", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param7 [[ name: "Low Cut", min: 20.0, max: 500.0, init: 20.0, step: 1.0, unit: "Hz" ]];
+    input event float param8 [[ name: "A Enable", min: 0.0, max: 1.0, init: 1.0, step: 1.0, text: "Off|On" ]];
+    input event float param9 [[ name: "A Level", min: -60.0, max: 6.0, init: 0.0, step: 0.1, unit: "dB" ]];
+    input event float param10 [[ name: "A Listen", min: 0.0, max: 6.0, init: 0.0, step: 1.0, text: "All|Transient|Sustain|Low|Mid|High|Chain" ]];
+    input event float param11 [[ name: "A Sensitivity", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param12 [[ name: "A Excite", min: 0.0, max: 3.0, init: 0.0, step: 1.0, text: "Through|Hammer|Pluck|Breath" ]];
+    input event float param13 [[ name: "A Touch", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param14 [[ name: "A Material", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param15 [[ name: "A Size", min: -100.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    input event float param16 [[ name: "A Position", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param17 [[ name: "A Bright", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param18 [[ name: "A Body", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param19 [[ name: "A Stretch", min: -100.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    input event float param20 [[ name: "A Stiffness", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param21 [[ name: "A Coupling", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param22 [[ name: "A Air", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param23 [[ name: "A Reed", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param24 [[ name: "A Follow", min: 0.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    input event float param25 [[ name: "A Hold", min: 0.0, max: 1.0, init: 0.0, step: 1.0, text: "Off|On" ]];
+    input event float param26 [[ name: "A Blend", min: 0.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    input event float param27 [[ name: "A Pan", min: -100.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    input event float param28 [[ name: "B Tune", min: 0.0, max: 100.0, init: 58.0, step: 0.1, unit: "%" ]];
+    input event float param29 [[ name: "B Decay", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param30 [[ name: "B Morph", min: 0.0, max: 10.0, init: 0.0, step: 0.001 ]];
+    input event float param31 [[ name: "B Enable", min: 0.0, max: 1.0, init: 0.0, step: 1.0, text: "Off|On" ]];
+    input event float param32 [[ name: "B Level", min: -60.0, max: 6.0, init: 0.0, step: 0.1, unit: "dB" ]];
+    input event float param33 [[ name: "B Listen", min: 0.0, max: 6.0, init: 1.0, step: 1.0, text: "All|Transient|Sustain|Low|Mid|High|Chain" ]];
+    input event float param34 [[ name: "B Sensitivity", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param35 [[ name: "B Excite", min: 0.0, max: 3.0, init: 0.0, step: 1.0, text: "Through|Hammer|Pluck|Breath" ]];
+    input event float param36 [[ name: "B Touch", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param37 [[ name: "B Material", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param38 [[ name: "B Size", min: -100.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    input event float param39 [[ name: "B Position", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param40 [[ name: "B Bright", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param41 [[ name: "B Body", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param42 [[ name: "B Stretch", min: -100.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    input event float param43 [[ name: "B Stiffness", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param44 [[ name: "B Coupling", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param45 [[ name: "B Air", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param46 [[ name: "B Reed", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param47 [[ name: "B Follow", min: 0.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    input event float param48 [[ name: "B Hold", min: 0.0, max: 1.0, init: 0.0, step: 1.0, text: "Off|On" ]];
+    input event float param49 [[ name: "B Blend", min: 0.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    input event float param50 [[ name: "B Pan", min: -100.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    input event float param51 [[ name: "C Tune", min: 0.0, max: 100.0, init: 58.0, step: 0.1, unit: "%" ]];
+    input event float param52 [[ name: "C Decay", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param53 [[ name: "C Morph", min: 0.0, max: 10.0, init: 3.0, step: 0.001 ]];
+    input event float param54 [[ name: "C Enable", min: 0.0, max: 1.0, init: 0.0, step: 1.0, text: "Off|On" ]];
+    input event float param55 [[ name: "C Level", min: -60.0, max: 6.0, init: 0.0, step: 0.1, unit: "dB" ]];
+    input event float param56 [[ name: "C Listen", min: 0.0, max: 6.0, init: 2.0, step: 1.0, text: "All|Transient|Sustain|Low|Mid|High|Chain" ]];
+    input event float param57 [[ name: "C Sensitivity", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param58 [[ name: "C Excite", min: 0.0, max: 3.0, init: 0.0, step: 1.0, text: "Through|Hammer|Pluck|Breath" ]];
+    input event float param59 [[ name: "C Touch", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param60 [[ name: "C Material", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param61 [[ name: "C Size", min: -100.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    input event float param62 [[ name: "C Position", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param63 [[ name: "C Bright", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param64 [[ name: "C Body", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param65 [[ name: "C Stretch", min: -100.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    input event float param66 [[ name: "C Stiffness", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param67 [[ name: "C Coupling", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param68 [[ name: "C Air", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param69 [[ name: "C Reed", min: 0.0, max: 100.0, init: 50.0, step: 0.1, unit: "%" ]];
+    input event float param70 [[ name: "C Follow", min: 0.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    input event float param71 [[ name: "C Hold", min: 0.0, max: 1.0, init: 0.0, step: 1.0, text: "Off|On" ]];
+    input event float param72 [[ name: "C Blend", min: 0.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    input event float param73 [[ name: "C Pan", min: -100.0, max: 100.0, init: 0.0, step: 0.1, unit: "%" ]];
+    output event float<4> bodyViz;
+    output event float<8> bodyBands;
+    output event float bodyOnset;
+    output event float<6> analysisViz;
+    output event float<24> lineStateA;
+    output event float<24> lineStateB;
+    output event float<24> lineStateC;
+    output event float<16> lineModesA;
+    output event float<16> lineModesB;
+    output event float<16> lineModesC;
+    // END ENDPOINTS
+
+    // BEGIN HANDLERS (generated from plugin/spec.json)
+    // Host values in physical units, clamped to the annotated range. Handlers only set
+    // targets (BODY:120-124 idiom, NaN/Inf-guarded); smoothing and conversion happen in main().
+    // Enum parameters (those with text:) are rounded to the nearest step.
+    float[73] paramTarget = (
+        58.0f, 50.0f, 45.0f, 7.0f, 0.0f, 50.0f,
+        20.0f, 1.0f, 0.0f, 0.0f, 50.0f, 0.0f,
+        50.0f, 50.0f, 0.0f, 50.0f, 50.0f, 50.0f,
+        0.0f, 50.0f, 50.0f, 50.0f, 50.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 58.0f, 50.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 50.0f, 0.0f, 50.0f,
+        50.0f, 0.0f, 50.0f, 50.0f, 50.0f, 0.0f,
+        50.0f, 50.0f, 50.0f, 50.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 58.0f, 50.0f, 3.0f, 0.0f,
+        0.0f, 2.0f, 50.0f, 0.0f, 50.0f, 50.0f,
+        0.0f, 50.0f, 50.0f, 50.0f, 0.0f, 50.0f,
+        50.0f, 50.0f, 50.0f, 0.0f, 0.0f, 0.0f,
+        0.0f
+    );
+    event param1 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(0) = clamp(v, rebody::params::minValue.at(0), rebody::params::maxValue.at(0)); } // A Tune
+    event param2 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(1) = clamp(v, rebody::params::minValue.at(1), rebody::params::maxValue.at(1)); } // A Decay
+    event param3 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(2) = clamp(v, rebody::params::minValue.at(2), rebody::params::maxValue.at(2)); } // Mix
+    event param4 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(3) = clamp(v, rebody::params::minValue.at(3), rebody::params::maxValue.at(3)); } // A Morph
+    event param5 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(4) = clamp(float(floor(v + 0.5f)), rebody::params::minValue.at(4), rebody::params::maxValue.at(4)); } // Bypass
+    event param6 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(5) = clamp(v, rebody::params::minValue.at(5), rebody::params::maxValue.at(5)); } // Width
+    event param7 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(6) = clamp(v, rebody::params::minValue.at(6), rebody::params::maxValue.at(6)); } // Low Cut
+    event param8 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(7) = clamp(float(floor(v + 0.5f)), rebody::params::minValue.at(7), rebody::params::maxValue.at(7)); } // A Enable
+    event param9 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(8) = clamp(v, rebody::params::minValue.at(8), rebody::params::maxValue.at(8)); } // A Level
+    event param10 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(9) = clamp(float(floor(v + 0.5f)), rebody::params::minValue.at(9), rebody::params::maxValue.at(9)); } // A Listen
+    event param11 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(10) = clamp(v, rebody::params::minValue.at(10), rebody::params::maxValue.at(10)); } // A Sensitivity
+    event param12 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(11) = clamp(float(floor(v + 0.5f)), rebody::params::minValue.at(11), rebody::params::maxValue.at(11)); } // A Excite
+    event param13 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(12) = clamp(v, rebody::params::minValue.at(12), rebody::params::maxValue.at(12)); } // A Touch
+    event param14 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(13) = clamp(v, rebody::params::minValue.at(13), rebody::params::maxValue.at(13)); } // A Material
+    event param15 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(14) = clamp(v, rebody::params::minValue.at(14), rebody::params::maxValue.at(14)); } // A Size
+    event param16 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(15) = clamp(v, rebody::params::minValue.at(15), rebody::params::maxValue.at(15)); } // A Position
+    event param17 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(16) = clamp(v, rebody::params::minValue.at(16), rebody::params::maxValue.at(16)); } // A Bright
+    event param18 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(17) = clamp(v, rebody::params::minValue.at(17), rebody::params::maxValue.at(17)); } // A Body
+    event param19 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(18) = clamp(v, rebody::params::minValue.at(18), rebody::params::maxValue.at(18)); } // A Stretch
+    event param20 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(19) = clamp(v, rebody::params::minValue.at(19), rebody::params::maxValue.at(19)); } // A Stiffness
+    event param21 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(20) = clamp(v, rebody::params::minValue.at(20), rebody::params::maxValue.at(20)); } // A Coupling
+    event param22 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(21) = clamp(v, rebody::params::minValue.at(21), rebody::params::maxValue.at(21)); } // A Air
+    event param23 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(22) = clamp(v, rebody::params::minValue.at(22), rebody::params::maxValue.at(22)); } // A Reed
+    event param24 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(23) = clamp(v, rebody::params::minValue.at(23), rebody::params::maxValue.at(23)); } // A Follow
+    event param25 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(24) = clamp(float(floor(v + 0.5f)), rebody::params::minValue.at(24), rebody::params::maxValue.at(24)); } // A Hold
+    event param26 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(25) = clamp(v, rebody::params::minValue.at(25), rebody::params::maxValue.at(25)); } // A Blend
+    event param27 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(26) = clamp(v, rebody::params::minValue.at(26), rebody::params::maxValue.at(26)); } // A Pan
+    event param28 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(27) = clamp(v, rebody::params::minValue.at(27), rebody::params::maxValue.at(27)); } // B Tune
+    event param29 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(28) = clamp(v, rebody::params::minValue.at(28), rebody::params::maxValue.at(28)); } // B Decay
+    event param30 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(29) = clamp(v, rebody::params::minValue.at(29), rebody::params::maxValue.at(29)); } // B Morph
+    event param31 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(30) = clamp(float(floor(v + 0.5f)), rebody::params::minValue.at(30), rebody::params::maxValue.at(30)); } // B Enable
+    event param32 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(31) = clamp(v, rebody::params::minValue.at(31), rebody::params::maxValue.at(31)); } // B Level
+    event param33 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(32) = clamp(float(floor(v + 0.5f)), rebody::params::minValue.at(32), rebody::params::maxValue.at(32)); } // B Listen
+    event param34 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(33) = clamp(v, rebody::params::minValue.at(33), rebody::params::maxValue.at(33)); } // B Sensitivity
+    event param35 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(34) = clamp(float(floor(v + 0.5f)), rebody::params::minValue.at(34), rebody::params::maxValue.at(34)); } // B Excite
+    event param36 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(35) = clamp(v, rebody::params::minValue.at(35), rebody::params::maxValue.at(35)); } // B Touch
+    event param37 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(36) = clamp(v, rebody::params::minValue.at(36), rebody::params::maxValue.at(36)); } // B Material
+    event param38 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(37) = clamp(v, rebody::params::minValue.at(37), rebody::params::maxValue.at(37)); } // B Size
+    event param39 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(38) = clamp(v, rebody::params::minValue.at(38), rebody::params::maxValue.at(38)); } // B Position
+    event param40 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(39) = clamp(v, rebody::params::minValue.at(39), rebody::params::maxValue.at(39)); } // B Bright
+    event param41 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(40) = clamp(v, rebody::params::minValue.at(40), rebody::params::maxValue.at(40)); } // B Body
+    event param42 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(41) = clamp(v, rebody::params::minValue.at(41), rebody::params::maxValue.at(41)); } // B Stretch
+    event param43 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(42) = clamp(v, rebody::params::minValue.at(42), rebody::params::maxValue.at(42)); } // B Stiffness
+    event param44 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(43) = clamp(v, rebody::params::minValue.at(43), rebody::params::maxValue.at(43)); } // B Coupling
+    event param45 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(44) = clamp(v, rebody::params::minValue.at(44), rebody::params::maxValue.at(44)); } // B Air
+    event param46 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(45) = clamp(v, rebody::params::minValue.at(45), rebody::params::maxValue.at(45)); } // B Reed
+    event param47 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(46) = clamp(v, rebody::params::minValue.at(46), rebody::params::maxValue.at(46)); } // B Follow
+    event param48 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(47) = clamp(float(floor(v + 0.5f)), rebody::params::minValue.at(47), rebody::params::maxValue.at(47)); } // B Hold
+    event param49 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(48) = clamp(v, rebody::params::minValue.at(48), rebody::params::maxValue.at(48)); } // B Blend
+    event param50 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(49) = clamp(v, rebody::params::minValue.at(49), rebody::params::maxValue.at(49)); } // B Pan
+    event param51 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(50) = clamp(v, rebody::params::minValue.at(50), rebody::params::maxValue.at(50)); } // C Tune
+    event param52 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(51) = clamp(v, rebody::params::minValue.at(51), rebody::params::maxValue.at(51)); } // C Decay
+    event param53 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(52) = clamp(v, rebody::params::minValue.at(52), rebody::params::maxValue.at(52)); } // C Morph
+    event param54 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(53) = clamp(float(floor(v + 0.5f)), rebody::params::minValue.at(53), rebody::params::maxValue.at(53)); } // C Enable
+    event param55 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(54) = clamp(v, rebody::params::minValue.at(54), rebody::params::maxValue.at(54)); } // C Level
+    event param56 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(55) = clamp(float(floor(v + 0.5f)), rebody::params::minValue.at(55), rebody::params::maxValue.at(55)); } // C Listen
+    event param57 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(56) = clamp(v, rebody::params::minValue.at(56), rebody::params::maxValue.at(56)); } // C Sensitivity
+    event param58 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(57) = clamp(float(floor(v + 0.5f)), rebody::params::minValue.at(57), rebody::params::maxValue.at(57)); } // C Excite
+    event param59 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(58) = clamp(v, rebody::params::minValue.at(58), rebody::params::maxValue.at(58)); } // C Touch
+    event param60 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(59) = clamp(v, rebody::params::minValue.at(59), rebody::params::maxValue.at(59)); } // C Material
+    event param61 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(60) = clamp(v, rebody::params::minValue.at(60), rebody::params::maxValue.at(60)); } // C Size
+    event param62 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(61) = clamp(v, rebody::params::minValue.at(61), rebody::params::maxValue.at(61)); } // C Position
+    event param63 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(62) = clamp(v, rebody::params::minValue.at(62), rebody::params::maxValue.at(62)); } // C Bright
+    event param64 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(63) = clamp(v, rebody::params::minValue.at(63), rebody::params::maxValue.at(63)); } // C Body
+    event param65 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(64) = clamp(v, rebody::params::minValue.at(64), rebody::params::maxValue.at(64)); } // C Stretch
+    event param66 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(65) = clamp(v, rebody::params::minValue.at(65), rebody::params::maxValue.at(65)); } // C Stiffness
+    event param67 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(66) = clamp(v, rebody::params::minValue.at(66), rebody::params::maxValue.at(66)); } // C Coupling
+    event param68 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(67) = clamp(v, rebody::params::minValue.at(67), rebody::params::maxValue.at(67)); } // C Air
+    event param69 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(68) = clamp(v, rebody::params::minValue.at(68), rebody::params::maxValue.at(68)); } // C Reed
+    event param70 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(69) = clamp(v, rebody::params::minValue.at(69), rebody::params::maxValue.at(69)); } // C Follow
+    event param71 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(70) = clamp(float(floor(v + 0.5f)), rebody::params::minValue.at(70), rebody::params::maxValue.at(70)); } // C Hold
+    event param72 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(71) = clamp(v, rebody::params::minValue.at(71), rebody::params::maxValue.at(71)); } // C Blend
+    event param73 (float v) { if (!isnan(v) && !isinf(v)) paramTarget.at(72) = clamp(v, rebody::params::minValue.at(72), rebody::params::maxValue.at(72)); } // C Pan
+    // END HANDLERS
+
+    // BEGIN TABLES MEMBER (set by tools/build_dsp.py from the emission form of src/dsp/10_tables.cmajor)
+    // tables: namespace form, constants are read as rebody::tables::<name>
+    // END TABLES MEMBER
+
+    rebody::line::Line[3] lines;
+    rebody::line::Protector protector;
+
+    // Input conditioning, mix and bypass smoothing (BODY:16-30).
+    float mixNow, bypassNow;
+    float controlTickSlew, morphTickSlew, fastSlew, dcRadius;
+    float<2> previousInput, dcState;
+    rebody::analysis::OnsetCoefficients onsetCoeffs;
+    bool started;
+    int counter;
+
+    // Meters and telemetry (BODY:26-27, :893).
+    float inputMeter, wetMeter, leftMeter, rightMeter, meterRelease;
+    float[8] bandEnergy;                  // summed wet energy in 8 octave bands, P5
+    int vizCounter, vizPeriod;
+
+    // Step the 23 block parameters of every line towards the host values. Called once per control
+    // tick (32 samples, BODY:579); `snap` jumps straight to the targets (first sample). Discrete
+    // parameters (step >= 1: Enable, Listen, Excite, Hold) switch immediately.
+    void controlTick (bool snap)
+    {
+        for (int k = 0; k < rebody::numLines; k += 1)
+        {
+            for (int s = 0; s < rebody::params::lineSlots; s += 1)
+            {
+                int index = rebody::params::lineParam.at (k * rebody::params::lineSlots + s);
+                float target = paramTarget.at (index);
+                float now = lines.at (k).control.at (s);
+
+                if (snap || rebody::params::stepValue.at (index) >= 1.0f)
+                {
+                    now = target;
+                }
+                else
+                {
+                    float previous = now;
+                    now += (s == rebody::params::slotMorph ? morphTickSlew : controlTickSlew) * (target - now);
+
+                    if (now == previous || abs (now - target) < 0.000001f)
+                        now = target;
+                }
+
+                lines.at (k).control.at (s) = now;
+            }
+
+            lines.at (k).enabled = lines.at (k).control.at (rebody::params::slotEnable) >= 0.5f;
+            lines.at (k).holdState = lines.at (k).control.at (rebody::params::slotHold);
+            rebody::line::updateMorphWeights (lines.at (k));
+        }
+    }
+
+    void main()
+    {
+        float sr = float (processor.frequency);
+
+        // Sample-rate derived coefficients (BODY:509-518).
+        controlTickSlew = rebody::analysis::tickSlewCoefficient (0.055f, sr, rebody::controlPeriod);
+        morphTickSlew = rebody::analysis::tickSlewCoefficient (0.025f, sr, rebody::controlPeriod);
+        fastSlew = rebody::analysis::slewCoefficient (0.012f, sr);
+        dcRadius = rebody::analysis::dcBlockRadius (20.0f, sr);
+        meterRelease = rebody::analysis::releaseMultiplier (0.11f, sr);
+        onsetCoeffs = rebody::analysis::onsetCoefficients (sr);
+        vizPeriod = max (1, int (sr / float (rebody::vizRateHz)));
+
+        for (int k = 0; k < rebody::numLines; k += 1)
+            rebody::line::initLine (lines.at (k), k);
+
+        rebody::line::initProtector (protector);
+
+        // BEGIN TABLES LOAD (set by tools/build_dsp.py from the emission form of src/dsp/10_tables.cmajor)
+        // tables: namespace form, constants are read as rebody::tables::<name>
+        // END TABLES LOAD
+
+        loop
+        {
+            if (! started)
+            {
+                // Host values set before the first sample are honoured: snap to them.
+                controlTick (true);
+                mixNow = clamp (paramTarget.at (rebody::params::globalMix) * 0.01f, 0.0f, 1.0f);
+                bypassNow = paramTarget.at (rebody::params::globalBypass) >= 0.5f ? 1.0f : 0.0f;
+                started = true;
+            }
+
+            if (counter == 0)
+                controlTick (false);
+
+            counter = (counter + 1) % rebody::controlPeriod;
+
+            float mixTarget = clamp (paramTarget.at (rebody::params::globalMix) * 0.01f, 0.0f, 1.0f);
+            float bypassTarget = paramTarget.at (rebody::params::globalBypass) >= 0.5f ? 1.0f : 0.0f;
+            float previousMix = mixNow;
+            float previousBypass = bypassNow;
+            mixNow += fastSlew * (mixTarget - mixNow);
+            bypassNow += fastSlew * (bypassTarget - bypassNow);
+
+            if (mixNow == previousMix || abs (mixNow - mixTarget) < 0.000001f)
+                mixNow = mixTarget;
+
+            if (bypassNow == previousBypass || abs (bypassNow - bypassTarget) < 0.000001f)
+                bypassNow = bypassTarget;
+
+            // Condition the input: NaN/Inf guard, DC block, clamp, bypass fade (BODY:587-590).
+            float<2> dry = in;
+
+            for (int ch = 0; ch < 2; ch += 1)
+                dry.at (ch) = rebody::analysis::finiteOrZero (dry.at (ch));
+
+            float<2> x = dry - previousInput + dcRadius * dcState;
+            previousInput = dry;
+            dcState = x;
+
+            for (int ch = 0; ch < 2; ch += 1)
+                x.at (ch) = clamp (x.at (ch), -4.0f, 4.0f);
+
+            x *= 1.0f - bypassNow;
+            float level = max (abs (x[0]), abs (x[1]));
+
+            // Lines: each enabled line listens to the conditioned input for now (P2+: Listen,
+            // Sensitivity, Chain) and runs its own onset detector (T9).
+            float<2> wet = float<2> (0.0f);
+
+            for (int k = 0; k < rebody::numLines; k += 1)
+            {
+                if (lines.at (k).enabled)
+                {
+                    rebody::analysis::onsetStep (lines.at (k).onset, onsetCoeffs, level);
+                    wet += rebody::line::stubProcess (lines.at (k), x);
+                    rebody::line::accumulate (lines.at (k));
+                }
+                else
+                {
+                    rebody::analysis::onsetReset (lines.at (k).onset);
+                    lines.at (k).wet = float<2> (0.0f);
+                }
+            }
+
+            // Mix is linear as BODY on purpose; bypass fades the wet path out and Mix with it (BODY:890).
+            float amount = mixNow * (1.0f - bypassNow);
+            float<2> result = dry * (1.0f - amount) + wet * amount;
+
+            if (amount == 0.0f)
+                result = dry;
+
+            out <- result;
+
+            inputMeter = max (level, inputMeter * meterRelease);
+            leftMeter = max (abs (wet[0]), leftMeter * meterRelease);
+            rightMeter = max (abs (wet[1]), rightMeter * meterRelease);
+            wetMeter = max (leftMeter, rightMeter);
+
+            if (inputMeter < 0.000000001f) inputMeter = 0.0f;
+            if (leftMeter < 0.000000001f) leftMeter = 0.0f;
+            if (rightMeter < 0.000000001f) rightMeter = 0.0f;
+
+            vizCounter += 1;
+
+            if (vizCounter >= vizPeriod)
+            {
+                vizCounter = 0;
+
+                // Shared onset: strongest line onset since the last frame (peak hold).
+                float onsetMax = max (lines.at (0).onsetHold, max (lines.at (1).onsetHold, lines.at (2).onsetHold));
+
+                float<8> bands = float<8> (0.0f);
+
+                for (int band = 0; band < 8; band += 1)
+                    bands.at (band) = bandEnergy.at (band);
+
+                bodyViz <- float<4> (inputMeter, wetMeter, leftMeter, rightMeter);
+                bodyBands <- bands;
+                bodyOnset <- onsetMax;
+                analysisViz <- float<6> (0.0f);
+                lineStateA <- rebody::line::takeState (lines.at (0));
+                lineStateB <- rebody::line::takeState (lines.at (1));
+                lineStateC <- rebody::line::takeState (lines.at (2));
+                lineModesA <- rebody::line::modesState (lines.at (0));
+                lineModesB <- rebody::line::modesState (lines.at (1));
+                lineModesC <- rebody::line::modesState (lines.at (2));
+            }
+
+            advance();
+        }
+    }
+}

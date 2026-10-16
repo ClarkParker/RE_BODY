@@ -1,0 +1,160 @@
+## global ("helpers.cmajor")
+
+## testFunction()
+
+bool near (float a, float b, float tol) { return abs (a - b) <= tol; }
+
+bool sensitivityMapsMinusPlus24dB()
+{
+    return near (rebody::analysis::sensitivityGain (0.0f), 0.0630957f, 0.0001f)
+        && near (rebody::analysis::sensitivityGain (50.0f), 1.0f, 0.00001f)
+        && near (rebody::analysis::sensitivityGain (100.0f), 15.8489f, 0.001f);
+}
+
+bool coefficientsMatchBodyFormulas()
+{
+    return near (rebody::analysis::onePoleCoefficient (1000.0f, 48000.0f), 0.12266f, 0.0001f)
+        && near (rebody::analysis::slewCoefficient (0.012f, 48000.0f), 0.0017349f, 0.000001f)
+        && near (rebody::analysis::tickSlewCoefficient (0.055f, 48000.0f, 32), 0.012054f, 0.00001f)
+        && near (rebody::analysis::dcBlockRadius (20.0f, 48000.0f), 0.997388f, 0.00001f)
+        && near (rebody::analysis::releaseMultiplier (0.06f, 48000.0f), 0.99965f, 0.00001f);
+}
+
+bool limitHzClampsToNyquistFraction()
+{
+    return near (rebody::analysis::limitHz (30000.0f, 48000.0f), 21600.0f, 0.5f)
+        && near (rebody::analysis::limitHz (-5.0f, 48000.0f), 1.0f, 0.0001f);
+}
+
+bool finiteGuardZeroesNanAndInf()
+{
+    float nan = 0.0f;
+    nan = nan / nan;
+    return rebody::analysis::finiteOrZero (nan) == 0.0f
+        && rebody::analysis::finiteOrZero (0.25f) == 0.25f;
+}
+
+bool noveltyIsZeroInSilenceAndHighOnAttack()
+{
+    return rebody::analysis::novelty (0.0f, 0.0f) == 0.0f
+        && near (rebody::analysis::novelty (0.5f, 0.1f), 0.7389f, 0.001f)
+        && rebody::analysis::novelty (0.5f, 0.5f) == 0.0f;
+}
+
+bool onsetDetectorRisesOnAStepAndFallsBack()
+{
+    rebody::analysis::OnsetState s;
+    rebody::analysis::OnsetCoefficients c = rebody::analysis::onsetCoefficients (48000.0f);
+    for (int i = 0; i < 100; i += 1) rebody::analysis::onsetStep (s, c, 0.0f);
+    if (s.onset != 0.0f) return false;
+    for (int i = 0; i < 200; i += 1) rebody::analysis::onsetStep (s, c, 0.5f);
+    float risen = s.onset;
+    for (int i = 0; i < 96000; i += 1) rebody::analysis::onsetStep (s, c, 0.5f);
+    return risen > 0.3f && s.onset < 0.001f;
+}
+
+bool t60LawIsLnThousandOverAlpha()
+{
+    return near (rebody::modal::t60FromDamping (200.0f, 6.907755f, 0.0f), 1.0f, 0.0001f)
+        && near (rebody::modal::t60FromDamping (1000.0f, 0.0f, 0.001099f), 1.0f, 0.001f)
+        && rebody::modal::t60FromDamping (200.0f, 0.0f, 0.0f) > 1000.0f;
+}
+
+bool poleRadiusGivesSixtyDbInT60()
+{
+    float r = rebody::modal::poleRadius (1.0f, 48000.0f);
+    float decayed = float (pow (r, 48000.0f));
+    return near (decayed, 0.001f, 0.00005f) && r < 1.0f;
+}
+
+bool polePairHasRadiusAndAngle()
+{
+    float r = 0.99f;
+    float re = rebody::modal::poleReal (1000.0f, r, 48000.0f);
+    float im = rebody::modal::poleImag (1000.0f, r, 48000.0f);
+    return near (sqrt (re * re + im * im), 0.99f, 0.00001f)
+        && near (float (atan2 (im, re)), 2.0f * float (pi) * 1000.0f / 48000.0f, 0.00001f);
+}
+
+bool modeRingsDownAndStaysBounded()
+{
+    float r = rebody::modal::poleRadius (0.5f, 48000.0f);
+    float pr = rebody::modal::poleReal (440.0f, r, 48000.0f);
+    float pi2 = rebody::modal::poleImag (440.0f, r, 48000.0f);
+    float drive = rebody::modal::driveNormalisation (r);
+    float<2> re = float<2> (0.0f);
+    float<2> im = float<2> (0.0f);
+    rebody::modal::stepMode (pr, pi2, float<2> (drive), float<2> (1.0f, -1.0f), re, im);
+    float peak = 0.0f;
+    float last = 0.0f;
+    for (int i = 0; i < 48000; i += 1)
+    {
+        rebody::modal::stepMode (pr, pi2, float<2> (drive), float<2> (0.0f), re, im);
+        peak = max (peak, abs (re[0]));
+        last = abs (re[0]) + abs (im[0]);
+    }
+    return peak > 0.0004f && peak < 0.0008f && last < 0.00001f && re[1] == -re[0];
+}
+
+bool flushZeroesTinyModesOnly()
+{
+    float<2> re = float<2> (1.0e-13f, 0.5f);
+    float<2> im = float<2> (1.0e-13f, 0.0f);
+    rebody::modal::flushMode (re, im, 1.0e-12f);
+    return re[0] == 0.0f && im[0] == 0.0f && re[1] == 0.5f;
+}
+
+bool slotLayoutIndicesAreContiguous()
+{
+    return rebody::modal::featureIndex (0, 0) == 0
+        && rebody::modal::featureIndex (10, 7) == 87
+        && rebody::modal::followIndex (0, 0) == 88
+        && rebody::modal::followIndex (10, 9) == 197
+        && rebody::slotModes == rebody::numBodies * rebody::slotStride;
+}
+
+bool blendLawIsEqualPower()
+{
+    for (int i = 0; i <= 10; i += 1)
+    {
+        float b = float (i) * 10.0f;
+        float s = rebody::strikers::strikeGain (b);
+        float t = rebody::strikers::throughGain (b);
+        if (abs (s * s + t * t - 1.0f) > 0.00001f) return false;
+    }
+    return rebody::strikers::strikeGain (0.0f) == 1.0f && rebody::strikers::throughGain (0.0f) == 0.0f
+        && near (rebody::strikers::throughGain (100.0f), 1.0f, 0.00001f);
+}
+
+bool paramTablesAreConsistent()
+{
+    return rebody::params::count == 73
+        && rebody::params::lineParam.at (0) == 0        // A Tune = param1
+        && rebody::params::lineParam.at (2) == 3        // A Morph = param4
+        && rebody::params::lineParam.at (3) == 7        // A Enable = param8
+        && rebody::params::lineParam.at (23) == 27      // B Tune = param28
+        && rebody::params::lineParam.at (68) == 72      // C Pan = param73
+        && rebody::params::globalMix == 2
+        && rebody::params::initValue.at (2) == 45.0f
+        && rebody::params::slotPan == 22;
+}
+
+bool morphWeightsSumToOneAndPickDominant()
+{
+    rebody::line::Line l;
+    for (int i = 0; i <= 20; i += 1)
+    {
+        l.control.at (rebody::params::slotMorph) = float (i) * 0.5f;
+        rebody::line::updateMorphWeights (l);
+        float sum = 0.0f;
+        float feedPower = 0.0f;
+        for (int b = 0; b < 11; b += 1) { sum += l.weight.at (b); feedPower += l.feed.at (b) * l.feed.at (b); }
+        if (abs (sum - 1.0f) > 0.00001f || abs (feedPower - 1.0f) > 0.00001f) return false;
+    }
+    l.control.at (rebody::params::slotMorph) = 7.0f;
+    rebody::line::updateMorphWeights (l);
+    bool clarinet = l.dominant == 7 && l.weight.at (7) == 1.0f && l.pitchedWeight == 1.0f;
+    l.control.at (rebody::params::slotMorph) = 0.0f;
+    rebody::line::updateMorphWeights (l);
+    return clarinet && l.dominant == 0 && l.pitchedWeight == 0.0f;
+}

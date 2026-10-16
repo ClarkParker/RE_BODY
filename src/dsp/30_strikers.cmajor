@@ -1,0 +1,80 @@
+// RE-BODY strikers (concept section 14): one shared module used by all three lines. Hammer,
+// Pluck and Breath are onset-triggered excitations that replace (or, with Blend, join) the
+// audio-through contact. P1 declares the state and the documented signatures so the line
+// struct has its final size; the bodies are filled in P4b (ported from PHYSIFY DSP:913-1004,
+// :2060-2131). Until then every striker returns silence and never triggers.
+//
+// Contract for the real implementation:
+//  - every striker output is DC-blocked (unipolar force pulses inject DC) and energy-normalised
+//    to the listened envelope, so Blend 50 is a real half/half;
+//  - triggering has hysteresis and a 30 ms refractory time, so a Low-listening Hammer line does
+//    not fire on hi-hats;
+//  - velocity comes from the onset energy (log map, Touch = curve), position from the line's
+//    Position parameter.
+
+namespace rebody::strikers
+{
+    // Values of the Excite parameter (spec.json param12/35/58: Through|Hammer|Pluck|Breath).
+    const int modeThrough = 0;
+    const int modeHammer = 1;
+    const int modePluck = 2;
+    const int modeBreath = 3;
+
+    struct StrikerState
+    {
+        int mode;               // excite mode captured when the strike was triggered
+        int age;                // samples since the trigger; negative = idle
+        int refractory;         // samples left before another trigger is accepted (30 ms)
+        float velocity;         // 0..1, from the onset energy at the trigger
+        float envelope;         // strike envelope used for energy normalisation
+        float<2> force;         // last striker sample before DC blocking
+        float<2> dcPrevious;    // DC blocker input memory
+        float<2> dcState;       // DC blocker state
+        int noiseState;         // xorshift state for Breath (seeded per line in initLine)
+    }
+
+    void reset (StrikerState& s)
+    {
+        s.mode = modeThrough;
+        s.age = -1;
+        s.refractory = 0;
+        s.velocity = 0.0f;
+        s.envelope = 0.0f;
+        s.force = float<2> (0.0f);
+        s.dcPrevious = float<2> (0.0f);
+        s.dcState = float<2> (0.0f);
+    }
+
+    // Decide whether this sample starts a strike. `onset` is the line's detector output 0..1,
+    // `touch` is Touch 0..1 (onset threshold), `refractorySamples` is 30 ms in samples.
+    // P1 stub: never triggers.
+    bool trigger (StrikerState& s, float onset, float touch, int refractorySamples)
+    {
+        return false;
+    }
+
+    // One sample of the active strike, stereo. `excite` is a mode constant above, `position`
+    // and `hardness` are Position and Reed 0..1, `pitchHz` is the line's root for Pluck/Breath
+    // timing, `sr` the sample rate. P1 stub: silence.
+    float<2> step (StrikerState& s, int excite, float position, float hardness, float pitchHz, float sr)
+    {
+        return float<2> (0.0f);
+    }
+
+    // Scale a strike so its energy follows the listened envelope. P1 stub: pass-through.
+    float<2> normalise (float<2> strike, float listenedEnvelope, float strikeEnvelope)
+    {
+        return strike;
+    }
+
+    // Equal-power Blend law (Blend 0..100 %): 0 = striker alone, 100 = Through alone (concept 14).
+    float strikeGain (float blendPercent)
+    {
+        return float (cos (0.5f * float (pi) * clamp (blendPercent, 0.0f, 100.0f) * 0.01f));
+    }
+
+    float throughGain (float blendPercent)
+    {
+        return float (sin (0.5f * float (pi) * clamp (blendPercent, 0.0f, 100.0f) * 0.01f));
+    }
+}

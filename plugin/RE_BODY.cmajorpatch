@@ -1,0 +1,17 @@
+{
+  "CmajorVersion": 1,
+  "ID": "com.clearpeak.rebody",
+  "version": "0.1.0",
+  "name": "RE·BODY",
+  "description": "Imaginary instrument bodies excited by incoming audio. Based on BODY by Artists in DSP; rebuilt on physically modelled bodies with three independent lines.",
+  "manufacturer": "CLΞΛRPΞΛK",
+  "category": "effect",
+  "isInstrument": false,
+  "source": "dsp.cmajor",
+  "view": {
+    "src": "index.js",
+    "width": 960,
+    "height": 600,
+    "resizable": true
+  }
+}

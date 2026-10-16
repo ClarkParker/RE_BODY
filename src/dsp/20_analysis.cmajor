@@ -1,0 +1,141 @@
+// RE-BODY analysis helpers: pure functions and plain structs, no processors and no state of
+// their own. The shared analysis stage (transient/sustain split, LR4 3-band split, pitch,
+// concept section 13) arrives in P2/P4b and is built from these; P1 only needs the coefficient
+// helpers and one novelty detector per line (T9).
+//
+// Every divisor below is provably non-zero (max(..., epsilon)); every cutoff is clamped to
+// 0.45 * sr (P03 2b).
+
+namespace rebody::analysis
+{
+    // Smallest time constant / sample rate used inside divisors.
+    const float epsilon = 0.00001f;
+
+    // Replace NaN/Inf by 0 (BODY:587 input guard).
+    float finiteOrZero (float v)
+    {
+        if (isnan (v) || isinf (v))
+            return 0.0f;
+
+        return v;
+    }
+
+    // Clamp a cutoff or tone frequency to 1 Hz .. 0.45 * sr.
+    float limitHz (float hz, float sr)
+    {
+        return clamp (hz, 1.0f, 0.45f * max (sr, 1000.0f));
+    }
+
+    // One-pole low-pass coefficient for y += a * (x - y) from a cutoff in Hz (BODY:520).
+    float onePoleCoefficient (float hz, float sr)
+    {
+        return 1.0f - float (exp (-float (twoPi) * limitHz (hz, sr) / max (sr, 1000.0f)));
+    }
+
+    // Per-sample slew coefficient for y += a * (target - y) with time constant `seconds`
+    // (BODY:513 onsetRise/onsetFall, 510 fastSlew).
+    float slewCoefficient (float seconds, float sr)
+    {
+        return 1.0f - float (exp (-1.0f / (max (seconds, epsilon) * max (sr, 1000.0f))));
+    }
+
+    // Slew coefficient for a control that is stepped once per `ticks` samples (BODY:509).
+    float tickSlewCoefficient (float seconds, float sr, int ticks)
+    {
+        return 1.0f - float (exp (-float (max (ticks, 1)) / (max (seconds, epsilon) * max (sr, 1000.0f))));
+    }
+
+    // Per-sample release multiplier for y = max(x, y * r) peak followers (BODY:512 peakRelease).
+    float releaseMultiplier (float seconds, float sr)
+    {
+        return float (exp (-1.0f / (max (seconds, epsilon) * max (sr, 1000.0f))));
+    }
+
+    // Pole radius of the 1-pole DC blocker y = x - x[-1] + r * y[-1] (BODY:511).
+    float dcBlockRadius (float hz, float sr)
+    {
+        return float (exp (-float (twoPi) * limitHz (hz, sr) / max (sr, 1000.0f)));
+    }
+
+    float dbToGain (float db)
+    {
+        return float (pow (10.0f, 0.05f * db));
+    }
+
+    // Sensitivity 0..100 to linear gain: 0 -> -24 dB, 50 -> 0 dB (unity), 100 -> +24 dB (concept 13).
+    float sensitivityGain (float percent)
+    {
+        return dbToGain ((clamp (percent, 0.0f, 100.0f) - 50.0f) * 0.48f);
+    }
+
+    // One step of an attack/release envelope: rise towards a higher target, fall towards a lower one.
+    float envelopeStep (float envelope, float target, float riseCoefficient, float fallCoefficient)
+    {
+        float coefficient = target > envelope ? riseCoefficient : fallCoefficient;
+        return envelope + coefficient * (target - envelope);
+    }
+
+    // Peak follower with exponential release (BODY:591 peak).
+    float peakStep (float peak, float level, float release)
+    {
+        return max (level, peak * release);
+    }
+
+    // BODY's novelty measure (BODY:591): how far the fast peak sits above the slow peak, gated
+    // by an absolute level so silence never reports an onset. Result 0..1.
+    float novelty (float peak, float slowPeak)
+    {
+        float relative = clamp ((peak - 1.2f * slowPeak - 0.0015f) / (max (peak, 0.0f) + 0.012f), 0.0f, 1.0f);
+        float gate = float (sqrt (clamp ((peak - 0.0015f) / 0.08f, 0.0f, 1.0f)));
+        return relative * gate;
+    }
+
+    // Onset detector state: one per line, run on that line's listened signal (T9).
+    struct OnsetState
+    {
+        float peak;
+        float slowPeak;
+        float novelty;
+        float onset;
+    }
+
+    // Detector time constants (BODY:512-513): peak release 60 ms, slow follower 18 ms,
+    // onset rise 0.35 ms, onset fall 50 ms.
+    struct OnsetCoefficients
+    {
+        float peakRelease;
+        float slowSlew;
+        float rise;
+        float fall;
+    }
+
+    OnsetCoefficients onsetCoefficients (float sr)
+    {
+        OnsetCoefficients c;
+        c.peakRelease = releaseMultiplier (0.06f, sr);
+        c.slowSlew = slewCoefficient (0.018f, sr);
+        c.rise = slewCoefficient (0.00035f, sr);
+        c.fall = slewCoefficient (0.05f, sr);
+        return c;
+    }
+
+    // One sample of the detector (BODY:591-594). `level` is the rectified listened signal (>= 0).
+    void onsetStep (OnsetState& s, OnsetCoefficients c, float level)
+    {
+        s.peak = peakStep (s.peak, level, c.peakRelease);
+        s.slowPeak += c.slowSlew * (s.peak - s.slowPeak);
+        s.novelty = novelty (s.peak, s.slowPeak);
+        s.onset = envelopeStep (s.onset, s.novelty, c.rise, c.fall);
+
+        if (s.onset < 0.000001f && s.novelty == 0.0f)
+            s.onset = 0.0f;
+    }
+
+    void onsetReset (OnsetState& s)
+    {
+        s.peak = 0.0f;
+        s.slowPeak = 0.0f;
+        s.novelty = 0.0f;
+        s.onset = 0.0f;
+    }
+}
