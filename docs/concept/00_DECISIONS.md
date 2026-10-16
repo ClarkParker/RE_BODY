@@ -43,3 +43,4 @@ D26-D34 are lead decisions from `docs/review/42_REVIEW_TRIAGE.md`, applied 2026-
 | D37 | 2026-10-16 | **No Classic view.** Removed entirely (supersedes D24's Classic toggle; the rest of the preservation contract stands). |
 | D38 | 2026-10-16 | Motion budget: Off = static depth; Calm (default) = tilt 1.5°, audio motion, no idle drift; Full = tilt 4° + idle drift ±1°. Depth must read strongly in every state through light (rim, fog, shadow, specular); parallax adds to it. |
 | D39 | 2026-10-16 | Lines B/C as tabs; if the host spike shows hidden controls fail the probe, fallback = compact always-visible strip. |
+| D40 | 2026-10-16 | **Concept freeze.** Owner confirmed 960 × 600 (D35) and gave Go for P1. Changes to 20/21/22 from here on are logged as decisions. |
