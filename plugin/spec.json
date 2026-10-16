@@ -11,8 +11,9 @@
   "view": {
    "src": "index.js",
    "width": 720,
-   "height": 460,
-   "resizable": true
+   "height": 540,
+   "resizable": true,
+   "note": "height pending owner Q1 (540 recommended, 460 alternative)"
   }
  },
  "anchors": [
@@ -29,14 +30,14 @@
   "Obosaxolele"
  ],
  "anchorLabels": [
-  "BASS DRUM",
+  "BASS",
   "SNARE",
-  "TIMPANI",
+  "TIMP",
   "PIANO",
   "GUITAR",
-  "UKULELE",
+  "UKE",
   "FIDDLE",
-  "CLARINET",
+  "CLAR",
   "OBOE",
   "SAX",
   "OBOSAX·"
@@ -45,13 +46,13 @@
   "G": [
    "param3",
    "param5",
-   "param6"
+   "param6",
+   "param7"
   ],
   "A": [
    "param1",
    "param2",
    "param4",
-   "param7",
    "param8",
    "param9",
    "param10",
@@ -69,11 +70,11 @@
    "param22",
    "param23",
    "param24",
-   "param25"
+   "param25",
+   "param26",
+   "param27"
   ],
   "B": [
-   "param26",
-   "param27",
    "param28",
    "param29",
    "param30",
@@ -93,12 +94,12 @@
    "param44",
    "param45",
    "param46",
-   "param47"
-  ],
-  "C": [
+   "param47",
    "param48",
    "param49",
-   "param50",
+   "param50"
+  ],
+  "C": [
    "param51",
    "param52",
    "param53",
@@ -117,7 +118,11 @@
    "param66",
    "param67",
    "param68",
-   "param69"
+   "param69",
+   "param70",
+   "param71",
+   "param72",
+   "param73"
   ]
  },
  "blockOrder": [
@@ -142,7 +147,8 @@
   "Reed",
   "Follow",
   "Hold",
-  "Blend"
+  "Blend",
+  "Pan"
  ],
  "params": [
   {
@@ -185,7 +191,7 @@
    "unit": "%",
    "text": "",
    "ui": "dial",
-   "note": "BODY param3, global"
+   "note": "BODY param3, global, linear mix law as BODY on purpose"
   },
   {
    "id": "param4",
@@ -227,10 +233,24 @@
    "unit": "%",
    "text": "",
    "ui": "small",
-   "note": "global stereo width"
+   "note": "global stereo width; 50 = BODY's image"
   },
   {
    "id": "param7",
+   "line": "G",
+   "key": "LowCut",
+   "name": "Low Cut",
+   "min": 20,
+   "max": 500,
+   "step": 1,
+   "init": 20,
+   "unit": "Hz",
+   "text": "",
+   "ui": "small",
+   "note": "global high-pass on the wet sum, 12 dB/oct; 20 = off"
+  },
+  {
+   "id": "param8",
    "line": "A",
    "key": "Enable",
    "name": "A Enable",
@@ -243,7 +263,7 @@
    "ui": "button"
   },
   {
-   "id": "param8",
+   "id": "param9",
    "line": "A",
    "key": "Level",
    "name": "A Level",
@@ -256,7 +276,7 @@
    "ui": "small"
   },
   {
-   "id": "param9",
+   "id": "param10",
    "line": "A",
    "key": "Listen",
    "name": "A Listen",
@@ -269,7 +289,7 @@
    "ui": "segmented"
   },
   {
-   "id": "param10",
+   "id": "param11",
    "line": "A",
    "key": "Sensitivity",
    "name": "A Sensitivity",
@@ -282,7 +302,7 @@
    "ui": "small"
   },
   {
-   "id": "param11",
+   "id": "param12",
    "line": "A",
    "key": "Excite",
    "name": "A Excite",
@@ -295,7 +315,7 @@
    "ui": "segmented"
   },
   {
-   "id": "param12",
+   "id": "param13",
    "line": "A",
    "key": "Touch",
    "name": "A Touch",
@@ -308,7 +328,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param13",
+   "id": "param14",
    "line": "A",
    "key": "Material",
    "name": "A Material",
@@ -321,7 +341,7 @@
    "ui": "dial"
   },
   {
-   "id": "param14",
+   "id": "param15",
    "line": "A",
    "key": "Size",
    "name": "A Size",
@@ -334,7 +354,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param15",
+   "id": "param16",
    "line": "A",
    "key": "Position",
    "name": "A Position",
@@ -347,7 +367,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param16",
+   "id": "param17",
    "line": "A",
    "key": "Bright",
    "name": "A Bright",
@@ -360,7 +380,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param17",
+   "id": "param18",
    "line": "A",
    "key": "Body",
    "name": "A Body",
@@ -373,7 +393,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param18",
+   "id": "param19",
    "line": "A",
    "key": "Stretch",
    "name": "A Stretch",
@@ -386,7 +406,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param19",
+   "id": "param20",
    "line": "A",
    "key": "Stiffness",
    "name": "A Stiffness",
@@ -399,7 +419,7 @@
    "ui": "physics"
   },
   {
-   "id": "param20",
+   "id": "param21",
    "line": "A",
    "key": "Coupling",
    "name": "A Coupling",
@@ -412,7 +432,7 @@
    "ui": "physics"
   },
   {
-   "id": "param21",
+   "id": "param22",
    "line": "A",
    "key": "Air",
    "name": "A Air",
@@ -425,7 +445,7 @@
    "ui": "physics"
   },
   {
-   "id": "param22",
+   "id": "param23",
    "line": "A",
    "key": "Reed",
    "name": "A Reed",
@@ -438,7 +458,7 @@
    "ui": "physics"
   },
   {
-   "id": "param23",
+   "id": "param24",
    "line": "A",
    "key": "Follow",
    "name": "A Follow",
@@ -451,7 +471,7 @@
    "ui": "small"
   },
   {
-   "id": "param24",
+   "id": "param25",
    "line": "A",
    "key": "Hold",
    "name": "A Hold",
@@ -464,7 +484,7 @@
    "ui": "button"
   },
   {
-   "id": "param25",
+   "id": "param26",
    "line": "A",
    "key": "Blend",
    "name": "A Blend",
@@ -477,7 +497,20 @@
    "ui": "small"
   },
   {
-   "id": "param26",
+   "id": "param27",
+   "line": "A",
+   "key": "Pan",
+   "name": "A Pan",
+   "min": -100,
+   "max": 100,
+   "step": 0.1,
+   "init": 0,
+   "unit": "%",
+   "text": "",
+   "ui": "small"
+  },
+  {
+   "id": "param28",
    "line": "B",
    "key": "Tune",
    "name": "B Tune",
@@ -490,7 +523,7 @@
    "ui": "dial"
   },
   {
-   "id": "param27",
+   "id": "param29",
    "line": "B",
    "key": "Decay",
    "name": "B Decay",
@@ -503,20 +536,20 @@
    "ui": "dial"
   },
   {
-   "id": "param28",
+   "id": "param30",
    "line": "B",
    "key": "Morph",
    "name": "B Morph",
    "min": 0,
    "max": 10,
    "step": 0.001,
-   "init": 7,
+   "init": 0,
    "unit": "",
    "text": "",
    "ui": "slider"
   },
   {
-   "id": "param29",
+   "id": "param31",
    "line": "B",
    "key": "Enable",
    "name": "B Enable",
@@ -529,7 +562,7 @@
    "ui": "button"
   },
   {
-   "id": "param30",
+   "id": "param32",
    "line": "B",
    "key": "Level",
    "name": "B Level",
@@ -542,20 +575,20 @@
    "ui": "small"
   },
   {
-   "id": "param31",
+   "id": "param33",
    "line": "B",
    "key": "Listen",
    "name": "B Listen",
    "min": 0,
    "max": 6,
    "step": 1,
-   "init": 0,
+   "init": 1,
    "unit": "",
    "text": "All|Transient|Sustain|Low|Mid|High|Chain",
    "ui": "segmented"
   },
   {
-   "id": "param32",
+   "id": "param34",
    "line": "B",
    "key": "Sensitivity",
    "name": "B Sensitivity",
@@ -568,7 +601,7 @@
    "ui": "small"
   },
   {
-   "id": "param33",
+   "id": "param35",
    "line": "B",
    "key": "Excite",
    "name": "B Excite",
@@ -581,7 +614,7 @@
    "ui": "segmented"
   },
   {
-   "id": "param34",
+   "id": "param36",
    "line": "B",
    "key": "Touch",
    "name": "B Touch",
@@ -594,7 +627,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param35",
+   "id": "param37",
    "line": "B",
    "key": "Material",
    "name": "B Material",
@@ -607,7 +640,7 @@
    "ui": "dial"
   },
   {
-   "id": "param36",
+   "id": "param38",
    "line": "B",
    "key": "Size",
    "name": "B Size",
@@ -620,7 +653,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param37",
+   "id": "param39",
    "line": "B",
    "key": "Position",
    "name": "B Position",
@@ -633,7 +666,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param38",
+   "id": "param40",
    "line": "B",
    "key": "Bright",
    "name": "B Bright",
@@ -646,7 +679,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param39",
+   "id": "param41",
    "line": "B",
    "key": "Body",
    "name": "B Body",
@@ -659,7 +692,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param40",
+   "id": "param42",
    "line": "B",
    "key": "Stretch",
    "name": "B Stretch",
@@ -672,7 +705,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param41",
+   "id": "param43",
    "line": "B",
    "key": "Stiffness",
    "name": "B Stiffness",
@@ -685,7 +718,7 @@
    "ui": "physics"
   },
   {
-   "id": "param42",
+   "id": "param44",
    "line": "B",
    "key": "Coupling",
    "name": "B Coupling",
@@ -698,7 +731,7 @@
    "ui": "physics"
   },
   {
-   "id": "param43",
+   "id": "param45",
    "line": "B",
    "key": "Air",
    "name": "B Air",
@@ -711,7 +744,7 @@
    "ui": "physics"
   },
   {
-   "id": "param44",
+   "id": "param46",
    "line": "B",
    "key": "Reed",
    "name": "B Reed",
@@ -724,7 +757,7 @@
    "ui": "physics"
   },
   {
-   "id": "param45",
+   "id": "param47",
    "line": "B",
    "key": "Follow",
    "name": "B Follow",
@@ -737,7 +770,7 @@
    "ui": "small"
   },
   {
-   "id": "param46",
+   "id": "param48",
    "line": "B",
    "key": "Hold",
    "name": "B Hold",
@@ -750,7 +783,7 @@
    "ui": "button"
   },
   {
-   "id": "param47",
+   "id": "param49",
    "line": "B",
    "key": "Blend",
    "name": "B Blend",
@@ -763,7 +796,20 @@
    "ui": "small"
   },
   {
-   "id": "param48",
+   "id": "param50",
+   "line": "B",
+   "key": "Pan",
+   "name": "B Pan",
+   "min": -100,
+   "max": 100,
+   "step": 0.1,
+   "init": 0,
+   "unit": "%",
+   "text": "",
+   "ui": "small"
+  },
+  {
+   "id": "param51",
    "line": "C",
    "key": "Tune",
    "name": "C Tune",
@@ -776,7 +822,7 @@
    "ui": "dial"
   },
   {
-   "id": "param49",
+   "id": "param52",
    "line": "C",
    "key": "Decay",
    "name": "C Decay",
@@ -789,20 +835,20 @@
    "ui": "dial"
   },
   {
-   "id": "param50",
+   "id": "param53",
    "line": "C",
    "key": "Morph",
    "name": "C Morph",
    "min": 0,
    "max": 10,
    "step": 0.001,
-   "init": 7,
+   "init": 3,
    "unit": "",
    "text": "",
    "ui": "slider"
   },
   {
-   "id": "param51",
+   "id": "param54",
    "line": "C",
    "key": "Enable",
    "name": "C Enable",
@@ -815,7 +861,7 @@
    "ui": "button"
   },
   {
-   "id": "param52",
+   "id": "param55",
    "line": "C",
    "key": "Level",
    "name": "C Level",
@@ -828,20 +874,20 @@
    "ui": "small"
   },
   {
-   "id": "param53",
+   "id": "param56",
    "line": "C",
    "key": "Listen",
    "name": "C Listen",
    "min": 0,
    "max": 6,
    "step": 1,
-   "init": 0,
+   "init": 2,
    "unit": "",
    "text": "All|Transient|Sustain|Low|Mid|High|Chain",
    "ui": "segmented"
   },
   {
-   "id": "param54",
+   "id": "param57",
    "line": "C",
    "key": "Sensitivity",
    "name": "C Sensitivity",
@@ -854,7 +900,7 @@
    "ui": "small"
   },
   {
-   "id": "param55",
+   "id": "param58",
    "line": "C",
    "key": "Excite",
    "name": "C Excite",
@@ -867,7 +913,7 @@
    "ui": "segmented"
   },
   {
-   "id": "param56",
+   "id": "param59",
    "line": "C",
    "key": "Touch",
    "name": "C Touch",
@@ -880,7 +926,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param57",
+   "id": "param60",
    "line": "C",
    "key": "Material",
    "name": "C Material",
@@ -893,7 +939,7 @@
    "ui": "dial"
   },
   {
-   "id": "param58",
+   "id": "param61",
    "line": "C",
    "key": "Size",
    "name": "C Size",
@@ -906,7 +952,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param59",
+   "id": "param62",
    "line": "C",
    "key": "Position",
    "name": "C Position",
@@ -919,7 +965,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param60",
+   "id": "param63",
    "line": "C",
    "key": "Bright",
    "name": "C Bright",
@@ -932,7 +978,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param61",
+   "id": "param64",
    "line": "C",
    "key": "Body",
    "name": "C Body",
@@ -945,7 +991,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param62",
+   "id": "param65",
    "line": "C",
    "key": "Stretch",
    "name": "C Stretch",
@@ -958,7 +1004,7 @@
    "ui": "advanced"
   },
   {
-   "id": "param63",
+   "id": "param66",
    "line": "C",
    "key": "Stiffness",
    "name": "C Stiffness",
@@ -971,7 +1017,7 @@
    "ui": "physics"
   },
   {
-   "id": "param64",
+   "id": "param67",
    "line": "C",
    "key": "Coupling",
    "name": "C Coupling",
@@ -984,7 +1030,7 @@
    "ui": "physics"
   },
   {
-   "id": "param65",
+   "id": "param68",
    "line": "C",
    "key": "Air",
    "name": "C Air",
@@ -997,7 +1043,7 @@
    "ui": "physics"
   },
   {
-   "id": "param66",
+   "id": "param69",
    "line": "C",
    "key": "Reed",
    "name": "C Reed",
@@ -1010,7 +1056,7 @@
    "ui": "physics"
   },
   {
-   "id": "param67",
+   "id": "param70",
    "line": "C",
    "key": "Follow",
    "name": "C Follow",
@@ -1023,7 +1069,7 @@
    "ui": "small"
   },
   {
-   "id": "param68",
+   "id": "param71",
    "line": "C",
    "key": "Hold",
    "name": "C Hold",
@@ -1036,11 +1082,24 @@
    "ui": "button"
   },
   {
-   "id": "param69",
+   "id": "param72",
    "line": "C",
    "key": "Blend",
    "name": "C Blend",
    "min": 0,
+   "max": 100,
+   "step": 0.1,
+   "init": 0,
+   "unit": "%",
+   "text": "",
+   "ui": "small"
+  },
+  {
+   "id": "param73",
+   "line": "C",
+   "key": "Pan",
+   "name": "C Pan",
+   "min": -100,
    "max": 100,
    "step": 0.1,
    "init": 0,
@@ -1085,7 +1144,7 @@
    "fields": [
     "onset"
    ],
-   "note": "shared novelty 0..1"
+   "note": "shared novelty 0..1, peak-hold since the last frame"
   },
   {
    "id": "analysisViz",
@@ -1102,7 +1161,7 @@
   },
   {
    "id": "lineStateA",
-   "type": "float<16>",
+   "type": "float<24>",
    "rateHz": 30,
    "fields": [
     "wet",
@@ -1110,6 +1169,10 @@
     "listenEnergy",
     "followHz",
     "hold",
+    "rootHz",
+    "t60",
+    "sustainEff",
+    "dominantBody",
     "engine0",
     "engine1",
     "engine2",
@@ -1120,12 +1183,17 @@
     "engine7",
     "engine8",
     "engine9",
-    "engine10"
-   ]
+    "engine10",
+    "spare0",
+    "spare1",
+    "spare2",
+    "spare3"
+   ],
+   "note": "per line; engines in anchor order"
   },
   {
    "id": "lineStateB",
-   "type": "float<16>",
+   "type": "float<24>",
    "rateHz": 30,
    "fields": [
     "wet",
@@ -1133,6 +1201,10 @@
     "listenEnergy",
     "followHz",
     "hold",
+    "rootHz",
+    "t60",
+    "sustainEff",
+    "dominantBody",
     "engine0",
     "engine1",
     "engine2",
@@ -1143,12 +1215,17 @@
     "engine7",
     "engine8",
     "engine9",
-    "engine10"
-   ]
+    "engine10",
+    "spare0",
+    "spare1",
+    "spare2",
+    "spare3"
+   ],
+   "note": "per line; engines in anchor order"
   },
   {
    "id": "lineStateC",
-   "type": "float<16>",
+   "type": "float<24>",
    "rateHz": 30,
    "fields": [
     "wet",
@@ -1156,6 +1233,10 @@
     "listenEnergy",
     "followHz",
     "hold",
+    "rootHz",
+    "t60",
+    "sustainEff",
+    "dominantBody",
     "engine0",
     "engine1",
     "engine2",
@@ -1166,8 +1247,13 @@
     "engine7",
     "engine8",
     "engine9",
-    "engine10"
-   ]
+    "engine10",
+    "spare0",
+    "spare1",
+    "spare2",
+    "spare3"
+   ],
+   "note": "per line; engines in anchor order"
   },
   {
    "id": "lineModesA",
@@ -1191,7 +1277,7 @@
     "mode14",
     "mode15"
    ],
-   "note": "energy of the 16 loudest modes of the line's dominant body"
+   "note": "energy of the first 16 per-body slot modes of the dominant body, fixed recipe index order (identity known to the UI via bodies.json)"
   },
   {
    "id": "lineModesB",
@@ -1215,7 +1301,7 @@
     "mode14",
     "mode15"
    ],
-   "note": "energy of the 16 loudest modes of the line's dominant body"
+   "note": "energy of the first 16 per-body slot modes of the dominant body, fixed recipe index order (identity known to the UI via bodies.json)"
   },
   {
    "id": "lineModesC",
@@ -1239,7 +1325,20 @@
     "mode14",
     "mode15"
    ],
-   "note": "energy of the 16 loudest modes of the line's dominant body"
+   "note": "energy of the first 16 per-body slot modes of the dominant body, fixed recipe index order (identity known to the UI via bodies.json)"
   }
+ ],
+ "anchorLabelsLong": [
+  "BASS DRUM",
+  "SNARE",
+  "TIMPANI",
+  "PIANO",
+  "GUITAR",
+  "UKULELE",
+  "FIDDLE",
+  "CLARINET",
+  "OBOE",
+  "SAX",
+  "OBOSAXOLELE"
  ]
 }
