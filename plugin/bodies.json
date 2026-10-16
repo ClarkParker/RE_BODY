@@ -1,0 +1,1686 @@
+{
+  "anchors": ["Bass Drum", "Snare", "Timpani", "Piano", "Guitar", "Ukulele", "Fiddle", "Clarinet", "Oboe", "Sax", "Obosaxolele"],
+  "bodies": [
+    {
+      "bodyDefault": 0.5,
+      "constituents": [],
+      "damping": {
+        "alphaG": 17.6,
+        "alphaR": 0.00365,
+        "rho": 0.349578,
+        "t200": 0.311346,
+        "t60Root": 0.358147
+      },
+      "decay": {
+        "base": 0.08,
+        "ratio": 20.0,
+        "secondsAt50": 0.357771
+      },
+      "defaultRootHz": 73.582,
+      "depthNote": "22 s1: rear shell (2) -300, batter head (1) -40, front hoop (0) 0, tension rods (6-9) +100, feet (5) +60",
+      "featureCount": 2,
+      "followCount": 7,
+      "generator": "membrane",
+      "id": "bass_drum",
+      "index": 0,
+      "label": "BASS",
+      "labelLong": "BASS DRUM",
+      "line": {
+        "beta": 0.0,
+        "kind": "none",
+        "loopLowpassHz": 0.0,
+        "radiationHz": 0.0
+      },
+      "modes": [
+        {
+          "hz": 310.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "wood shell 310",
+          "slot": 0
+        },
+        {
+          "hz": 520.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "wood shell 520",
+          "slot": 1
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "index": 0,
+          "kind": "following",
+          "label": "(0,1) batter",
+          "ratio": 1.0,
+          "slot": 8
+        },
+        {
+          "index": 1,
+          "kind": "following",
+          "label": "(0,1) pair -",
+          "ratio": 0.94,
+          "slot": 9
+        },
+        {
+          "index": 2,
+          "kind": "following",
+          "label": "(0,1) pair +",
+          "ratio": 1.07,
+          "slot": 10
+        },
+        {
+          "index": 3,
+          "kind": "following",
+          "label": "(1,1)",
+          "ratio": 1.594,
+          "slot": 11
+        },
+        {
+          "index": 4,
+          "kind": "following",
+          "label": "(2,1)",
+          "ratio": 2.136,
+          "slot": 12
+        },
+        {
+          "index": 5,
+          "kind": "following",
+          "label": "(0,2)",
+          "ratio": 2.296,
+          "slot": 13
+        },
+        {
+          "index": 6,
+          "kind": "following",
+          "label": "(3,1)",
+          "ratio": 2.653,
+          "slot": 14
+        },
+        null
+      ],
+      "modesCompact": [
+        {
+          "hz": 310.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "wood shell 310",
+          "slot": 0
+        },
+        {
+          "hz": 520.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "wood shell 520",
+          "slot": 1
+        },
+        {
+          "index": 0,
+          "kind": "following",
+          "label": "(0,1) batter",
+          "ratio": 1.0,
+          "slot": 2
+        },
+        {
+          "index": 1,
+          "kind": "following",
+          "label": "(0,1) pair -",
+          "ratio": 0.94,
+          "slot": 3
+        },
+        {
+          "index": 2,
+          "kind": "following",
+          "label": "(0,1) pair +",
+          "ratio": 1.07,
+          "slot": 4
+        },
+        {
+          "index": 3,
+          "kind": "following",
+          "label": "(1,1)",
+          "ratio": 1.594,
+          "slot": 5
+        },
+        {
+          "index": 4,
+          "kind": "following",
+          "label": "(2,1)",
+          "ratio": 2.136,
+          "slot": 6
+        },
+        {
+          "index": 5,
+          "kind": "following",
+          "label": "(0,2)",
+          "ratio": 2.296,
+          "slot": 7
+        },
+        {
+          "index": 6,
+          "kind": "following",
+          "label": "(3,1)",
+          "ratio": 2.653,
+          "slot": 8
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "name": "Bass Drum",
+      "physicsMap": {
+        "air": "ideal -> air-loaded ratios (1.59 -> 1.50 ...), pair split",
+        "coupling": "head -> shell feed 0..0.4",
+        "excite": "Through; Hammer into the batter head",
+        "reed": "head tension: glide 0..0.5 oct, (0,1) damping",
+        "stiffness": "head mode stretch B 0..0.02"
+      },
+      "positionDefault": 0.3,
+      "rootBaseHz": 120.0,
+      "rootLaw": "drum",
+      "rootSizeOct": -1.68,
+      "sustain": 0.035,
+      "tuneNoteRange": [36, 72],
+      "zTable": [0, -40, -300, 92, 92, 60, 100, 100, 100, 100]
+    },
+    {
+      "bodyDefault": 0.5,
+      "constituents": [],
+      "damping": {
+        "alphaG": 17.4,
+        "alphaR": 0.00486,
+        "rho": 0.29956,
+        "t200": 0.293856,
+        "t60Root": 0.283181
+      },
+      "decay": {
+        "base": 0.08,
+        "ratio": 12.5,
+        "secondsAt50": 0.282843
+      },
+      "defaultRootHz": 229.019,
+      "depthNote": "22 s2: shell (0) 0, top head (1) +10, snare wires (2) -60, lugs/rods (3-9) +80",
+      "featureCount": 2,
+      "followCount": 5,
+      "generator": "membrane",
+      "id": "snare",
+      "index": 1,
+      "label": "SNARE",
+      "labelLong": "SNARE",
+      "line": {
+        "beta": 0.0,
+        "kind": "none",
+        "loopLowpassHz": 0.0,
+        "radiationHz": 0.0
+      },
+      "modes": [
+        {
+          "hz": 450.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "shell 450",
+          "slot": 0
+        },
+        {
+          "hz": 1100.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "shell 1100",
+          "slot": 1
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "index": 0,
+          "kind": "following",
+          "label": "(0,1) batter",
+          "ratio": 1.0,
+          "slot": 8
+        },
+        {
+          "index": 1,
+          "kind": "following",
+          "label": "(0,1) pair -",
+          "ratio": 0.92,
+          "slot": 9
+        },
+        {
+          "index": 2,
+          "kind": "following",
+          "label": "(0,1) pair +",
+          "ratio": 1.1,
+          "slot": 10
+        },
+        {
+          "index": 3,
+          "kind": "following",
+          "label": "(1,1)",
+          "ratio": 1.594,
+          "slot": 11
+        },
+        {
+          "index": 4,
+          "kind": "following",
+          "label": "(2,1)",
+          "ratio": 2.136,
+          "slot": 12
+        },
+        null,
+        null,
+        null
+      ],
+      "modesCompact": [
+        {
+          "hz": 450.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "shell 450",
+          "slot": 0
+        },
+        {
+          "hz": 1100.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "shell 1100",
+          "slot": 1
+        },
+        {
+          "index": 0,
+          "kind": "following",
+          "label": "(0,1) batter",
+          "ratio": 1.0,
+          "slot": 2
+        },
+        {
+          "index": 1,
+          "kind": "following",
+          "label": "(0,1) pair -",
+          "ratio": 0.92,
+          "slot": 3
+        },
+        {
+          "index": 2,
+          "kind": "following",
+          "label": "(0,1) pair +",
+          "ratio": 1.1,
+          "slot": 4
+        },
+        {
+          "index": 3,
+          "kind": "following",
+          "label": "(1,1)",
+          "ratio": 1.594,
+          "slot": 5
+        },
+        {
+          "index": 4,
+          "kind": "following",
+          "label": "(2,1)",
+          "ratio": 2.136,
+          "slot": 6
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "name": "Snare",
+      "physicsMap": {
+        "air": "air between heads: pair split 0.92/1.10 <-> 0.97/1.03",
+        "coupling": "heads -> shell feed, wires sensitivity",
+        "excite": "Through; Hammer",
+        "reed": "tension; rattle band width",
+        "stiffness": "head stretch"
+      },
+      "positionDefault": 0.35,
+      "rootBaseHz": 310.0,
+      "rootLaw": "drum",
+      "rootSizeOct": -1.04,
+      "sustain": 0.035,
+      "tuneNoteRange": [36, 72],
+      "zTable": [0, 10, -60, 80, 80, 80, 80, 80, 80, 80]
+    },
+    {
+      "bodyDefault": 0.5,
+      "constituents": [],
+      "damping": {
+        "alphaG": 4.0,
+        "alphaR": 0.00064,
+        "rho": 0.398942,
+        "t200": 1.43784,
+        "t60Root": 1.41417
+      },
+      "decay": {
+        "base": 0.5,
+        "ratio": 8.0,
+        "secondsAt50": 1.41421
+      },
+      "defaultRootHz": 220.0,
+      "depthNote": "22 s3: kettle (2) -280, head (1) 0, counterhoop (0) +20, struts/pedal (6-9) +120",
+      "featureCount": 1,
+      "followCount": 6,
+      "generator": "membrane",
+      "id": "timpani",
+      "index": 2,
+      "label": "TIMP",
+      "labelLong": "TIMPANI",
+      "line": {
+        "beta": 0.0,
+        "kind": "none",
+        "loopLowpassHz": 0.0,
+        "radiationHz": 0.0
+      },
+      "modes": [
+        {
+          "hz": 160.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "kettle shell 160",
+          "slot": 0
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "index": 0,
+          "kind": "following",
+          "label": "(0,1) kettle-damped",
+          "ratio": 0.81,
+          "slot": 8
+        },
+        {
+          "index": 1,
+          "kind": "following",
+          "label": "(1,1)",
+          "ratio": 1.0,
+          "slot": 9
+        },
+        {
+          "index": 2,
+          "kind": "following",
+          "label": "(2,1)",
+          "ratio": 1.5,
+          "slot": 10
+        },
+        {
+          "index": 3,
+          "kind": "following",
+          "label": "(3,1)",
+          "ratio": 1.98,
+          "slot": 11
+        },
+        {
+          "index": 4,
+          "kind": "following",
+          "label": "(4,1)",
+          "ratio": 2.44,
+          "slot": 12
+        },
+        {
+          "index": 5,
+          "kind": "following",
+          "label": "(5,1)",
+          "ratio": 2.91,
+          "slot": 13
+        },
+        null,
+        null
+      ],
+      "modesCompact": [
+        {
+          "hz": 160.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "kettle shell 160",
+          "slot": 0
+        },
+        {
+          "index": 0,
+          "kind": "following",
+          "label": "(0,1) kettle-damped",
+          "ratio": 0.81,
+          "slot": 1
+        },
+        {
+          "index": 1,
+          "kind": "following",
+          "label": "(1,1)",
+          "ratio": 1.0,
+          "slot": 2
+        },
+        {
+          "index": 2,
+          "kind": "following",
+          "label": "(2,1)",
+          "ratio": 1.5,
+          "slot": 3
+        },
+        {
+          "index": 3,
+          "kind": "following",
+          "label": "(3,1)",
+          "ratio": 1.98,
+          "slot": 4
+        },
+        {
+          "index": 4,
+          "kind": "following",
+          "label": "(4,1)",
+          "ratio": 2.44,
+          "slot": 5
+        },
+        {
+          "index": 5,
+          "kind": "following",
+          "label": "(5,1)",
+          "ratio": 2.91,
+          "slot": 6
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "name": "Timpani",
+      "physicsMap": {
+        "air": "kettle load: (0,1) damping, ratio set",
+        "coupling": "head -> kettle mode feed",
+        "excite": "Through; Hammer (mallet 0.25 radius)",
+        "reed": "tension glide 0..0.3 oct",
+        "stiffness": "ratio stretch"
+      },
+      "positionDefault": 0.25,
+      "rootBaseHz": 0.0,
+      "rootLaw": "note",
+      "rootSizeOct": 0.0,
+      "sustain": 0.03,
+      "tuneNoteRange": [36, 60],
+      "zTable": [20, 0, -280, 120, 120, 120, 120, 120, 120, 120]
+    },
+    {
+      "bodyDefault": 0.45,
+      "constituents": [],
+      "damping": {
+        "alphaG": 0.0,
+        "alphaR": 0.0115,
+        "rho": 0.1,
+        "t200": 0.478001,
+        "t60Root": 0.434547
+      },
+      "decay": {
+        "base": 0.25,
+        "ratio": 24.0,
+        "secondsAt50": 1.22474
+      },
+      "defaultRootHz": 220.0,
+      "depthNote": "22 s4: lid inner rim (1) -200, strings (3-5) -60, case rim (0) 0, keyboard (2, 6-9) +160",
+      "featureCount": 7,
+      "followCount": 0,
+      "generator": "plate",
+      "id": "piano",
+      "index": 3,
+      "label": "PIANO",
+      "labelLong": "PIANO",
+      "line": {
+        "beta": 0.11,
+        "kind": "string_pair",
+        "loopLowpassHz": 11500.0,
+        "radiationHz": 0.0
+      },
+      "modes": [
+        {
+          "hz": 84.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "FEM 84",
+          "slot": 0
+        },
+        {
+          "hz": 127.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "FEM 127",
+          "slot": 1
+        },
+        {
+          "hz": 194.0,
+          "index": 2,
+          "kind": "feature",
+          "label": "FEM 194",
+          "slot": 2
+        },
+        {
+          "hz": 204.0,
+          "index": 3,
+          "kind": "feature",
+          "label": "FEM 204",
+          "slot": 3
+        },
+        {
+          "hz": 229.0,
+          "index": 4,
+          "kind": "feature",
+          "label": "FEM 229",
+          "slot": 4
+        },
+        {
+          "hz": 271.0,
+          "index": 5,
+          "kind": "feature",
+          "label": "FEM 271",
+          "slot": 5
+        },
+        {
+          "hz": 301.0,
+          "index": 6,
+          "kind": "feature",
+          "label": "FEM 301",
+          "slot": 6
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "modesCompact": [
+        {
+          "hz": 84.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "FEM 84",
+          "slot": 0
+        },
+        {
+          "hz": 127.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "FEM 127",
+          "slot": 1
+        },
+        {
+          "hz": 194.0,
+          "index": 2,
+          "kind": "feature",
+          "label": "FEM 194",
+          "slot": 2
+        },
+        {
+          "hz": 204.0,
+          "index": 3,
+          "kind": "feature",
+          "label": "FEM 204",
+          "slot": 3
+        },
+        {
+          "hz": 229.0,
+          "index": 4,
+          "kind": "feature",
+          "label": "FEM 229",
+          "slot": 4
+        },
+        {
+          "hz": 271.0,
+          "index": 5,
+          "kind": "feature",
+          "label": "FEM 271",
+          "slot": 5
+        },
+        {
+          "hz": 301.0,
+          "index": 6,
+          "kind": "feature",
+          "label": "FEM 301",
+          "slot": 6
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "name": "Piano",
+      "physicsMap": {
+        "air": "board air (low-mode gain)",
+        "coupling": "string -> board feed",
+        "excite": "Through; Hammer",
+        "reed": "hammer hardness (low-pass 4-12 kHz)",
+        "stiffness": "string dispersion -0.6..-0.95"
+      },
+      "positionDefault": 0.11,
+      "rootBaseHz": 0.0,
+      "rootLaw": "note",
+      "rootSizeOct": 0.0,
+      "sustain": 0.045,
+      "tuneNoteRange": [36, 72],
+      "zTable": [0, -200, 160, -60, -60, -60, 160, 160, 160, 160]
+    },
+    {
+      "bodyDefault": 0.6,
+      "constituents": [],
+      "damping": {
+        "alphaG": 0.0,
+        "alphaR": 0.025,
+        "rho": 0.1,
+        "t200": 0.219881,
+        "t60Root": 0.199892
+      },
+      "decay": {
+        "base": 0.25,
+        "ratio": 24.0,
+        "secondsAt50": 1.22474
+      },
+      "defaultRootHz": 220.0,
+      "depthNote": "22 s5: back and sides (2) -260, sound-hole cavity (1) -420, top (0) 0, strings (3-6) +40, bridge and pegs (7-9) +120",
+      "featureCount": 4,
+      "followCount": 0,
+      "generator": "box",
+      "id": "guitar",
+      "index": 4,
+      "label": "GUITAR",
+      "labelLong": "GUITAR",
+      "line": {
+        "beta": 0.25,
+        "kind": "string",
+        "loopLowpassHz": 2600.0,
+        "radiationHz": 0.0
+      },
+      "modes": [
+        {
+          "hz": 103.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "A0",
+          "slot": 0
+        },
+        {
+          "hz": 205.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "T1",
+          "slot": 1
+        },
+        {
+          "hz": 286.0,
+          "index": 2,
+          "kind": "feature",
+          "label": "286 Hz",
+          "slot": 2
+        },
+        {
+          "hz": 436.0,
+          "index": 3,
+          "kind": "feature",
+          "label": "436 Hz",
+          "slot": 3
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "modesCompact": [
+        {
+          "hz": 103.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "A0",
+          "slot": 0
+        },
+        {
+          "hz": 205.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "T1",
+          "slot": 1
+        },
+        {
+          "hz": 286.0,
+          "index": 2,
+          "kind": "feature",
+          "label": "286 Hz",
+          "slot": 2
+        },
+        {
+          "hz": 436.0,
+          "index": 3,
+          "kind": "feature",
+          "label": "436 Hz",
+          "slot": 3
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "name": "Guitar",
+      "physicsMap": {
+        "air": "A0/T1 coupling and gain",
+        "coupling": "string -> box feed",
+        "excite": "Through; Pluck",
+        "reed": "pick hardness",
+        "stiffness": "dispersion"
+      },
+      "positionDefault": 0.25,
+      "rootBaseHz": 0.0,
+      "rootLaw": "note",
+      "rootSizeOct": 0.0,
+      "sustain": 0.045,
+      "tuneNoteRange": [36, 72],
+      "zTable": [0, -420, -260, 40, 40, 40, 40, 120, 120, 120]
+    },
+    {
+      "bodyDefault": 0.5,
+      "constituents": [],
+      "damping": {
+        "alphaG": 0.0,
+        "alphaR": 0.037,
+        "rho": 0.1,
+        "t200": 0.148568,
+        "t60Root": 0.135062
+      },
+      "decay": {
+        "base": 0.07,
+        "ratio": 12.0,
+        "secondsAt50": 0.242487
+      },
+      "defaultRootHz": 220.0,
+      "depthNote": "22 s6: sound-hole cavity (1) -420, body (0) 0, strings (2-5) +40, frets/bridge (6-7) +90, pegs (8-9) +130",
+      "featureCount": 3,
+      "followCount": 0,
+      "generator": "box",
+      "id": "ukulele",
+      "index": 5,
+      "label": "UKE",
+      "labelLong": "UKULELE",
+      "line": {
+        "beta": 0.32,
+        "kind": "string",
+        "loopLowpassHz": 1650.0,
+        "radiationHz": 0.0
+      },
+      "modes": [
+        {
+          "hz": 230.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "A0",
+          "slot": 0
+        },
+        {
+          "hz": 290.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "T1",
+          "slot": 1
+        },
+        {
+          "hz": 480.0,
+          "index": 2,
+          "kind": "feature",
+          "label": "T2",
+          "slot": 2
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "modesCompact": [
+        {
+          "hz": 230.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "A0",
+          "slot": 0
+        },
+        {
+          "hz": 290.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "T1",
+          "slot": 1
+        },
+        {
+          "hz": 480.0,
+          "index": 2,
+          "kind": "feature",
+          "label": "T2",
+          "slot": 2
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "name": "Ukulele",
+      "physicsMap": {
+        "air": "A0/T1",
+        "coupling": "string -> box feed",
+        "excite": "Through; Pluck",
+        "reed": "pick hardness",
+        "stiffness": "dispersion"
+      },
+      "positionDefault": 0.32,
+      "rootBaseHz": 0.0,
+      "rootLaw": "note",
+      "rootSizeOct": 0.0,
+      "sustain": 0.025,
+      "tuneNoteRange": [36, 72],
+      "zTable": [0, -420, 40, 40, 40, 40, 90, 90, 130, 130]
+    },
+    {
+      "bodyDefault": 0.7,
+      "constituents": [],
+      "damping": {
+        "alphaG": 18.3,
+        "alphaR": 0.00582,
+        "rho": 0.280125,
+        "t200": 0.269691,
+        "t60Root": 0.262204
+      },
+      "decay": {
+        "base": 0.2,
+        "ratio": 20.0,
+        "secondsAt50": 0.894427
+      },
+      "defaultRootHz": 220.0,
+      "depthNote": "22 s7: f-hole cavity (1) -420, body (0) 0, strings (2-5) +60, fingerboard (6) +140, bridge (7) +120, scroll/pegs (8-9) +100",
+      "featureCount": 5,
+      "followCount": 0,
+      "generator": "box",
+      "id": "fiddle",
+      "index": 6,
+      "label": "FIDDLE",
+      "labelLong": "FIDDLE",
+      "line": {
+        "beta": 0.1,
+        "kind": "string",
+        "loopLowpassHz": 4200.0,
+        "radiationHz": 0.0
+      },
+      "modes": [
+        {
+          "hz": 275.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "A0",
+          "slot": 0
+        },
+        {
+          "hz": 407.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "CBR",
+          "slot": 1
+        },
+        {
+          "hz": 475.0,
+          "index": 2,
+          "kind": "feature",
+          "label": "B1-",
+          "slot": 2
+        },
+        {
+          "hz": 541.0,
+          "index": 3,
+          "kind": "feature",
+          "label": "B1+",
+          "slot": 3
+        },
+        {
+          "hz": 469.0,
+          "index": 4,
+          "kind": "feature",
+          "label": "A1",
+          "slot": 4
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "modesCompact": [
+        {
+          "hz": 275.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "A0",
+          "slot": 0
+        },
+        {
+          "hz": 407.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "CBR",
+          "slot": 1
+        },
+        {
+          "hz": 475.0,
+          "index": 2,
+          "kind": "feature",
+          "label": "B1-",
+          "slot": 2
+        },
+        {
+          "hz": 541.0,
+          "index": 3,
+          "kind": "feature",
+          "label": "B1+",
+          "slot": 3
+        },
+        {
+          "hz": 469.0,
+          "index": 4,
+          "kind": "feature",
+          "label": "A1",
+          "slot": 4
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "name": "Fiddle",
+      "physicsMap": {
+        "air": "A0 gain",
+        "coupling": "string -> body feed",
+        "excite": "Through; Pluck",
+        "reed": "contact low-pass (bow hair)",
+        "stiffness": "dispersion"
+      },
+      "positionDefault": 0.1,
+      "rootBaseHz": 0.0,
+      "rootLaw": "note",
+      "rootSizeOct": 0.0,
+      "sustain": 0.6,
+      "tuneNoteRange": [36, 72],
+      "zTable": [0, -420, 60, 60, 60, 60, 140, 120, 100, 100]
+    },
+    {
+      "bodyDefault": 0.5,
+      "constituents": [],
+      "damping": {
+        "alphaG": 0.0,
+        "alphaR": 0.125,
+        "rho": 0.1,
+        "t200": 0.0439761,
+        "t60Root": 0.0399783
+      },
+      "decay": {
+        "base": 0.15,
+        "ratio": 20.0,
+        "secondsAt50": 0.67082
+      },
+      "defaultRootHz": 220.0,
+      "depthNote": "22 s8: bell (1) -120, bore (0) 0, keys (6-9) +120, mouthpiece (2) +160",
+      "featureCount": 0,
+      "followCount": 0,
+      "generator": "tube_body",
+      "id": "clarinet",
+      "index": 7,
+      "label": "CLAR",
+      "labelLong": "CLARINET",
+      "line": {
+        "beta": 0.5,
+        "kind": "cylinder",
+        "loopLowpassHz": 1750.0,
+        "radiationHz": 1400.0
+      },
+      "modes": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "modesCompact": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "name": "Clarinet",
+      "physicsMap": {
+        "air": "breath noise 0..0.3",
+        "coupling": "radiation mix (loop gain stays Decay's)",
+        "excite": "Through; Breath",
+        "reed": "reed offset/slope",
+        "stiffness": "slight dispersion"
+      },
+      "positionDefault": 0.5,
+      "rootBaseHz": 0.0,
+      "rootLaw": "note",
+      "rootSizeOct": 0.0,
+      "sustain": 1.0,
+      "tuneNoteRange": [36, 72],
+      "zTable": [0, -120, 160, 120, 120, 120, 120, 120, 120, 120]
+    },
+    {
+      "bodyDefault": 0.5,
+      "constituents": [],
+      "damping": {
+        "alphaG": 37.3,
+        "alphaR": 0.00085,
+        "rho": 0.799646,
+        "t200": 0.180039,
+        "t60Root": 0.179539
+      },
+      "decay": {
+        "base": 0.12,
+        "ratio": 25.0,
+        "secondsAt50": 0.6
+      },
+      "defaultRootHz": 220.0,
+      "depthNote": "22 s9: bell (1) -120, body (0) 0, keys (6-9) +120, reed (2) +170",
+      "featureCount": 4,
+      "followCount": 8,
+      "generator": "cluster",
+      "id": "oboe",
+      "index": 8,
+      "label": "OBOE",
+      "labelLong": "OBOE",
+      "line": {
+        "beta": 0.0,
+        "kind": "none",
+        "loopLowpassHz": 0.0,
+        "radiationHz": 0.0
+      },
+      "modes": [
+        {
+          "hz": 1100.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "formant 1.1k",
+          "slot": 0
+        },
+        {
+          "hz": 1400.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "formant 1.4k",
+          "slot": 1
+        },
+        {
+          "hz": 2800.0,
+          "index": 2,
+          "kind": "feature",
+          "label": "formant 2.8k",
+          "slot": 2
+        },
+        {
+          "hz": 3200.0,
+          "index": 3,
+          "kind": "feature",
+          "label": "formant 3.2k",
+          "slot": 3
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "index": 0,
+          "kind": "following",
+          "label": "cluster 1",
+          "ratio": 1.0,
+          "slot": 8
+        },
+        {
+          "index": 1,
+          "kind": "following",
+          "label": "cluster 2",
+          "ratio": 2.73,
+          "slot": 9
+        },
+        {
+          "index": 2,
+          "kind": "following",
+          "label": "cluster 3",
+          "ratio": 3.0,
+          "slot": 10
+        },
+        {
+          "index": 3,
+          "kind": "following",
+          "label": "cluster 4",
+          "ratio": 3.29,
+          "slot": 11
+        },
+        {
+          "index": 4,
+          "kind": "following",
+          "label": "cluster 5",
+          "ratio": 6.43,
+          "slot": 12
+        },
+        {
+          "index": 5,
+          "kind": "following",
+          "label": "cluster 6",
+          "ratio": 7.0,
+          "slot": 13
+        },
+        {
+          "index": 6,
+          "kind": "following",
+          "label": "cluster 7",
+          "ratio": 7.61,
+          "slot": 14
+        },
+        {
+          "index": 7,
+          "kind": "following",
+          "label": "cluster 8",
+          "ratio": 10.57,
+          "slot": 15
+        }
+      ],
+      "modesCompact": [
+        {
+          "hz": 1100.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "formant 1.1k",
+          "slot": 0
+        },
+        {
+          "hz": 1400.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "formant 1.4k",
+          "slot": 1
+        },
+        {
+          "hz": 2800.0,
+          "index": 2,
+          "kind": "feature",
+          "label": "formant 2.8k",
+          "slot": 2
+        },
+        {
+          "hz": 3200.0,
+          "index": 3,
+          "kind": "feature",
+          "label": "formant 3.2k",
+          "slot": 3
+        },
+        {
+          "index": 0,
+          "kind": "following",
+          "label": "cluster 1",
+          "ratio": 1.0,
+          "slot": 4
+        },
+        {
+          "index": 1,
+          "kind": "following",
+          "label": "cluster 2",
+          "ratio": 2.73,
+          "slot": 5
+        },
+        {
+          "index": 2,
+          "kind": "following",
+          "label": "cluster 3",
+          "ratio": 3.0,
+          "slot": 6
+        },
+        {
+          "index": 3,
+          "kind": "following",
+          "label": "cluster 4",
+          "ratio": 3.29,
+          "slot": 7
+        },
+        {
+          "index": 4,
+          "kind": "following",
+          "label": "cluster 5",
+          "ratio": 6.43,
+          "slot": 8
+        },
+        {
+          "index": 5,
+          "kind": "following",
+          "label": "cluster 6",
+          "ratio": 7.0,
+          "slot": 9
+        },
+        {
+          "index": 6,
+          "kind": "following",
+          "label": "cluster 7",
+          "ratio": 7.61,
+          "slot": 10
+        },
+        {
+          "index": 7,
+          "kind": "following",
+          "label": "cluster 8",
+          "ratio": 10.57,
+          "slot": 11
+        },
+        null,
+        null,
+        null,
+        null
+      ],
+      "name": "Oboe",
+      "physicsMap": {
+        "air": "breath noise",
+        "coupling": "radiation mix; cluster feed",
+        "excite": "Through; Breath",
+        "reed": "reed-contact formant 1..3 x f0 (BODY 2.1, :396)",
+        "stiffness": "cluster ratio stretch"
+      },
+      "positionDefault": 0.5,
+      "rootBaseHz": 0.0,
+      "rootLaw": "note",
+      "rootSizeOct": 0.0,
+      "sustain": 1.0,
+      "tuneNoteRange": [36, 72],
+      "zTable": [0, -120, 170, 120, 120, 120, 120, 120, 120, 120]
+    },
+    {
+      "bodyDefault": 0.5,
+      "constituents": [],
+      "damping": {
+        "alphaG": 0.0,
+        "alphaR": 0.1,
+        "rho": 0.1,
+        "t200": 0.0549702,
+        "t60Root": 0.0499729
+      },
+      "decay": {
+        "base": 0.15,
+        "ratio": 20.0,
+        "secondsAt50": 0.67082
+      },
+      "defaultRootHz": 220.0,
+      "depthNote": "22 s10: rear tube (2) -260, body (0) 0, neck/mouthpiece (3) +140, keys (6-9) +180, bell rim (1) +220",
+      "featureCount": 2,
+      "followCount": 0,
+      "generator": "tube_body",
+      "id": "sax",
+      "index": 9,
+      "label": "SAX",
+      "labelLong": "SAX",
+      "line": {
+        "beta": 0.17,
+        "kind": "cone",
+        "loopLowpassHz": 6600.0,
+        "radiationHz": 1000.0
+      },
+      "modes": [
+        {
+          "hz": 780.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "brass 780",
+          "slot": 0
+        },
+        {
+          "hz": 1750.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "brass 1750",
+          "slot": 1
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "modesCompact": [
+        {
+          "hz": 780.0,
+          "index": 0,
+          "kind": "feature",
+          "label": "brass 780",
+          "slot": 0
+        },
+        {
+          "hz": 1750.0,
+          "index": 1,
+          "kind": "feature",
+          "label": "brass 1750",
+          "slot": 1
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "name": "Sax",
+      "physicsMap": {
+        "air": "breath noise (BODY saxBreath)",
+        "coupling": "radiation mix",
+        "excite": "Through; Breath",
+        "reed": "reed offset/slope (BODY asymmetry)",
+        "stiffness": "slight dispersion"
+      },
+      "positionDefault": 0.17,
+      "rootBaseHz": 0.0,
+      "rootLaw": "note",
+      "rootSizeOct": 0.0,
+      "sustain": 0.78,
+      "tuneNoteRange": [36, 72],
+      "zTable": [0, 220, -260, 140, 172, 172, 180, 180, 180, 180]
+    },
+    {
+      "bodyDefault": 0.5,
+      "constituents": [
+        {
+          "index": 5,
+          "weight": 0.333333
+        },
+        {
+          "index": 8,
+          "weight": 0.333333
+        },
+        {
+          "index": 9,
+          "weight": 0.333333
+        }
+      ],
+      "damping": {
+        "alphaG": 47.2411,
+        "alphaR": 0.0107483,
+        "rho": 0.333215,
+        "t200": 0.113712,
+        "t60Root": 0.111239
+      },
+      "decay": {
+        "base": 0.108008,
+        "ratio": 18.1712,
+        "secondsAt50": 0.460414
+      },
+      "defaultRootHz": 220.0,
+      "depthNote": "22 s11: bell (1) +220, soundbox (0) 0, strings (2-5) +40, reed neck/pegs (6-9) +140",
+      "featureCount": 0,
+      "followCount": 8,
+      "generator": "cluster",
+      "id": "obosaxolele",
+      "index": 10,
+      "label": "OBOSAX·",
+      "labelLong": "OBOSAXOLELE",
+      "line": {
+        "beta": 0.32,
+        "kind": "string",
+        "loopLowpassHz": 1650.0,
+        "radiationHz": 1000.0
+      },
+      "modes": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        {
+          "index": 0,
+          "kind": "following",
+          "label": "pair 1-",
+          "ratio": 0.99273,
+          "slot": 8
+        },
+        {
+          "index": 1,
+          "kind": "following",
+          "label": "pair 1+",
+          "ratio": 1.00727,
+          "slot": 9
+        },
+        {
+          "index": 2,
+          "kind": "following",
+          "label": "pair 2-",
+          "ratio": 1.99741,
+          "slot": 10
+        },
+        {
+          "index": 3,
+          "kind": "following",
+          "label": "pair 2+",
+          "ratio": 2.02059,
+          "slot": 11
+        },
+        {
+          "index": 4,
+          "kind": "following",
+          "label": "pair 3-",
+          "ratio": 3.0045,
+          "slot": 12
+        },
+        {
+          "index": 5,
+          "kind": "following",
+          "label": "pair 3+",
+          "ratio": 3.0395,
+          "slot": 13
+        },
+        {
+          "index": 6,
+          "kind": "following",
+          "label": "pair 4-",
+          "ratio": 5.02432,
+          "slot": 14
+        },
+        {
+          "index": 7,
+          "kind": "following",
+          "label": "pair 4+",
+          "ratio": 5.07568,
+          "slot": 15
+        }
+      ],
+      "modesCompact": [
+        {
+          "index": 0,
+          "kind": "following",
+          "label": "pair 1-",
+          "ratio": 0.99273,
+          "slot": 0
+        },
+        {
+          "index": 1,
+          "kind": "following",
+          "label": "pair 1+",
+          "ratio": 1.00727,
+          "slot": 1
+        },
+        {
+          "index": 2,
+          "kind": "following",
+          "label": "pair 2-",
+          "ratio": 1.99741,
+          "slot": 2
+        },
+        {
+          "index": 3,
+          "kind": "following",
+          "label": "pair 2+",
+          "ratio": 2.02059,
+          "slot": 3
+        },
+        {
+          "index": 4,
+          "kind": "following",
+          "label": "pair 3-",
+          "ratio": 3.0045,
+          "slot": 4
+        },
+        {
+          "index": 5,
+          "kind": "following",
+          "label": "pair 3+",
+          "ratio": 3.0395,
+          "slot": 5
+        },
+        {
+          "index": 6,
+          "kind": "following",
+          "label": "pair 4-",
+          "ratio": 5.02432,
+          "slot": 6
+        },
+        {
+          "index": 7,
+          "kind": "following",
+          "label": "pair 4+",
+          "ratio": 5.07568,
+          "slot": 7
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "name": "Obosaxolele",
+      "physicsMap": {
+        "air": "Sax row",
+        "coupling": "hybrid coupling gains (BODY 0.95/0.60), one-way chain",
+        "excite": "Through; Pluck into the uke bridge",
+        "reed": "Oboe row",
+        "stiffness": "Uke row"
+      },
+      "positionDefault": 0.32,
+      "rootBaseHz": 0.0,
+      "rootLaw": "note",
+      "rootSizeOct": 0.0,
+      "sustain": 0.601667,
+      "tuneNoteRange": [36, 72],
+      "zTable": [0, 220, 40, 40, 40, 40, 140, 140, 140, 140]
+    }
+  ],
+  "generator": "bodytab 1.0.0",
+  "labels": ["BASS", "SNARE", "TIMP", "PIANO", "GUITAR", "UKE", "FIDDLE", "CLAR", "OBOE", "SAX", "OBOSAX·"],
+  "labelsLong": ["BASS DRUM", "SNARE", "TIMPANI", "PIANO", "GUITAR", "UKULELE", "FIDDLE", "CLARINET", "OBOE", "SAX", "OBOSAXOLELE"],
+  "numBodies": 11,
+  "schema": "rebody.bodies/1",
+  "slotLayout": "modes[k] (padded): k 0-7 = feature slot k, k 8-15 = following slot k-8, the first 16 of the 18 slots in fixed recipe index order, null = unused slot; modesCompact[k]: the same modes packed without gaps (features first, then following), for a telemetry that packs densely",
+  "sources": {
+    "00_bass_drum.json": "17b270c3d2ce",
+    "01_snare.json": "54006505487e",
+    "02_timpani.json": "4a8ef5cdb02f",
+    "03_piano.json": "f968f5d2b07f",
+    "04_guitar.json": "fa6b76797461",
+    "05_ukulele.json": "3ebb166b8269",
+    "06_fiddle.json": "b59e4ca10940",
+    "07_clarinet.json": "037e8a7e4d08",
+    "08_oboe.json": "b2be596bd0a7",
+    "09_sax.json": "5d73d26aab01",
+    "10_obosaxolele.json": "6b8dc9cd779b"
+  },
+  "zTable": [
+    [0, -40, -300, 92, 92, 60, 100, 100, 100, 100],
+    [0, 10, -60, 80, 80, 80, 80, 80, 80, 80],
+    [20, 0, -280, 120, 120, 120, 120, 120, 120, 120],
+    [0, -200, 160, -60, -60, -60, 160, 160, 160, 160],
+    [0, -420, -260, 40, 40, 40, 40, 120, 120, 120],
+    [0, -420, 40, 40, 40, 40, 90, 90, 130, 130],
+    [0, -420, 60, 60, 60, 60, 140, 120, 100, 100],
+    [0, -120, 160, 120, 120, 120, 120, 120, 120, 120],
+    [0, -120, 170, 120, 120, 120, 120, 120, 120, 120],
+    [0, 220, -260, 140, 172, 172, 180, 180, 180, 180],
+    [0, 220, 40, 40, 40, 40, 140, 140, 140, 140]
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "schema": "rebody.recipe/1",
+  "name": "Bass Drum",
+  "anchor_index": 0,
+  "id": "bass_drum",
+  "generator": "membrane",
+  "anchor": {
+    "root_law": "drum",
+    "root_base_hz": 120.0,
+    "root_size_oct": -1.68,
+    "default_tune": 58,
+    "default_root_hz": 73.582,
+    "tune_clamp_midi": null,
+    "onset_glide_oct": 0.33,
+    "src": "22 s1; BODY:177 root law, BODY:308 onset tightening"
+  },
+  "material": {"rho": 0.35, "eta": null, "src": "22 s1 damping line"},
+  "grid_profile": {
+    "floor_db": -21.0,
+    "envelope": [
+      {"hz": 60, "db": 0},
+      {"hz": 250, "db": 0},
+      {"hz": 8000, "db": -30.0}
+    ],
+    "bumps": [],
+    "sign": "positive",
+    "lr": [],
+    "src": "22 s1: shell air-load background, flat 60-250 Hz, -6 dB/oct above, 20 dB below the batter modes (0.87 = -1.2 dB)",
+    "design": true
+  },
+  "feature_modes": [
+    {
+      "label": "wood shell 310",
+      "hz": 310,
+      "q": 8,
+      "gain_db": -10.4576,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s1 (+0.30/+0.30), Q 8",
+      "design": true
+    },
+    {
+      "label": "wood shell 520",
+      "hz": 520,
+      "q": 8,
+      "gain_db": -13.9794,
+      "sign": -1,
+      "pan": 0.0,
+      "src": "22 s1 (-0.20/-0.20), Q 8",
+      "design": true
+    }
+  ],
+  "following_modes": [
+    {
+      "label": "(0,1) batter",
+      "ratio": 1.0,
+      "mn": [0, 1],
+      "t60_mult": 1.0,
+      "gain_db": -1.2096,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s1: batter (0,1) 1.000, J0(j01 r) at r 0.30"
+    },
+    {
+      "label": "(0,1) pair -",
+      "ratio": 0.94,
+      "mn": [0, 1],
+      "t60_mult": 1.0,
+      "gain_db": -1.2096,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s1: coupled-head pair 0.94 (parallel head motion, R10 B4); split and -0.2 L/R skew design",
+      "design": true
+    },
+    {
+      "label": "(0,1) pair +",
+      "ratio": 1.07,
+      "mn": [0, 1],
+      "t60_mult": 1.0,
+      "gain_db": -1.2096,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s1: coupled-head pair 1.07 (antiparallel head motion, R10 B4); split and +0.2 L/R skew design",
+      "design": true
+    },
+    {
+      "label": "(1,1)",
+      "ratio": 1.594,
+      "mn": [1, 1],
+      "t60_mult": 1.0,
+      "gain_db": -6.3752,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s1: ideal membrane 1.594 (BODY:41 uses 1.586), J1 at r 0.30"
+    },
+    {
+      "label": "(2,1)",
+      "ratio": 2.136,
+      "mn": [2, 1],
+      "t60_mult": 1.0,
+      "gain_db": -12.3958,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s1: ideal membrane 2.136 (BODY:41 2.128), J2 at r 0.30"
+    },
+    {
+      "label": "(0,2)",
+      "ratio": 2.296,
+      "mn": [0, 2],
+      "t60_mult": 1.0,
+      "gain_db": -7.535,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s1: ideal membrane 2.296, J0(j02 r) at r 0.30"
+    },
+    {
+      "label": "(3,1)",
+      "ratio": 2.653,
+      "mn": [3, 1],
+      "t60_mult": 1.0,
+      "gain_db": -18.4164,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s1: ideal membrane 2.653 (BODY:41 2.65), J3 at r 0.30"
+    }
+  ],
+  "damping": {
+    "alphaG": 17.6,
+    "alphaR": 0.00365,
+    "alphaR_unit": "s (22 lists x1e-3)",
+    "rho_ref": 0.35,
+    "t200_ref": 0.31,
+    "decay_scale": {"lo": 0.0, "hi": 0.0, "note": "0/0 = full anchorSeconds range (base*ratio^d)"},
+    "src": "22 s1: alphaG 17.6, alphaR 3.65e-3, rho 0.35, T200 0.31 s (fitted to BODY:185 seconds)"
+  },
+  "decay": {"base": 0.08, "ratio": 20.0, "src": "BODY:185 anchorSeconds"},
+  "contact": {
+    "sustain": 0.035,
+    "novelty_power": 1.0,
+    "law": "x*feed*(sustain+(1-sustain)*novelty)",
+    "position": 0.3,
+    "body_default": 0.5,
+    "note": "contact low-pass 3*f0+170 Hz (BODY:326); a centre strike leaves only the (0,n) modes",
+    "src": "BODY:23 / :194-201; 22 s1"
+  },
+  "line": {
+    "kind": "none",
+    "loop_lowpass_hz": 0.0,
+    "radiation_hz": 0.0,
+    "beta": 0.0,
+    "dispersion": 0.0,
+    "dispersion_b": 0.0,
+    "tune_lut_cents": null,
+    "src": "22 s1: modal, no line engine"
+  },
+  "calibration": {
+    "out_gain": 1.5,
+    "energy_target": 0.4496,
+    "engine_gain": 0.0,
+    "body_gain": 1.0,
+    "terms": {"bass": 1.5},
+    "design": false,
+    "src": "BODY:856 wet = 1.5*bass; energy_target = oboe law value at 220 Hz (design for non-oboe bodies, M1 measures)"
+  },
+  "physics_map": {
+    "stiffness": "head mode stretch B 0..0.02",
+    "coupling": "head -> shell feed 0..0.4",
+    "air": "ideal -> air-loaded ratios (1.59 -> 1.50 ...), pair split",
+    "reed": "head tension: glide 0..0.5 oct, (0,1) damping",
+    "excite": "Through; Hammer into the batter head"
+  },
+  "ui": {
+    "label": "BASS",
+    "label_long": "BASS DRUM",
+    "depth": {
+      "z": [0, -40, -300, 92, 92, 60, 100, 100, 100, 100],
+      "src": "22 s1: rear shell (2) -300, batter head (1) -40, front hoop (0) 0, tension rods (6-9) +100, feet (5) +60",
+      "filled_paths": [3, 4],
+      "filled_note": "path not stated in 22; set to the mean of the stated detail paths 3-9 (design)"
+    }
+  }
+}

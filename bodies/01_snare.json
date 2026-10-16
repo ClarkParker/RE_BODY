@@ -1,0 +1,168 @@
+{
+  "schema": "rebody.recipe/1",
+  "name": "Snare",
+  "anchor_index": 1,
+  "id": "snare",
+  "generator": "membrane",
+  "anchor": {
+    "root_law": "drum",
+    "root_base_hz": 310.0,
+    "root_size_oct": -1.04,
+    "default_tune": 58,
+    "default_root_hz": 229.019,
+    "tune_clamp_midi": null,
+    "onset_glide_oct": 0.0,
+    "src": "22 s2; BODY:178 root law"
+  },
+  "material": {"rho": 0.3, "eta": null, "src": "22 s2 damping line"},
+  "grid_profile": {
+    "floor_db": -21.0,
+    "envelope": [
+      {"hz": 60, "db": -15.863},
+      {"hz": 150, "db": 0},
+      {"hz": 1000, "db": 0},
+      {"hz": 8000, "db": -18.0}
+    ],
+    "bumps": [],
+    "sign": "positive",
+    "lr": [],
+    "src": "22 s2: shell and snare-bed air plateau 200-800 Hz (flat 150-1000 here), -6 dB/oct above 1 kHz, -12 dB/oct below 150 Hz; level 20 dB below the batter modes (design)",
+    "design": true
+  },
+  "feature_modes": [
+    {
+      "label": "shell 450",
+      "hz": 450,
+      "q": 10,
+      "gain_db": -9.1186,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s2 (+0.35/+0.35), Q 10; BODY shell ratios 1.62/2.39 retired",
+      "design": true
+    },
+    {
+      "label": "shell 1100",
+      "hz": 1100,
+      "q": 10,
+      "gain_db": -12.0412,
+      "sign": -1,
+      "pan": 0.0,
+      "src": "22 s2 (-0.25/-0.25), Q 10",
+      "design": true
+    }
+  ],
+  "following_modes": [
+    {
+      "label": "(0,1) batter",
+      "ratio": 1.0,
+      "mn": [0, 1],
+      "t60_mult": 1.0,
+      "gain_db": -1.6184,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s2: batter (0,1) 1.000, J0 at r 0.35"
+    },
+    {
+      "label": "(0,1) pair -",
+      "ratio": 0.92,
+      "mn": [0, 1],
+      "t60_mult": 1.0,
+      "gain_db": -1.6184,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s2: coupled pair 0.92 (design; parallel (0,1) near 180-200 Hz for 14 in, R10 B4); skew design",
+      "design": true
+    },
+    {
+      "label": "(0,1) pair +",
+      "ratio": 1.1,
+      "mn": [0, 1],
+      "t60_mult": 1.0,
+      "gain_db": -1.6184,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s2: coupled pair 1.10 (design); skew design",
+      "design": true
+    },
+    {
+      "label": "(1,1)",
+      "ratio": 1.594,
+      "mn": [1, 1],
+      "t60_mult": 1.0,
+      "gain_db": -5.5145,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s2: 1.594, J1 at r 0.35"
+    },
+    {
+      "label": "(2,1)",
+      "ratio": 2.136,
+      "mn": [2, 1],
+      "t60_mult": 1.0,
+      "gain_db": -10.1728,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s2: 2.136, J2 at r 0.35"
+    }
+  ],
+  "damping": {
+    "alphaG": 17.4,
+    "alphaR": 0.00486,
+    "alphaR_unit": "s (22 lists x1e-3)",
+    "rho_ref": 0.3,
+    "t200_ref": 0.29,
+    "decay_scale": {"lo": 0.0, "hi": 0.0, "note": "0/0 = full anchorSeconds range"},
+    "src": "22 s2: alphaG 17.4, alphaR 4.86e-3, rho 0.30, T200 0.29 s"
+  },
+  "decay": {"base": 0.08, "ratio": 12.5, "src": "BODY:186 anchorSeconds"},
+  "contact": {
+    "sustain": 0.035,
+    "novelty_power": 1.0,
+    "law": "x*feed*(sustain+(1-sustain)*novelty)",
+    "position": 0.35,
+    "body_default": 0.5,
+    "note": "rattle drive = edge*(rattleSustain+(1-rattleSustain)*novelty), rattleSustain 0.08..1 (BODY:620, :267-271); no idle noise (BODY:615)",
+    "src": "BODY:23 / :194-201; 22 s2"
+  },
+  "line": {
+    "kind": "none",
+    "loop_lowpass_hz": 0.0,
+    "radiation_hz": 0.0,
+    "beta": 0.0,
+    "dispersion": 0.0,
+    "dispersion_b": 0.0,
+    "rattle": {
+      "band_lo_hz": 1400.0,
+      "band_hi_hz": 6900.0,
+      "release_x_decay": 0.78,
+      "sustain_floor": 0.08,
+      "src": "BODY:327-329, :619-625"
+    },
+    "tune_lut_cents": null,
+    "src": "22 s2: rattle = xorshift noise x input-edge envelope, modal otherwise"
+  },
+  "calibration": {
+    "out_gain": 1.4,
+    "energy_target": 0.4496,
+    "engine_gain": 1.9286,
+    "body_gain": 1.0,
+    "terms": {"shell": 1.4, "rattle": 2.7},
+    "design": false,
+    "src": "BODY:856 wet = 1.4*shell + 2.7*rattle (engine_gain = 2.7/1.4); energy_target design"
+  },
+  "physics_map": {
+    "stiffness": "head stretch",
+    "coupling": "heads -> shell feed, wires sensitivity",
+    "air": "air between heads: pair split 0.92/1.10 <-> 0.97/1.03",
+    "reed": "tension; rattle band width",
+    "excite": "Through; Hammer"
+  },
+  "ui": {
+    "label": "SNARE",
+    "label_long": "SNARE",
+    "depth": {
+      "z": [0, 10, -60, 80, 80, 80, 80, 80, 80, 80],
+      "src": "22 s2: shell (0) 0, top head (1) +10, snare wires (2) -60, lugs/rods (3-9) +80"
+    }
+  }
+}

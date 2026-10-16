@@ -1,0 +1,156 @@
+{
+  "schema": "rebody.recipe/1",
+  "name": "Piano",
+  "anchor_index": 3,
+  "id": "piano",
+  "generator": "plate",
+  "anchor": {
+    "root_law": "note",
+    "root_base_hz": 0.0,
+    "root_size_oct": 0.0,
+    "default_tune": 58,
+    "default_root_hz": 220.0,
+    "tune_clamp_midi": [36, 72],
+    "onset_glide_oct": 0.0,
+    "src": "22 s4; BODY:179-180 note law"
+  },
+  "material": {"rho": 0.1, "eta": 0.023, "src": "22 s4: soundboard eta 2.3 % (R10 B4)"},
+  "grid_profile": {
+    "floor_db": -12.0,
+    "envelope": [
+      {"hz": 60, "db": 0},
+      {"hz": 84, "db": 0},
+      {"hz": 4000, "db": -16.778},
+      {"hz": 8000, "db": -28.778}
+    ],
+    "bumps": [],
+    "sign": "alternating",
+    "lr": [
+      {"hz": 84, "pan": -0.15},
+      {"hz": 4000, "pan": 0.15}
+    ],
+    "src": "22 s4: soundboard, dense: gains ~ f^-0.5 (re 84 Hz) alternating sign per pole, -12 dB/oct above 4 kHz, L/R tilt bass-left/treble-right 1.15/0.85 -> 0.85/1.15; absolute level -12 dB design (22 s4 states no level)",
+    "design": true
+  },
+  "feature_modes": [
+    {
+      "label": "FEM 84",
+      "hz": 84,
+      "t60": 1.1429,
+      "gain_db": 0.0,
+      "sign": 1,
+      "pan": -0.15,
+      "src": "R10 B4 piano FEM low mode; T60 = 96/f (eta 2.3 %); gain 22 s4 f^-0.5 alternating, L/R tilt 1.15/0.85 -> 0.85/1.15 (84 Hz -> 4 kHz)"
+    },
+    {
+      "label": "FEM 127",
+      "hz": 127,
+      "t60": 0.7559,
+      "gain_db": -1.8303,
+      "sign": -1,
+      "pan": -0.1179,
+      "src": "R10 B4 piano FEM low mode; T60 = 96/f (eta 2.3 %); gain 22 s4 f^-0.5 alternating, L/R tilt 1.15/0.85 -> 0.85/1.15 (84 Hz -> 4 kHz)"
+    },
+    {
+      "label": "FEM 194",
+      "hz": 194,
+      "t60": 0.4948,
+      "gain_db": -3.6091,
+      "sign": 1,
+      "pan": -0.085,
+      "src": "R10 B4 piano FEM low mode; T60 = 96/f (eta 2.3 %); gain 22 s4 f^-0.5 alternating, L/R tilt 1.15/0.85 -> 0.85/1.15 (84 Hz -> 4 kHz)"
+    },
+    {
+      "label": "FEM 204",
+      "hz": 204,
+      "t60": 0.4706,
+      "gain_db": -3.8764,
+      "sign": -1,
+      "pan": -0.0811,
+      "src": "R10 B4 piano FEM low mode; T60 = 96/f (eta 2.3 %); gain 22 s4 f^-0.5 alternating, L/R tilt 1.15/0.85 -> 0.85/1.15 (84 Hz -> 4 kHz)"
+    },
+    {
+      "label": "FEM 229",
+      "hz": 229,
+      "t60": 0.4192,
+      "gain_db": -4.2934,
+      "sign": 1,
+      "pan": -0.0721,
+      "src": "R10 B4 piano FEM low mode; T60 = 96/f (eta 2.3 %); gain 22 s4 f^-0.5 alternating, L/R tilt 1.15/0.85 -> 0.85/1.15 (84 Hz -> 4 kHz)"
+    },
+    {
+      "label": "FEM 271",
+      "hz": 271,
+      "t60": 0.3542,
+      "gain_db": -5.0362,
+      "sign": -1,
+      "pan": -0.059,
+      "src": "R10 B4 piano FEM low mode; T60 = 96/f (eta 2.3 %); gain 22 s4 f^-0.5 alternating, L/R tilt 1.15/0.85 -> 0.85/1.15 (84 Hz -> 4 kHz)"
+    },
+    {
+      "label": "FEM 301",
+      "hz": 301,
+      "t60": 0.3189,
+      "gain_db": -5.5145,
+      "sign": 1,
+      "pan": -0.0509,
+      "src": "R10 B4 piano FEM low mode; T60 = 96/f (eta 2.3 %); gain 22 s4 f^-0.5 alternating, L/R tilt 1.15/0.85 -> 0.85/1.15 (84 Hz -> 4 kHz)"
+    }
+  ],
+  "following_modes": [],
+  "damping": {
+    "alphaG": 0.0,
+    "alphaR": 0.0115,
+    "alphaR_unit": "s (22 lists x1e-3)",
+    "rho_ref": 0.1,
+    "t200_ref": 0.48,
+    "decay_scale": {"lo": 0.5, "hi": 2.0, "note": "board behind the loop: x0.5..2 over the Decay dial"},
+    "src": "22 s4: board alphaG 0, alphaR 11.5e-3 (eta 2.3 %), rho 0.10, T200 0.48 s, T60(1 kHz) 0.096 s"
+  },
+  "decay": {"base": 0.25, "ratio": 24.0, "src": "BODY:188 anchorSeconds (strings)"},
+  "contact": {
+    "sustain": 0.045,
+    "novelty_power": 2.0,
+    "law": "hammer edge x (sustain+(1-sustain)*novelty^2)",
+    "position": 0.11,
+    "body_default": 0.45,
+    "note": "Position = output pickup tap at 0.11 of the delay (BODY:486); hammer force enters at the loop input (BODY:670); hammer low-pass 8.2 kHz (BODY:525)",
+    "src": "BODY:197, :601-602, :486; 22 s4"
+  },
+  "line": {
+    "kind": "string_pair",
+    "loop_lowpass_hz": 11500.0,
+    "radiation_hz": 0.0,
+    "beta": 0.11,
+    "dispersion": -0.86,
+    "dispersion_b": -0.78,
+    "detune_cents": 9.0,
+    "buffer": 8192,
+    "tune_lut_cents": null,
+    "src": "BODY:353 +-9 ct, :70 dispersion, :524 string low-pass, :675 pickup comb"
+  },
+  "calibration": {
+    "out_gain": 0.341292457,
+    "energy_target": 0.4496,
+    "engine_gain": 17.0,
+    "body_gain": 0.8,
+    "terms": {"strings": 17.0, "board": 0.8},
+    "design": false,
+    "src": "BODY:832 wet = 0.341292457*(17*piano + 0.8*soundboard) as starting point; energy_target design"
+  },
+  "physics_map": {
+    "stiffness": "string dispersion -0.6..-0.95",
+    "coupling": "string -> board feed",
+    "air": "board air (low-mode gain)",
+    "reed": "hammer hardness (low-pass 4-12 kHz)",
+    "excite": "Through; Hammer"
+  },
+  "ui": {
+    "label": "PIANO",
+    "label_long": "PIANO",
+    "depth": {
+      "z": [0, -200, 160, -60, -60, -60, 160, 160, 160, 160],
+      "src": "22 s4: lid inner rim (1) -200, strings (3-5) -60, case rim (0) 0, keyboard (2, 6-9) +160"
+    }
+  }
+}

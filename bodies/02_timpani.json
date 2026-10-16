@@ -1,0 +1,172 @@
+{
+  "schema": "rebody.recipe/1",
+  "name": "Timpani",
+  "anchor_index": 2,
+  "id": "timpani",
+  "generator": "membrane",
+  "anchor": {
+    "root_law": "note",
+    "root_base_hz": 0.0,
+    "root_size_oct": 0.0,
+    "default_tune": 58,
+    "default_root_hz": 220.0,
+    "tune_clamp_midi": [36, 60],
+    "onset_glide_oct": 0.1,
+    "src": "22 s3: note law clamped C2..C4 (D15; real compass D2-A3, R10 B4); onset glide +0.10 oct (design)",
+    "design": true
+  },
+  "material": {"rho": 0.4, "eta": null, "src": "22 s3 damping line"},
+  "grid_profile": {
+    "floor_db": -22.0,
+    "envelope": [
+      {"hz": 60, "db": 0},
+      {"hz": 400, "db": 0},
+      {"hz": 8000, "db": -38.897}
+    ],
+    "bumps": [
+      {
+        "hz_center": 150.0,
+        "width_oct": 1.474,
+        "gain_db": 4.0,
+        "label": "kettle air-cavity hump 90-250 Hz",
+        "design": true
+      }
+    ],
+    "sign": "positive",
+    "lr": [],
+    "src": "22 s3: kettle air-cavity hump 90-250 Hz (+4 dB), -9 dB/oct above 400 Hz, centred",
+    "design": true
+  },
+  "feature_modes": [
+    {
+      "label": "kettle shell 160",
+      "hz": 160,
+      "q": 6,
+      "gain_db": -7.9588,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s3 (+0.40/+0.40), Q 6",
+      "design": true
+    }
+  ],
+  "following_modes": [
+    {
+      "label": "(0,1) kettle-damped",
+      "ratio": 0.81,
+      "mn": [0, 1],
+      "t60_abs": 0.08,
+      "gain_db": -0.8001,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s3: (0,1) at 0.81 x (1,1), T60 pinned 0.08 s (design); gain J0 at r 0.25",
+      "design": true
+    },
+    {
+      "label": "(1,1)",
+      "ratio": 1.0,
+      "mn": [1, 1],
+      "t60_mult": 1.0,
+      "gain_db": -7.4118,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s3: (1,1) is the root (R10 B4 timpani); J1 at r 0.25"
+    },
+    {
+      "label": "(2,1)",
+      "ratio": 1.5,
+      "mn": [2, 1],
+      "t60_mult": 1.0,
+      "gain_db": -14.9429,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s3: 1.50 (R10 B4 air-loaded); J2 at r 0.25"
+    },
+    {
+      "label": "(3,1)",
+      "ratio": 1.98,
+      "mn": [3, 1],
+      "t60_mult": 1.0,
+      "gain_db": -22.8534,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s3: 1.98 (R10 B4); J3 at r 0.25"
+    },
+    {
+      "label": "(4,1)",
+      "ratio": 2.44,
+      "mn": [4, 1],
+      "t60_mult": 1.0,
+      "gain_db": -31.0568,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s3: 2.44 (R10 B4); J4 at r 0.25"
+    },
+    {
+      "label": "(5,1)",
+      "ratio": 2.91,
+      "mn": [5, 1],
+      "t60_mult": 1.0,
+      "gain_db": -39.1721,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s3: 2.91 (R10 B4); J5 at r 0.25"
+    }
+  ],
+  "damping": {
+    "alphaG": 4.0,
+    "alphaR": 0.00064,
+    "alphaR_unit": "s (22 lists x1e-3)",
+    "rho_ref": 0.4,
+    "t200_ref": 1.44,
+    "decay_scale": {"lo": 0.0, "hi": 0.0, "note": "0/0 = full anchorSeconds range"},
+    "src": "22 s3: alphaG 4.0, alphaR 0.64e-3, rho 0.40, T200 1.44 s",
+    "design": true
+  },
+  "decay": {"base": 0.5, "ratio": 8.0, "src": "22 s3 (design): 0.5 s .. 4 s = T60 of (1,1) at 220 Hz", "design": true},
+  "contact": {
+    "sustain": 0.03,
+    "novelty_power": 1.0,
+    "law": "x*feed*(sustain+(1-sustain)*novelty)",
+    "position": 0.25,
+    "body_default": 0.5,
+    "note": "orchestral beating spot 0.25 radius favours (1,1)",
+    "src": "22 s3 (design)",
+    "design": true
+  },
+  "line": {
+    "kind": "none",
+    "loop_lowpass_hz": 0.0,
+    "radiation_hz": 0.0,
+    "beta": 0.0,
+    "dispersion": 0.0,
+    "dispersion_b": 0.0,
+    "tune_lut_cents": null,
+    "src": "22 s3: modal"
+  },
+  "calibration": {
+    "out_gain": 1.0,
+    "energy_target": 0.4496,
+    "engine_gain": 0.0,
+    "body_gain": 1.0,
+    "terms": {},
+    "design": true,
+    "src": "22 s3: via energy normalisation, out_gain measured in M1 (placeholder 1.0)"
+  },
+  "physics_map": {
+    "stiffness": "ratio stretch",
+    "coupling": "head -> kettle mode feed",
+    "air": "kettle load: (0,1) damping, ratio set",
+    "reed": "tension glide 0..0.3 oct",
+    "excite": "Through; Hammer (mallet 0.25 radius)"
+  },
+  "ui": {
+    "label": "TIMP",
+    "label_long": "TIMPANI",
+    "depth": {
+      "z": [20, 0, -280, 120, 120, 120, 120, 120, 120, 120],
+      "src": "22 s3: kettle (2) -280, head (1) 0, counterhoop (0) +20, struts/pedal (6-9) +120",
+      "filled_paths": [3, 4, 5],
+      "filled_note": "path not stated in 22; set to the mean of the stated detail paths 3-9 (design)"
+    }
+  }
+}

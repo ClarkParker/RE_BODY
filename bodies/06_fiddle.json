@@ -1,0 +1,146 @@
+{
+  "schema": "rebody.recipe/1",
+  "name": "Fiddle",
+  "anchor_index": 6,
+  "id": "fiddle",
+  "generator": "box",
+  "anchor": {
+    "root_law": "note",
+    "root_base_hz": 0.0,
+    "root_size_oct": 0.0,
+    "default_tune": 58,
+    "default_root_hz": 220.0,
+    "tune_clamp_midi": [36, 72],
+    "onset_glide_oct": 0.0,
+    "src": "22 s7"
+  },
+  "material": {"rho": 0.28, "eta": null, "src": "22 s7: zeta ~ f^-0.45 -> T60 ~ f^-0.55 (R10 B4)"},
+  "grid_profile": {
+    "floor_db": -12.0,
+    "envelope": [
+      {"hz": 60, "db": -27.863},
+      {"hz": 1500, "db": 0},
+      {"hz": 1800, "db": 6},
+      {"hz": 4000, "db": 6},
+      {"hz": 4500, "db": 6},
+      {"hz": 8000, "db": -3.961}
+    ],
+    "bumps": [],
+    "sign": "alternating",
+    "lr": [
+      {"hz": 200, "pan": -0.08},
+      {"hz": 4000, "pan": 0.08}
+    ],
+    "src": "22 s7: bridge hill, plateau 1.8-4 kHz (+6 dB), -6 dB/oct below 1.5 kHz, -12 dB/oct above 4.5 kHz, alternating sign, L/R +-8 % toward the treble side (read as a -0.08 .. +0.08 tilt)",
+    "design": true
+  },
+  "feature_modes": [
+    {
+      "label": "A0",
+      "hz": 275,
+      "t60_law": true,
+      "gain_db": -0.4455,
+      "sign": 1,
+      "pan": -0.0526,
+      "src": "R10 B4 violin corpus mean A0 275 Hz; T60 from the damping law (Q 30 at A0, design); gains 22 s7 (design)",
+      "design": true
+    },
+    {
+      "label": "CBR",
+      "hz": 407,
+      "t60_law": true,
+      "gain_db": -6.4661,
+      "sign": -1,
+      "pan": 0.0526,
+      "src": "R10 B4 violin corpus mean CBR 407 Hz; T60 from the damping law (Q 30 at A0, design); gains 22 s7 (design)",
+      "design": true
+    },
+    {
+      "label": "B1-",
+      "hz": 475,
+      "t60_law": true,
+      "gain_db": -2.4988,
+      "sign": 1,
+      "pan": 0.0667,
+      "src": "R10 B4 violin corpus mean B1- 475 Hz; T60 from the damping law (Q 30 at A0, design); gains 22 s7 (design)",
+      "design": true
+    },
+    {
+      "label": "B1+",
+      "hz": 541,
+      "t60_law": true,
+      "gain_db": -1.6709,
+      "sign": -1,
+      "pan": 0.0303,
+      "src": "R10 B4 violin corpus mean B1+ 541 Hz; T60 from the damping law (Q 30 at A0, design); gains 22 s7 (design)",
+      "design": true
+    },
+    {
+      "label": "A1",
+      "hz": 469,
+      "t60_law": true,
+      "gain_db": -5.5968,
+      "sign": 1,
+      "pan": 0.0476,
+      "src": "R10 B4 violin corpus mean A1 469 Hz; T60 from the damping law (Q 30 at A0, design); gains 22 s7 (design)",
+      "design": true
+    }
+  ],
+  "following_modes": [],
+  "damping": {
+    "alphaG": 18.3,
+    "alphaR": 0.00582,
+    "alphaR_unit": "s (22 lists x1e-3)",
+    "rho_ref": 0.28,
+    "t200_ref": 0.27,
+    "decay_scale": {"lo": 0.5, "hi": 2.0, "note": "body behind the loop: x0.5..2 over the Decay dial"},
+    "src": "22 s7: body alphaG 18.3, alphaR 5.82e-3, rho 0.28, T200 0.27 s (zeta ~ f^-0.45, R10 B4)"
+  },
+  "decay": {"base": 0.2, "ratio": 20.0, "src": "22 s7: string 0.2 x 20^d (design)", "design": true},
+  "contact": {
+    "sustain": 0.6,
+    "novelty_power": 1.0,
+    "law": "x*feed*(sustain+(1-sustain)*novelty)",
+    "position": 0.1,
+    "body_default": 0.7,
+    "note": "continuous input sustains the string; Position = bridge-side pickup tap 0.1; Body recipe default 70 %",
+    "src": "22 s7 (design)",
+    "design": true
+  },
+  "line": {
+    "kind": "string",
+    "loop_lowpass_hz": 4200.0,
+    "radiation_hz": 0.0,
+    "beta": 0.1,
+    "dispersion": -0.15,
+    "dispersion_b": 0.0,
+    "buffer": 4096,
+    "tune_lut_cents": null,
+    "src": "22 s7: shared string engine with high sustained feed (no bow model); loop low-pass 4200 Hz and dispersion -0.15 are design values",
+    "design": true
+  },
+  "calibration": {
+    "out_gain": 1.0,
+    "energy_target": 0.4496,
+    "engine_gain": 1.0,
+    "body_gain": 1.0,
+    "terms": {},
+    "design": true,
+    "src": "22 s7: energy normalisation, out_gain measured in M1 (placeholder 1.0)"
+  },
+  "physics_map": {
+    "stiffness": "dispersion",
+    "coupling": "string -> body feed",
+    "air": "A0 gain",
+    "reed": "contact low-pass (bow hair)",
+    "excite": "Through; Pluck"
+  },
+  "ui": {
+    "label": "FIDDLE",
+    "label_long": "FIDDLE",
+    "depth": {
+      "z": [0, -420, 60, 60, 60, 60, 140, 120, 100, 100],
+      "src": "22 s7: f-hole cavity (1) -420, body (0) 0, strings (2-5) +60, fingerboard (6) +140, bridge (7) +120, scroll/pegs (8-9) +100"
+    }
+  }
+}

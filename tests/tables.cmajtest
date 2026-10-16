@@ -1,0 +1,575 @@
+// RE.BODY table tests (pure functions on rebody::tables) - run: cmaj test tests/tables.cmajtest
+//
+// The data comes from tests/tables_data.cmajor, the namespace-form copy that tools/bodytab.py writes
+// next to every emission (identical to src/dsp/10_tables.cmajor under --emit namespace). The copy is
+// used instead of the DSP file so the tests stay valid when the build switches to --emit main or
+// --emit external. Regenerate with: python3 tools/bodytab.py
+//
+// Contract: docs/dev/00_P1_CONTRACTS.md (table API), 20_DSP_CONCEPT section 4 (damping rule).
+// Typed locals only (no let), .at(i) indexing, float(...) around intrinsics.
+
+## global ("tables_data.cmajor")
+
+## testFunction()
+
+bool isFiniteValue (float x)
+{
+    return ! isnan (x) && ! isinf (x) && abs (x) < 1.0e9f;
+}
+
+float log2Of (float x)
+{
+    return float (log (x)) / float (log (2.0f));
+}
+
+// default root (Tune 58) of a body: drum size law or note law A3 (BODY:177-180)
+float defaultRoot (int body)
+{
+    if (rebody::tables::rootLaw.at (body) == 0)
+        return rebody::tables::rootBaseHz.at (body) * float (pow (2.0f, rebody::tables::rootSizeOct.at (body) * (1.0f - 0.58f)));
+
+    return 220.0f;
+}
+
+// ---- grid ----------------------------------------------------------------
+
+bool gridHzFiniteAndPositive()
+{
+    for (int k = 0; k < rebody::tables::gridPoles; k += 1)
+    {
+        float f = rebody::tables::gridHz.at (k);
+
+        if (! isFiniteValue (f) || f <= 0.0f)
+            return false;
+    }
+
+    return true;
+}
+
+bool gridHzStrictlyIncreasing()
+{
+    for (int k = 1; k < rebody::tables::gridPoles; k += 1)
+        if (! (rebody::tables::gridHz.at (k) > rebody::tables::gridHz.at (k - 1)))
+            return false;
+
+    return true;
+}
+
+bool gridHzSpans60To8k()
+{
+    float lo = rebody::tables::gridHz.at (0);
+    float hi = rebody::tables::gridHz.at (rebody::tables::gridPoles - 1);
+    return abs (lo - 60.0f) < 0.01f && abs (hi - 8000.0f) < 1.0f;
+}
+
+bool gridSpacingWithinOneTwelfthOctave()
+{
+    for (int k = 1; k < rebody::tables::gridPoles; k += 1)
+        if (log2Of (rebody::tables::gridHz.at (k) / rebody::tables::gridHz.at (k - 1)) > 1.0f / 12.0f)
+            return false;
+
+    return true;
+}
+
+bool gridBelowNyquistAtLowestRate()
+{
+    return rebody::tables::gridHz.at (rebody::tables::gridPoles - 1) < 0.45f * 44100.0f;
+}
+
+bool gridGainsFiniteAndBounded()
+{
+    for (int i = 0; i < rebody::tables::numBodies * rebody::tables::gridPoles; i += 1)
+    {
+        float l = rebody::tables::gridGainL.at (i);
+        float r = rebody::tables::gridGainR.at (i);
+
+        if (! isFiniteValue (l) || ! isFiniteValue (r) || abs (l) > 4.0f || abs (r) > 4.0f)
+            return false;
+    }
+
+    return true;
+}
+
+bool everyBodyHasAGridVector()
+{
+    for (int b = 0; b < rebody::tables::numBodies; b += 1)
+    {
+        float sum = 0.0f;
+
+        for (int k = 0; k < rebody::tables::gridPoles; k += 1)
+            sum += abs (rebody::tables::gridGainL.at (b * rebody::tables::gridPoles + k))
+                 + abs (rebody::tables::gridGainR.at (b * rebody::tables::gridPoles + k));
+
+        if (! (sum > 0.01f))
+            return false;
+    }
+
+    return true;
+}
+
+// ---- slot counts ------------------------------------------------------------
+
+bool countsWithinCaps()
+{
+    for (int b = 0; b < rebody::tables::numBodies; b += 1)
+    {
+        int fc = rebody::tables::featureCount.at (b);
+        int wc = rebody::tables::followCount.at (b);
+
+        if (fc < 0 || fc > rebody::tables::featureStride || wc < 0 || wc > rebody::tables::followStride)
+            return false;
+    }
+
+    return true;
+}
+
+bool featureAndFollowCountsMatchTheRecipes()
+{
+    // 22_BODIES: bass 2/7, snare 2/5, timpani 1/6, piano 7/0, guitar 4/0, uke 3/0, fiddle 5/0,
+    // clarinet 0/0, oboe 4/8, sax 2/0, obosaxolele 0/8
+    int fc0 = rebody::tables::featureCount.at (0);
+    int wc0 = rebody::tables::followCount.at (0);
+    int fc8 = rebody::tables::featureCount.at (8);
+    int wc8 = rebody::tables::followCount.at (8);
+    int fc10 = rebody::tables::featureCount.at (10);
+    int wc10 = rebody::tables::followCount.at (10);
+
+    return fc0 == 2 && wc0 == 7 && fc8 == 4 && wc8 == 8 && fc10 == 0 && wc10 == 8
+        && rebody::tables::featureCount.at (3) == 7 && rebody::tables::featureCount.at (7) == 0;
+}
+
+// ---- feature modes ----------------------------------------------------------
+
+bool featureValuesFinite()
+{
+    for (int i = 0; i < rebody::tables::numBodies * rebody::tables::featureStride; i += 1)
+    {
+        if (! isFiniteValue (rebody::tables::featureHz.at (i)) || ! isFiniteValue (rebody::tables::featureT60.at (i))
+             || ! isFiniteValue (rebody::tables::featureGainL.at (i)) || ! isFiniteValue (rebody::tables::featureGainR.at (i)))
+            return false;
+    }
+
+    return true;
+}
+
+bool everyFeatureT60IsPositive()
+{
+    for (int i = 0; i < rebody::tables::numBodies * rebody::tables::featureStride; i += 1)
+        if (! (rebody::tables::featureT60.at (i) > 0.0f))
+            return false;
+
+    return true;
+}
+
+bool featureHzWithinAudibleRangeAndNyquist()
+{
+    for (int b = 0; b < rebody::tables::numBodies; b += 1)
+        for (int i = 0; i < rebody::tables::featureCount.at (b); i += 1)
+        {
+            float f = rebody::tables::featureHz.at (b * rebody::tables::featureStride + i);
+
+            if (f < 20.0f || f > 0.45f * 44100.0f)
+                return false;
+        }
+
+    return true;
+}
+
+bool unusedFeatureSlotsAreSilentAndBenign()
+{
+    for (int b = 0; b < rebody::tables::numBodies; b += 1)
+        for (int i = rebody::tables::featureCount.at (b); i < rebody::tables::featureStride; i += 1)
+        {
+            int ix = b * rebody::tables::featureStride + i;
+
+            if (rebody::tables::featureGainL.at (ix) != 0.0f || rebody::tables::featureGainR.at (ix) != 0.0f)
+                return false;
+
+            if (! (rebody::tables::featureHz.at (ix) > 0.0f))
+                return false;
+        }
+
+    return true;
+}
+
+bool featurePolesInsideTheUnitCircleAtEverySampleRate()
+{
+    for (int s = 0; s < 4; s += 1)
+    {
+        float sr = s == 0 ? 44100.0f : (s == 1 ? 48000.0f : (s == 2 ? 96000.0f : 192000.0f));
+
+        for (int b = 0; b < rebody::tables::numBodies; b += 1)
+            for (int i = 0; i < rebody::tables::featureCount.at (b); i += 1)
+            {
+                float t60 = rebody::tables::featureT60.at (b * rebody::tables::featureStride + i);
+                float r = float (exp (-6.907755f / (sr * t60)));
+
+                if (! (r > 0.0f) || ! (r < 1.0f))
+                    return false;
+            }
+    }
+
+    return true;
+}
+
+bool featureQAndLawMatchTheDocuments()
+{
+    // guitar A0 103 Hz at Q 20: T60 = ln1000 * Q / (pi f) = 0.427 s (22 section 5)
+    float t = rebody::tables::featureT60.at (4 * rebody::tables::featureStride);
+    float f = rebody::tables::featureHz.at (4 * rebody::tables::featureStride);
+    bool guitarOk = abs (t * f / (2.1987f * 20.0f) - 1.0f) < 0.01f;
+
+    // piano FEM modes: T60 = 96 / f (22 section 4)
+    bool pianoOk = true;
+
+    for (int i = 0; i < 7; i += 1)
+    {
+        float tp = rebody::tables::featureT60.at (3 * rebody::tables::featureStride + i);
+        float fp = rebody::tables::featureHz.at (3 * rebody::tables::featureStride + i);
+
+        if (abs (tp * fp / 96.0f - 1.0f) > 0.01f)
+            pianoOk = false;
+    }
+
+    // sax brass modes keep BODY's times 11 ms / 6.5 ms (BODY:550-554)
+    bool saxOk = abs (rebody::tables::featureT60.at (9 * rebody::tables::featureStride) - 0.011f) < 1.0e-5f
+              && abs (rebody::tables::featureT60.at (9 * rebody::tables::featureStride + 1) - 0.0065f) < 1.0e-5f;
+
+    return guitarOk && pianoOk && saxOk;
+}
+
+// ---- following modes ----------------------------------------------------------
+
+bool followValuesFinite()
+{
+    for (int i = 0; i < rebody::tables::numBodies * rebody::tables::followStride; i += 1)
+    {
+        if (! isFiniteValue (rebody::tables::followRatio.at (i)) || ! isFiniteValue (rebody::tables::followT60Mult.at (i))
+             || ! isFiniteValue (rebody::tables::followGainL.at (i)) || ! isFiniteValue (rebody::tables::followGainR.at (i)))
+            return false;
+    }
+
+    return true;
+}
+
+bool followRatiosAndMultipliersArePositive()
+{
+    for (int i = 0; i < rebody::tables::numBodies * rebody::tables::followStride; i += 1)
+        if (! (rebody::tables::followRatio.at (i) > 0.0f) || ! (rebody::tables::followT60Mult.at (i) > 0.0f))
+            return false;
+
+    return true;
+}
+
+bool unusedFollowSlotsAreSilent()
+{
+    for (int b = 0; b < rebody::tables::numBodies; b += 1)
+        for (int i = rebody::tables::followCount.at (b); i < rebody::tables::followStride; i += 1)
+        {
+            int ix = b * rebody::tables::followStride + i;
+
+            if (rebody::tables::followGainL.at (ix) != 0.0f || rebody::tables::followGainR.at (ix) != 0.0f)
+                return false;
+        }
+
+    return true;
+}
+
+bool followPolesInsideTheUnitCircleAtEverySampleRate()
+{
+    for (int s = 0; s < 4; s += 1)
+    {
+        float sr = s == 0 ? 44100.0f : (s == 1 ? 48000.0f : (s == 2 ? 96000.0f : 192000.0f));
+
+        for (int b = 0; b < rebody::tables::numBodies; b += 1)
+        {
+            float root = defaultRoot (b);
+
+            for (int i = 0; i < rebody::tables::followCount.at (b); i += 1)
+            {
+                int ix = b * rebody::tables::followStride + i;
+                float f = rebody::tables::followRatio.at (ix) * root;
+                float law = 6.907755f / (rebody::tables::alphaG.at (b) + rebody::tables::alphaR.at (b) * float (twoPi) * f);
+                float t60 = rebody::tables::followT60Mult.at (ix) * law;
+                float r = float (exp (-6.907755f / (sr * t60)));
+
+                if (! (t60 > 0.0f) || ! (r > 0.0f) || ! (r < 1.0f))
+                    return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool followModesStayBelowNyquistAtTheHighestRoot()
+{
+    for (int b = 0; b < rebody::tables::numBodies; b += 1)
+    {
+        float top = rebody::tables::rootLaw.at (b) == 1
+                  ? 440.0f * float (pow (2.0f, float (rebody::tables::tuneMaxNote.at (b) - 69) / 12.0f))
+                  : defaultRoot (b);
+
+        for (int i = 0; i < rebody::tables::followCount.at (b); i += 1)
+            if (rebody::tables::followRatio.at (b * rebody::tables::followStride + i) * top > 0.45f * 44100.0f)
+                return false;
+    }
+
+    return true;
+}
+
+bool bassDrumRatiosAreTheMembraneSet()
+{
+    // 22 section 1: 1.000, 0.94, 1.07, 1.594, 2.136, 2.296, 2.653
+    float expected0 = 1.0f;
+    float expected3 = 1.594f;
+    float expected6 = 2.653f;
+    return abs (rebody::tables::followRatio.at (0) - expected0) < 1.0e-4f
+        && abs (rebody::tables::followRatio.at (3) - expected3) < 1.0e-4f
+        && abs (rebody::tables::followRatio.at (6) - expected6) < 1.0e-4f;
+}
+
+// J_m(x) by its power series, for x < 12
+float besselJ (int m, float x)
+{
+    float half = x * 0.5f;
+    float term = 1.0f;
+
+    for (int i = 1; i <= m; i += 1)
+        term *= half / float (i);
+
+    float total = term;
+
+    for (int k = 0; k < 40; k += 1)
+    {
+        term *= -(half * half) / (float (k + 1) * float (k + 1 + m));
+        total += term;
+    }
+
+    return total;
+}
+
+bool drumGainsFollowTheBesselLawAtTheRecipePosition()
+{
+    // 22 sections 1-3: gain = J_m(j_mn * r), r = Position (bass 0.30, snare 0.35, timpani 0.25)
+    int checked = 0;
+
+    for (int b = 0; b < 3; b += 1)
+    {
+        float r = rebody::tables::positionDefault.at (b);
+
+        for (int i = 0; i < rebody::tables::followCount.at (b); i += 1)
+        {
+            int ix = b * rebody::tables::followStride + i;
+            int m = rebody::tables::followBesselOrder.at (ix);
+
+            if (m >= 0)
+            {
+                float j = besselJ (m, rebody::tables::followBesselZero.at (ix) * r);
+                float a = 0.5f * (abs (rebody::tables::followGainL.at (ix)) + abs (rebody::tables::followGainR.at (ix)));
+                checked += 1;
+
+                if (abs (a - j) > 0.012f)
+                    return false;
+            }
+        }
+    }
+
+    // bass 7 + snare 5 + timpani 6 modes carry a Bessel law, nothing else does
+    return checked == 18;
+}
+
+bool onlyDrumsCarryABesselLaw()
+{
+    for (int i = 3 * rebody::tables::followStride; i < rebody::tables::numBodies * rebody::tables::followStride; i += 1)
+        if (rebody::tables::followBesselOrder.at (i) != -1 || rebody::tables::followBesselZero.at (i) != 0.0f)
+            return false;
+
+    return true;
+}
+
+// ---- damping law ------------------------------------------------------------
+
+bool alphaGAndAlphaRAreNonNegative()
+{
+    for (int b = 0; b < rebody::tables::numBodies; b += 1)
+    {
+        float g = rebody::tables::alphaG.at (b);
+        float r = rebody::tables::alphaR.at (b);
+
+        if (! isFiniteValue (g) || ! isFiniteValue (r) || g < 0.0f || r < 0.0f || ! (g + r > 0.0f))
+            return false;
+    }
+
+    return true;
+}
+
+bool rhoLiesBetweenOneTenthAndOne()
+{
+    for (int b = 0; b < rebody::tables::numBodies; b += 1)
+    {
+        float g = rebody::tables::alphaG.at (b);
+        float r = rebody::tables::alphaR.at (b);
+        float t200 = 6.907755f / (g + r * float (twoPi) * 200.0f);
+        float t2k = 6.907755f / (g + r * float (twoPi) * 2000.0f);
+        float rho = t2k / t200;
+
+        if (rho < 0.0999f || rho > 1.0001f)
+            return false;
+    }
+
+    return true;
+}
+
+bool dampingLawGivesTheDocumentedRho()
+{
+    // 22: bass 0.35, piano 0.10 (pure alphaR), oboe 0.80
+    float g0 = rebody::tables::alphaG.at (0);
+    float r0 = rebody::tables::alphaR.at (0);
+    float rho0 = (g0 + r0 * float (twoPi) * 200.0f) / (g0 + r0 * float (twoPi) * 2000.0f);
+    float g3 = rebody::tables::alphaG.at (3);
+    float r3 = rebody::tables::alphaR.at (3);
+    float rho3 = (g3 + r3 * float (twoPi) * 200.0f) / (g3 + r3 * float (twoPi) * 2000.0f);
+    float g8 = rebody::tables::alphaG.at (8);
+    float r8 = rebody::tables::alphaR.at (8);
+    float rho8 = (g8 + r8 * float (twoPi) * 200.0f) / (g8 + r8 * float (twoPi) * 2000.0f);
+    return abs (rho0 - 0.35f) < 0.01f && abs (rho3 - 0.10f) < 0.001f && abs (rho8 - 0.80f) < 0.01f;
+}
+
+bool drumRootT60MatchesTheDecaySeconds()
+{
+    // bass, snare, timpani: T60 of the root at the default Tune equals base * ratio^0.5 (22 section 0)
+    for (int b = 0; b < 3; b += 1)
+    {
+        float root = rebody::tables::rootLaw.at (b) == 0 ? defaultRoot (b) : 220.0f;
+        float t60 = 6.907755f / (rebody::tables::alphaG.at (b) + rebody::tables::alphaR.at (b) * float (twoPi) * root);
+        float secs = rebody::tables::decayBase.at (b) * float (sqrt (rebody::tables::decayRatio.at (b)));
+
+        if (abs (t60 / secs - 1.0f) > 0.03f)
+            return false;
+    }
+
+    return true;
+}
+
+// ---- per-body scalars ---------------------------------------------------------
+
+bool decaySecondsLawIsValid()
+{
+    for (int b = 0; b < rebody::tables::numBodies; b += 1)
+        if (! (rebody::tables::decayBase.at (b) > 0.0f) || ! (rebody::tables::decayRatio.at (b) >= 1.0f)
+             || ! isFiniteValue (rebody::tables::decayBase.at (b)) || ! isFiniteValue (rebody::tables::decayRatio.at (b)))
+            return false;
+
+    return true;
+}
+
+bool contactAndCalibrationAreSane()
+{
+    for (int b = 0; b < rebody::tables::numBodies; b += 1)
+    {
+        float s = rebody::tables::sustain.at (b);
+
+        if (s < 0.0f || s > 1.0f)
+            return false;
+
+        if (! (rebody::tables::outGain.at (b) > 0.0f) || ! (rebody::tables::energyTarget.at (b) > 0.0f))
+            return false;
+
+        if (! isFiniteValue (rebody::tables::outGain.at (b)) || ! isFiniteValue (rebody::tables::energyTarget.at (b)))
+            return false;
+    }
+
+    return true;
+}
+
+bool everyPerBodyScalarTableIsFinite()
+{
+    for (int b = 0; b < rebody::tables::numBodies; b += 1)
+    {
+        if (! isFiniteValue (rebody::tables::loopLowpassHz.at (b)) || ! isFiniteValue (rebody::tables::radiationHz.at (b))
+             || ! isFiniteValue (rebody::tables::beta.at (b)) || ! isFiniteValue (rebody::tables::dispersion.at (b))
+             || ! isFiniteValue (rebody::tables::dispersionB.at (b)) || ! isFiniteValue (rebody::tables::rootBaseHz.at (b))
+             || ! isFiniteValue (rebody::tables::rootSizeOct.at (b)) || ! isFiniteValue (rebody::tables::onsetGlideOct.at (b))
+             || ! isFiniteValue (rebody::tables::positionDefault.at (b)) || ! isFiniteValue (rebody::tables::bodyDefault.at (b))
+             || ! isFiniteValue (rebody::tables::decayScaleLo.at (b)) || ! isFiniteValue (rebody::tables::decayScaleHi.at (b))
+             || ! isFiniteValue (rebody::tables::engineGain.at (b)) || ! isFiniteValue (rebody::tables::bodyGain.at (b)))
+            return false;
+
+        if (rebody::tables::positionDefault.at (b) < 0.0f || rebody::tables::positionDefault.at (b) > 1.0f
+             || rebody::tables::bodyDefault.at (b) < 0.0f || rebody::tables::bodyDefault.at (b) > 1.0f)
+            return false;
+    }
+
+    return true;
+}
+
+bool codesAreInRange()
+{
+    for (int b = 0; b < rebody::tables::numBodies; b += 1)
+    {
+        int law = rebody::tables::rootLaw.at (b);
+        int kind = rebody::tables::lineKind.at (b);
+
+        if (law < 0 || law > 1 || kind < 0 || kind > 4)
+            return false;
+    }
+
+    // drums are unpitched (law 0), everything else pitched (pitchedWeight = sum of weights of law-1 bodies)
+    return rebody::tables::rootLaw.at (0) == 0 && rebody::tables::rootLaw.at (1) == 0 && rebody::tables::rootLaw.at (2) == 1;
+}
+
+bool lineScalarsAreSane()
+{
+    for (int b = 0; b < rebody::tables::numBodies; b += 1)
+    {
+        if (rebody::tables::loopLowpassHz.at (b) < 0.0f || rebody::tables::loopLowpassHz.at (b) > 0.45f * 44100.0f)
+            return false;
+
+        if (rebody::tables::radiationHz.at (b) < 0.0f || rebody::tables::radiationHz.at (b) > 0.45f * 44100.0f)
+            return false;
+
+        if (rebody::tables::beta.at (b) < 0.0f || rebody::tables::beta.at (b) >= 1.0f)
+            return false;
+
+        if (abs (rebody::tables::dispersion.at (b)) >= 1.0f || abs (rebody::tables::dispersionB.at (b)) >= 1.0f)
+            return false;
+
+        // bodies without a line engine carry no line scalars
+        if (rebody::tables::lineKind.at (b) == 0 && (rebody::tables::loopLowpassHz.at (b) != 0.0f || rebody::tables::radiationHz.at (b) != 0.0f))
+            return false;
+    }
+
+    return true;
+}
+
+bool timpaniIsClampedToC2ToC4()
+{
+    return rebody::tables::tuneMinNote.at (2) == 36 && rebody::tables::tuneMaxNote.at (2) == 60;
+}
+
+// ---- hybrid -----------------------------------------------------------------
+
+bool hybridConstantsKeepBodysNumbers()
+{
+    // 22 section 11: 0.62, 0.95, 0.90, 0.60, 1.80, -15.6, 1.48, 3.20, 2.20, -3.30, -1.10
+    return rebody::tables::hybridConst.at (0) == 0.62f && rebody::tables::hybridConst.at (1) == 0.95f
+        && rebody::tables::hybridConst.at (2) == 0.9f && rebody::tables::hybridConst.at (3) == 0.6f
+        && rebody::tables::hybridConst.at (4) == 1.8f && rebody::tables::hybridConst.at (5) == -15.6f
+        && rebody::tables::hybridConst.at (6) == 1.48f && rebody::tables::hybridConst.at (7) == 3.2f
+        && rebody::tables::hybridConst.at (8) == 2.2f && rebody::tables::hybridConst.at (9) == -3.3f
+        && rebody::tables::hybridConst.at (10) == -1.1f;
+}
+
+bool hybridConstantsAreFiniteAndPairsOrdered()
+{
+    for (int i = 0; i < 14; i += 1)
+        if (! isFiniteValue (rebody::tables::hybridConst.at (i)))
+            return false;
+
+    for (int p = 1; p < 4; p += 1)
+        if (! (rebody::tables::hybridCentre.at (p) > rebody::tables::hybridCentre.at (p - 1)) || ! (rebody::tables::hybridSplitHz.at (p) > 0.0f))
+            return false;
+
+    return rebody::tables::hybridBodyUke == 5 && rebody::tables::hybridBodyOboe == 8 && rebody::tables::hybridBodySax == 9;
+}

@@ -1,0 +1,191 @@
+{
+  "schema": "rebody.recipe/1",
+  "name": "Obosaxolele",
+  "anchor_index": 10,
+  "id": "obosaxolele",
+  "generator": "cluster",
+  "anchor": {
+    "root_law": "note",
+    "root_base_hz": 0.0,
+    "root_size_oct": 0.0,
+    "default_tune": 58,
+    "default_root_hz": 220.0,
+    "tune_clamp_midi": [36, 72],
+    "onset_glide_oct": 0.0,
+    "src": "22 s11; BODY:179-180 note law"
+  },
+  "material": {
+    "rho": null,
+    "eta": null,
+    "derive": "constituents",
+    "src": "22 s11: each constituent's own damping at its weight"
+  },
+  "constituents": [
+    {"recipe": "05_ukulele", "role": "string / contact (Uke table)", "weight": 0.333333},
+    {"recipe": "08_oboe", "role": "reed input (Oboe cluster)", "weight": 0.333333},
+    {"recipe": "09_sax", "role": "bell (Sax loop)", "weight": 0.333333}
+  ],
+  "constituents_src": "22 s11: weights oboe p, sax 1-2p, uke p with p = (morph-9)/3 (BODY:140-143), equal thirds at the end stop; feed trim x1.5 (BODY:167-170)",
+  "grid_profile": {
+    "from_constituents": true,
+    "src": "22 s11: sum of the constituents' gain vectors at BODY's weights (Uke hump + Sax radiation + Oboe skirt, equal thirds at the end stop)"
+  },
+  "feature_modes": [],
+  "following_modes": [
+    {
+      "label": "pair 1-",
+      "ratio": 0.99273,
+      "t60_rel": 2.5,
+      "gain_db": -4.437,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "BODY:399-420 hybrid reshaping at the end stop: centre 1.000 x root, split min(0.045*centre, 3.2 Hz) at 220 Hz, weight 0.60, time 2.500"
+    },
+    {
+      "label": "pair 1+",
+      "ratio": 1.00727,
+      "t60_rel": 2.375,
+      "gain_db": -5.3521,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "BODY:399-420 hybrid reshaping at the end stop: centre 1.000 x root, split min(0.045*centre, 3.2 Hz) at 220 Hz, weight 0.54, time 2.375"
+    },
+    {
+      "label": "pair 2-",
+      "ratio": 1.99741,
+      "t60_rel": 1.75,
+      "gain_db": -2.8534,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "BODY:399-420 hybrid reshaping at the end stop: centre 2.009 x root, split min(0.045*centre, 5.1 Hz) at 220 Hz, weight 0.72, time 1.750"
+    },
+    {
+      "label": "pair 2+",
+      "ratio": 2.02059,
+      "t60_rel": 1.65,
+      "gain_db": -4.1522,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "BODY:399-420 hybrid reshaping at the end stop: centre 2.009 x root, split min(0.045*centre, 5.1 Hz) at 220 Hz, weight 0.62, time 1.650"
+    },
+    {
+      "label": "pair 3-",
+      "ratio": 3.0045,
+      "t60_rel": 1.175,
+      "gain_db": -1.4116,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "BODY:399-420 hybrid reshaping at the end stop: centre 3.022 x root, split min(0.045*centre, 7.7 Hz) at 220 Hz, weight 0.85, time 1.175"
+    },
+    {
+      "label": "pair 3+",
+      "ratio": 3.0395,
+      "t60_rel": 1.075,
+      "gain_db": -2.8534,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "BODY:399-420 hybrid reshaping at the end stop: centre 3.022 x root, split min(0.045*centre, 7.7 Hz) at 220 Hz, weight 0.72, time 1.075"
+    },
+    {
+      "label": "pair 4-",
+      "ratio": 5.02432,
+      "t60_rel": 0.75,
+      "gain_db": -3.098,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "BODY:399-420 hybrid reshaping at the end stop: centre 5.050 x root, split min(0.045*centre, 11.3 Hz) at 220 Hz, weight 0.70, time 0.750"
+    },
+    {
+      "label": "pair 4+",
+      "ratio": 5.07568,
+      "t60_rel": 0.675,
+      "gain_db": -4.7314,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "BODY:399-420 hybrid reshaping at the end stop: centre 5.050 x root, split min(0.045*centre, 11.3 Hz) at 220 Hz, weight 0.58, time 0.675"
+    }
+  ],
+  "hybrid": {
+    "constants": [
+      {"name": "reed_dry_atten", "value": 0.62, "src": "BODY:734 reed*(1-0.62*h)"},
+      {"name": "bridge_to_reed", "value": 0.95, "src": "BODY:734 0.95*h*hybridBridge"},
+      {"name": "bell_dry_atten", "value": 0.9, "src": "BODY:799 bellExcitation*(1-0.90*h)"},
+      {"name": "reed_to_bell", "value": 0.6, "src": "BODY:800 0.60*h*(1-0.70*gesture)*(1.7537*0.95*oboBody)"},
+      {"name": "oboe_role_gain", "value": 1.8, "src": "BODY:839"},
+      {"name": "uke_role_pluck", "value": -15.6, "src": "BODY:841"},
+      {"name": "uke_role_wood", "value": 1.48, "src": "BODY:841"},
+      {"name": "uke_role_picked", "value": 3.2, "src": "BODY:841"},
+      {"name": "sax_role_warm", "value": 2.2, "src": "BODY:843"},
+      {"name": "sax_role_pickup", "value": -3.3, "src": "BODY:843"},
+      {"name": "sax_role_breath", "value": -1.1, "src": "BODY:843"},
+      {"name": "gesture_atten", "value": 0.7, "src": "BODY:800 (1-0.70*hybridGesture)"},
+      {"name": "feed_trim_extra", "value": 0.5, "src": "BODY:169 calibration 1+0.50*joined"},
+      {"name": "oboe_energy_reduction", "value": 0.85, "src": "BODY:430 energyTarget*(1-0.85*oboHybrid)"}
+    ],
+    "pairs": {
+      "centres": [1.0, 2.009, 3.022, 5.05],
+      "splits_hz": [3.2, 5.1, 7.7, 11.3],
+      "weights": [0.6, 0.54, 0.72, 0.62, 0.85, 0.72, 0.7, 0.58],
+      "times": [2.5, 2.375, 1.75, 1.65, 1.175, 1.075, 0.75, 0.675],
+      "split_max_frac": 0.045,
+      "src": "BODY:105-110 joinedCentres/Splits/Weights/Times; ratios above are expanded at the 220 Hz default root"
+    },
+    "src": "22 s11: all BODY constants become table values with BODY's numbers as defaults"
+  },
+  "damping": {
+    "derive": "constituents",
+    "rho_ref": null,
+    "t200_ref": null,
+    "decay_scale": {"lo": 0.0, "hi": 0.0, "note": "0/0 = full anchorSeconds range of the blended decay"},
+    "src": "22 s11: each constituent's own (alphaG, alphaR, rho) at its weight. Body-10 table row = the shared law the DSP would blend from them (20 s4): T200 log-blended, rho weight-blended, alphas by 22 s0 inversion"
+  },
+  "decay": {
+    "derive": "constituents",
+    "src": "BODY:210-217 shared log-seconds blend of the constituents at their weights"
+  },
+  "contact": {
+    "derive": "constituents",
+    "novelty_power": 1.0,
+    "law": "hybrid gesture from the line's pluck detector (BODY:717-722), uke contrast law (:685-686)",
+    "position": 0.32,
+    "body_default": 0.5,
+    "note": "sustain = weight blend of constituents' sustains (BODY keeps 0.90 own + 0.10 shared per ingredient, BODY:236)",
+    "src": "22 s11"
+  },
+  "line": {
+    "kind": "string",
+    "loop_lowpass_hz": 1650.0,
+    "radiation_hz": 1000.0,
+    "beta": 0.32,
+    "dispersion": 0.0,
+    "dispersion_b": 0.0,
+    "also": ["oboe reed input (one-way)", "sax loop and bell (one-way)"],
+    "buffer": 4096,
+    "tune_lut_cents": null,
+    "src": "22 s11: coupling, not a new engine: shared string engine at the Uke table -> Oboe reed input -> Sax bell, acyclic. Scalars: Uke string loop, Sax bell radiation (1.0 kHz)"
+  },
+  "calibration": {
+    "out_gain": 1.0,
+    "energy_target": 0.4496,
+    "engine_gain": 1.0,
+    "body_gain": 1.0,
+    "terms": {"endpoint_calibration": 2.0, "feed_trim": 1.5},
+    "design": true,
+    "src": "22 s11: BODY's 2x endpoint calibration (BODY:839-843) and feed trim x1.5 (BODY:167-170) live in the hybrid constants; out_gain placeholder 1.0 (M1)"
+  },
+  "physics_map": {
+    "stiffness": "Uke row",
+    "coupling": "hybrid coupling gains (BODY 0.95/0.60), one-way chain",
+    "air": "Sax row",
+    "reed": "Oboe row",
+    "excite": "Through; Pluck into the uke bridge"
+  },
+  "ui": {
+    "label": "OBOSAX·",
+    "label_long": "OBOSAXOLELE",
+    "depth": {
+      "z": [0, 220, 40, 40, 40, 40, 140, 140, 140, 140],
+      "src": "22 s11: bell (1) +220, soundbox (0) 0, strings (2-5) +40, reed neck/pegs (6-9) +140"
+    }
+  }
+}

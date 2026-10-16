@@ -1,0 +1,112 @@
+{
+  "schema": "rebody.recipe/1",
+  "name": "Clarinet",
+  "anchor_index": 7,
+  "id": "clarinet",
+  "generator": "tube_body",
+  "anchor": {
+    "root_law": "note",
+    "root_base_hz": 0.0,
+    "root_size_oct": 0.0,
+    "default_tune": 58,
+    "default_root_hz": 220.0,
+    "tune_clamp_midi": [36, 72],
+    "onset_glide_oct": 0.0,
+    "src": "22 s8; BODY:179-180 note law"
+  },
+  "material": {"rho": 0.1, "eta": 0.25, "src": "22 s8: bell bumps Q 4 flat (eta 25 %)"},
+  "grid_profile": {
+    "floor_db": -24.0,
+    "envelope": [
+      {"hz": 60, "db": 0},
+      {"hz": 5000, "db": 0},
+      {"hz": 8000, "db": -8.137}
+    ],
+    "bumps": [
+      {
+        "hz_center": 1500.0,
+        "width_oct": 0.36,
+        "gain_db": 18.0,
+        "label": "bell 1.5 kHz (+6 dB re ref, Q 4)",
+        "design": true
+      },
+      {
+        "hz_center": 2500.0,
+        "width_oct": 0.36,
+        "gain_db": 16.0,
+        "label": "bell 2.5 kHz (+4 dB re ref, Q 4)",
+        "design": true
+      },
+      {
+        "hz_center": 3600.0,
+        "width_oct": 0.36,
+        "gain_db": 14.0,
+        "label": "bell 3.6 kHz (+2 dB re ref, Q 4)",
+        "design": true
+      }
+    ],
+    "sign": "positive",
+    "lr": [],
+    "src": "22 s8: three broad bumps 1.5/2.5/3.6 kHz, Q 4 (+6/+4/+2 dB) over a floor 12 dB lower (bumps are floor+18/16/14 dB here, floor -24 dB absolute = reference -12 dB), rolled off above 5 kHz (-12 dB/oct design), all positive, centred",
+    "design": true
+  },
+  "feature_modes": [],
+  "following_modes": [],
+  "damping": {
+    "alphaG": 0.0,
+    "alphaR": 0.125,
+    "alphaR_unit": "s (22 lists x1e-3)",
+    "rho_ref": 0.1,
+    "t200_ref": 0.044,
+    "decay_scale": {"lo": 0.5, "hi": 2.0, "note": "radiation bumps behind the loop: x0.5..2 over the Decay dial"},
+    "src": "22 s8: bell bumps alphaG 0, alphaR 125e-3 (Q 4 flat), rho 0.10, T200 0.044 s",
+    "design": true
+  },
+  "decay": {"base": 0.15, "ratio": 20.0, "src": "BODY:187 anchorSeconds (bore)"},
+  "contact": {
+    "sustain": 1.0,
+    "novelty_power": 1.0,
+    "law": "x*feed*(sustain+(1-sustain)*novelty), continuous",
+    "position": 0.5,
+    "body_default": 0.5,
+    "note": "Position = radiation tap offset, default half period (BODY:345); Coupling = radiation mix, loop gain stays Decay's",
+    "src": "BODY:196; 22 s8"
+  },
+  "line": {
+    "kind": "cylinder",
+    "loop_lowpass_hz": 1750.0,
+    "radiation_hz": 1400.0,
+    "beta": 0.5,
+    "dispersion": -0.05,
+    "dispersion_b": 0.0,
+    "buffer": 4096,
+    "tune_lut_cents": null,
+    "src": "BODY:520 loop low-pass 1.75 kHz, :55 buffer; radiation 1.4 kHz measured 1150-1450 Hz (R10 B4); dispersion -0.05 'slight' design"
+  },
+  "calibration": {
+    "out_gain": 0.149448188,
+    "energy_target": 0.4496,
+    "engine_gain": 3.8,
+    "body_gain": 0.0,
+    "terms": {"boreRadiation": 3.8},
+    "design": false,
+    "src": "BODY:831 wet = 0.149448188*(3.8*boreRadiation); energy_target unused (no slots)"
+  },
+  "physics_map": {
+    "stiffness": "slight dispersion",
+    "coupling": "radiation mix (loop gain stays Decay's)",
+    "air": "breath noise 0..0.3",
+    "reed": "reed offset/slope",
+    "excite": "Through; Breath"
+  },
+  "ui": {
+    "label": "CLAR",
+    "label_long": "CLARINET",
+    "depth": {
+      "z": [0, -120, 160, 120, 120, 120, 120, 120, 120, 120],
+      "src": "22 s8: bell (1) -120, bore (0) 0, keys (6-9) +120, mouthpiece (2) +160",
+      "filled_paths": [3, 4, 5],
+      "filled_note": "path not stated in 22; set to the mean of the stated detail paths 3-9 (design)"
+    }
+  }
+}

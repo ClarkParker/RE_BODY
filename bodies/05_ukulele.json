@@ -1,0 +1,131 @@
+{
+  "schema": "rebody.recipe/1",
+  "name": "Ukulele",
+  "anchor_index": 5,
+  "id": "ukulele",
+  "generator": "box",
+  "anchor": {
+    "root_law": "note",
+    "root_base_hz": 0.0,
+    "root_size_oct": 0.0,
+    "default_tune": 58,
+    "default_root_hz": 220.0,
+    "tune_clamp_midi": [36, 72],
+    "onset_glide_oct": 0.0,
+    "src": "22 s6"
+  },
+  "material": {"rho": 0.1, "eta": 0.074, "src": "22 s6: eta 7.4 % (Q 13.5)"},
+  "grid_profile": {
+    "floor_db": -12.0,
+    "envelope": [
+      {"hz": 60, "db": -20.844},
+      {"hz": 200, "db": 0},
+      {"hz": 4000, "db": 0},
+      {"hz": 8000, "db": -9.0}
+    ],
+    "bumps": [
+      {
+        "hz_center": 1500.0,
+        "width_oct": 2.737,
+        "gain_db": 4.0,
+        "label": "small-box hump 600 Hz-4 kHz",
+        "design": true
+      }
+    ],
+    "sign": "alternating",
+    "lr": [
+      {"hz": 60, "pan": -0.05},
+      {"hz": 8000, "pan": 0.05}
+    ],
+    "src": "22 s6: small-box hump 600 Hz-4 kHz peaking ~ +4 dB at 1.5 kHz, -12 dB/oct below 200 Hz, -9 dB/oct above 4 kHz, alternating sign, L/R +-5 %",
+    "design": true
+  },
+  "feature_modes": [
+    {
+      "label": "A0",
+      "hz": 230,
+      "q": 13.5,
+      "gain_db": -3.098,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s6: A0 230 Hz (design-grade soprano body resonance, R10 B4); Q 13.5 design; eigenvector gain size design",
+      "design": true
+    },
+    {
+      "label": "T1",
+      "hz": 290,
+      "q": 13.5,
+      "gain_db": -6.0206,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "22 s6: T1 290 Hz (design); same 2-DOF treatment as the Guitar",
+      "design": true
+    },
+    {
+      "label": "T2",
+      "hz": 480,
+      "q": 13.5,
+      "gain_db": -10.4576,
+      "sign": -1,
+      "pan": 0.0,
+      "src": "22 s6: T2 480 Hz (-0.30/-0.30), Q 13.5",
+      "design": true
+    }
+  ],
+  "following_modes": [],
+  "damping": {
+    "alphaG": 0.0,
+    "alphaR": 0.037,
+    "alphaR_unit": "s (22 lists x1e-3)",
+    "rho_ref": 0.1,
+    "t200_ref": 0.15,
+    "decay_scale": {"lo": 0.5, "hi": 2.0, "note": "body behind the loop: x0.5..2 over the Decay dial"},
+    "src": "22 s6: body alphaG 0, alphaR 37.0e-3 (eta 7.4 %), rho 0.10, T200 0.15 s",
+    "design": true
+  },
+  "decay": {"base": 0.07, "ratio": 12.0, "src": "BODY:191 anchorSeconds (string)"},
+  "contact": {
+    "sustain": 0.025,
+    "novelty_power": 1.0,
+    "law": "pluck-contrast law (BODY:685-687)",
+    "position": 0.32,
+    "body_default": 0.5,
+    "note": "0.32-period pick comb (BODY:376, :689-690); hidden wood-pair tap 310/690 Hz (BODY:528-529, :543-549) feeds the Obosaxolele",
+    "src": "BODY:23 index 6; 22 s6"
+  },
+  "line": {
+    "kind": "string",
+    "loop_lowpass_hz": 1650.0,
+    "radiation_hz": 0.0,
+    "beta": 0.32,
+    "dispersion": 0.0,
+    "dispersion_b": 0.0,
+    "buffer": 4096,
+    "tune_lut_cents": null,
+    "src": "BODY:526 loop low-pass 1.65 kHz, :376 comb, no dispersion in BODY's ukulele"
+  },
+  "calibration": {
+    "out_gain": 0.446899385,
+    "energy_target": 0.4496,
+    "engine_gain": 18.0,
+    "body_gain": 0.72,
+    "terms": {"pluck": 18.0, "wood": 0.72},
+    "design": false,
+    "src": "BODY:835 wet = 0.446899385*(18*pluck + 0.72*wood) as starting point; energy_target design"
+  },
+  "physics_map": {
+    "stiffness": "dispersion",
+    "coupling": "string -> box feed",
+    "air": "A0/T1",
+    "reed": "pick hardness",
+    "excite": "Through; Pluck"
+  },
+  "ui": {
+    "label": "UKE",
+    "label_long": "UKULELE",
+    "depth": {
+      "z": [0, -420, 40, 40, 40, 40, 90, 90, 130, 130],
+      "src": "22 s6: sound-hole cavity (1) -420, body (0) 0, strings (2-5) +40, frets/bridge (6-7) +90, pegs (8-9) +130"
+    }
+  }
+}

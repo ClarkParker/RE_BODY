@@ -1,0 +1,142 @@
+{
+  "schema": "rebody.recipe/1",
+  "name": "Guitar",
+  "anchor_index": 4,
+  "id": "guitar",
+  "generator": "box",
+  "anchor": {
+    "root_law": "note",
+    "root_base_hz": 0.0,
+    "root_size_oct": 0.0,
+    "default_tune": 58,
+    "default_root_hz": 220.0,
+    "tune_clamp_midi": [36, 72],
+    "onset_glide_oct": 0.0,
+    "src": "22 s5"
+  },
+  "material": {"rho": 0.1, "eta": 0.05, "src": "22 s5: eta 5 % (Q 20)"},
+  "grid_profile": {
+    "floor_db": -12.0,
+    "envelope": [
+      {"hz": 60, "db": -18.353},
+      {"hz": 500, "db": 0},
+      {"hz": 3000, "db": 0},
+      {"hz": 8000, "db": -16.98}
+    ],
+    "bumps": [
+      {
+        "hz_center": 1200.0,
+        "width_oct": 2.5,
+        "gain_db": 6.0,
+        "label": "top-plate bell 500 Hz-3 kHz",
+        "design": true
+      }
+    ],
+    "sign": "alternating",
+    "lr": [
+      {"hz": 60, "pan": -0.05},
+      {"hz": 8000, "pan": 0.05}
+    ],
+    "src": "22 s5: top-plate mid hump, bell 500 Hz-3 kHz peaking ~ +6 dB at 1.2 kHz, -6 dB/oct below 500 Hz, -12 dB/oct above 3 kHz, alternating sign, L/R +-5 % (read as a -0.05 .. +0.05 tilt)",
+    "design": true
+  },
+  "feature_modes": [
+    {
+      "label": "A0",
+      "hz": 103,
+      "q": 20,
+      "gain_db": -3.098,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "R10 B4 guitar signature mode 103 Hz, Q ~20; gain from the 2-DOF eigenvector sign/size (design value)",
+      "design": true
+    },
+    {
+      "label": "T1",
+      "hz": 205,
+      "q": 20,
+      "gain_db": -5.1927,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "R10 B4 guitar 205 Hz, Q ~20; 2-DOF eigenvector (same sign as A0), size design",
+      "design": true
+    },
+    {
+      "label": "286 Hz",
+      "hz": 286,
+      "q": 20,
+      "gain_db": -9.1186,
+      "sign": -1,
+      "pan": 0.0,
+      "src": "R10 B4 guitar 286 Hz, Q ~20; gain -0.35 design",
+      "design": true
+    },
+    {
+      "label": "436 Hz",
+      "hz": 436,
+      "q": 20,
+      "gain_db": -12.0412,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "R10 B4 guitar 436 Hz, Q ~20; gain +0.25 design",
+      "design": true
+    }
+  ],
+  "following_modes": [],
+  "damping": {
+    "alphaG": 0.0,
+    "alphaR": 0.025,
+    "alphaR_unit": "s (22 lists x1e-3)",
+    "rho_ref": 0.1,
+    "t200_ref": 0.22,
+    "decay_scale": {"lo": 0.5, "hi": 2.0, "note": "body behind the loop: x0.5..2 over the Decay dial"},
+    "src": "22 s5: body alphaG 0, alphaR 25.0e-3 (eta 5 %, Q 20), rho 0.10, T200 0.22 s"
+  },
+  "decay": {"base": 0.25, "ratio": 24.0, "src": "22 s5: string 0.25 x 24^d (design)", "design": true},
+  "contact": {
+    "sustain": 0.045,
+    "novelty_power": 1.0,
+    "law": "pluck-contrast law (BODY:685-687: novelty*c^2*(3-2c))",
+    "position": 0.25,
+    "body_default": 0.6,
+    "note": "Position 0.25 = pick point -> comb; Body recipe default 60 %",
+    "src": "22 s5 (sustain 0.045 as piano, design)",
+    "design": true
+  },
+  "line": {
+    "kind": "string",
+    "loop_lowpass_hz": 2600.0,
+    "radiation_hz": 0.0,
+    "beta": 0.25,
+    "dispersion": -0.3,
+    "dispersion_b": 0.0,
+    "buffer": 4096,
+    "tune_lut_cents": null,
+    "src": "22 s5: shared string engine; pick-position comb as the Ukulele (BODY:680-710); loop low-pass 2600 Hz and dispersion -0.30 are design values",
+    "design": true
+  },
+  "calibration": {
+    "out_gain": 1.0,
+    "energy_target": 0.4496,
+    "engine_gain": 1.0,
+    "body_gain": 1.0,
+    "terms": {},
+    "design": true,
+    "src": "22 s5: energy normalisation, out_gain measured in M1 (placeholder 1.0)"
+  },
+  "physics_map": {
+    "stiffness": "dispersion",
+    "coupling": "string -> box feed",
+    "air": "A0/T1 coupling and gain",
+    "reed": "pick hardness",
+    "excite": "Through; Pluck"
+  },
+  "ui": {
+    "label": "GUITAR",
+    "label_long": "GUITAR",
+    "depth": {
+      "z": [0, -420, -260, 40, 40, 40, 40, 120, 120, 120],
+      "src": "22 s5: back and sides (2) -260, sound-hole cavity (1) -420, top (0) 0, strings (3-6) +40, bridge and pegs (7-9) +120"
+    }
+  }
+}

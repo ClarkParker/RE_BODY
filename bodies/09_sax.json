@@ -1,0 +1,138 @@
+{
+  "schema": "rebody.recipe/1",
+  "name": "Sax",
+  "anchor_index": 9,
+  "id": "sax",
+  "generator": "tube_body",
+  "anchor": {
+    "root_law": "note",
+    "root_base_hz": 0.0,
+    "root_size_oct": 0.0,
+    "default_tune": 58,
+    "default_root_hz": 220.0,
+    "tune_clamp_midi": [36, 72],
+    "onset_glide_oct": 0.0,
+    "src": "22 s10; BODY:179-180 note law"
+  },
+  "material": {"rho": 0.1, "eta": 0.2, "src": "22 s10: radiation bumps Q 5 flat (eta 20 %)"},
+  "grid_profile": {
+    "floor_db": -15.0,
+    "envelope": [
+      {"hz": 60, "db": 0},
+      {"hz": 5000, "db": 0},
+      {"hz": 8000, "db": -8.137}
+    ],
+    "bumps": [
+      {
+        "hz_center": 1200.0,
+        "width_oct": 0.288,
+        "gain_db": 13.0,
+        "label": "brass 1.2 kHz (+4 dB re ref, Q 5)",
+        "design": true
+      },
+      {
+        "hz_center": 2400.0,
+        "width_oct": 0.24,
+        "gain_db": 12.0,
+        "label": "brass 2.4 kHz (+3 dB re ref, Q 6)",
+        "design": true
+      },
+      {
+        "hz_center": 3300.0,
+        "width_oct": 0.206,
+        "gain_db": 11.0,
+        "label": "brass 3.3 kHz (+2 dB re ref, Q 7)",
+        "design": true
+      },
+      {
+        "hz_center": 4200.0,
+        "width_oct": 0.18,
+        "gain_db": 10.0,
+        "label": "brass 4.2 kHz (+1 dB re ref, Q 8)",
+        "design": true
+      }
+    ],
+    "sign": "positive",
+    "lr": [],
+    "src": "22 s10: broad bumps 1.2/2.4/3.3/4.2 kHz, Q 5-8 (+4/+3/+2/+1 dB) over a floor 9 dB lower (bumps are floor+13/12/11/10 dB here; floor -15 dB absolute = reference -9 dB; Q 5..8 assigned in order), -12 dB/oct above 5 kHz, centred",
+    "design": true
+  },
+  "feature_modes": [
+    {
+      "label": "brass 780",
+      "hz": 780,
+      "t60": 0.011,
+      "gain_db": -1.4116,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "BODY:550-554 brass mode 780 Hz, T60 11 ms (Q ~ 3.9), gain 0.85"
+    },
+    {
+      "label": "brass 1750",
+      "hz": 1750,
+      "t60": 0.0065,
+      "gain_db": -3.7417,
+      "sign": 1,
+      "pan": 0.0,
+      "src": "BODY:550-554 brass mode 1750 Hz, T60 6.5 ms (Q ~ 5.2), gain 0.65"
+    }
+  ],
+  "following_modes": [],
+  "damping": {
+    "alphaG": 0.0,
+    "alphaR": 0.1,
+    "alphaR_unit": "s (22 lists x1e-3)",
+    "rho_ref": 0.1,
+    "t200_ref": 0.055,
+    "decay_scale": {"lo": 0.5, "hi": 2.0, "note": "radiation bumps behind the loop: x0.5..2 over the Decay dial"},
+    "src": "22 s10: radiation bumps alphaG 0, alphaR 100e-3 (Q 5 flat), rho 0.10, T200 0.055 s",
+    "design": true
+  },
+  "decay": {"base": 0.15, "ratio": 20.0, "src": "BODY:190 anchorSeconds"},
+  "contact": {
+    "sustain": 0.78,
+    "novelty_power": 1.0,
+    "law": "x*feed*(sustain+(1-sustain)*novelty)",
+    "position": 0.17,
+    "body_default": 0.5,
+    "note": "output comb at 0.17 of the delay (BODY:501, :804), beta 0.17 as table value (measured 0.15-0.2)",
+    "src": "BODY:198; 22 s10"
+  },
+  "line": {
+    "kind": "cone",
+    "loop_lowpass_hz": 6600.0,
+    "radiation_hz": 1000.0,
+    "beta": 0.17,
+    "dispersion": -0.05,
+    "dispersion_b": 0.0,
+    "buffer": 4096,
+    "tune_lut_cents": null,
+    "src": "BODY:530 loop low-pass 6.6 kHz; radiation 1.0 kHz (tenor 760 +-250, soprano 1340 +-240 Hz, R10 B4); positive full-period loop BODY:768-826; dispersion -0.05 'slight' design"
+  },
+  "calibration": {
+    "out_gain": 0.181752,
+    "energy_target": 0.4496,
+    "engine_gain": 3.3,
+    "body_gain": 0.0,
+    "terms": {"pickup": 3.3, "breath": 1.1},
+    "design": false,
+    "src": "BODY:834 wet = 0.826146847*0.22*(3.3*pickup + 1.10*breath) (out_gain = 0.826146847*0.22); energy_target design"
+  },
+  "physics_map": {
+    "stiffness": "slight dispersion",
+    "coupling": "radiation mix",
+    "air": "breath noise (BODY saxBreath)",
+    "reed": "reed offset/slope (BODY asymmetry)",
+    "excite": "Through; Breath"
+  },
+  "ui": {
+    "label": "SAX",
+    "label_long": "SAX",
+    "depth": {
+      "z": [0, 220, -260, 140, 172, 172, 180, 180, 180, 180],
+      "src": "22 s10: rear tube (2) -260, body (0) 0, neck/mouthpiece (3) +140, keys (6-9) +180, bell rim (1) +220",
+      "filled_paths": [4, 5],
+      "filled_note": "path not stated in 22; set to the mean of the stated detail paths 3-9 (design)"
+    }
+  }
+}
