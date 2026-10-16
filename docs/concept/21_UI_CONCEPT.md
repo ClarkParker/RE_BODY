@@ -12,7 +12,7 @@ LALAFY prototype v0.71 (`styles.css:55-137`, `js/08-main.js:95-99`), platform ru
 
 ## 1. Chassis and layout
 Design chassis 720 × 460 (original 620 × 340 proportions, field enlarged to ≥50 % height, R11 §3 W2; +40 px for the line tabs and the physics dials), scaled with CSS `zoom` per 07_SCALING; manifest `view.resizable: true`, `// WINDOW SIZE: 720x460` on line 2.
-Rows: header 36 px (title `RE·BODY` with the brand `CLΞΛRPΞΛK` small, left-aligned directly beneath it per kit `docs/15_BRANDING.md`; **line tabs A · B · C** with activity lamps; state caption; Bypass; Motion switch) · field (flex) · morph row 44 px (slider + anchors merged, Hold button at its end, R11 R4/R11) · deck 110 px (4 main dials + Level/Follow small) · strip 1 34 px (Listen and Excite segmented buttons, Sensitivity) · strip 2 34 px (advanced + physics dials, collapsible).
+Rows: header 36 px (title `RE·BODY` with the brand `CLΞΛRPΞΛK` small, left-aligned directly beneath it per kit `docs/15_BRANDING.md`; **line tabs A · B · C** with activity lamps; state caption; Bypass; Motion switch) · field (flex) · morph row 44 px (slider + anchors merged, Hold button at its end, R11 R4/R11) · deck 110 px (4 main dials + Level/Follow/Blend small) · strip 1 34 px (Listen and Excite segmented buttons, Sensitivity) · strip 2 34 px (advanced + physics dials, collapsible).
 Everything is SVG or DOM; no canvas, so zoom stays crisp (R11 §6 Q1).
 
 ## 2. The field: depth model
@@ -84,6 +84,6 @@ Whether strip 2 starts collapsed; exact grey levels; tab placement left or right
 - **Tabs A · B · C** in the header select the *active line*. Each tab has a small lamp driven by `lineState*.listenEnergy` and a dot for Enable. Keyboard: 1/2/3.
 - **One control per parameter, always in the DOM.** The morph row, deck and strips exist three times (one set per line) and only the active set is visible (`hidden` on the others). Every `paramN` keeps exactly one `.control[data-param]`, so the host's `run_ui_probe` audit and preset recall work regardless of the selected tab (P03 §2d).
 - **Field = lines at depth.** The active line owns the full 16-layer stack in the light. The two other lines appear as one flat silhouette each (their own morph shape, no inner layers) at z −600 and −750, dimmer and foggier, breathing with their own `lineState*.wet`; clicking a silhouette activates that line (then the stacks swap with a 250 ms cross-fade of fog and light, geometry stays). A line with Enable Off is drawn as a thin ghost.
-- **Chain** is drawn as a faint curved thread from the source silhouette to the chained body; **Follow** shows the tracked note under the caption; **Hold** lights the morph-row button and freezes the energy breathing of that line's silhouette.
+- **Chain** is drawn as a faint curved thread from the source silhouette to the chained body; **Follow** shows the tracked note under the caption; **Hold** lights the morph-row button, freezes the energy breathing of that line's silhouette and dims its listen lamp (injection muted).
 - **Listen feedback**: the segmented Listen buttons carry hairline meters from `analysisViz` (transient, sustain, low, mid, high), so the user sees what each choice would hear before choosing.
 - Layer count stays 16 + 2 (inactive silhouettes) + 1 (chain thread) ≤ 19 compositing layers.

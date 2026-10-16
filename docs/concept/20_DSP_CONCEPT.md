@@ -65,7 +65,7 @@ Three identical **lines** A, B, C (§12). `param1..param5` keep BODY's meaning: 
 | param5 | Bypass | 0/1 | as BODY |
 | param6 | Width | 0..100 / 50 | stereo: L/R mode-position offsets, all lines |
 
-**Line block** (A: `param1`, `param2`, `param4` + `param7..param24`; B: `param25..param45`; C: `param46..param66`). Order inside a block:
+**Line block** (A: `param1`, `param2`, `param4` + `param7..param25`; B: `param26..param47`; C: `param48..param69`). Order inside a block:
 | # | name | range / init | DSP meaning | UI |
 |---|---|---|---|---|
 | 1 | Tune | 0..100 / 58 | as BODY (drums size law, pitched note law C2..C5); ignored by `fixed` modes | main dial |
@@ -88,8 +88,9 @@ Three identical **lines** A, B, C (§12). `param1..param5` keep BODY's meaning: 
 | 18 | Air | 0..100 / per body | Helmholtz/air modes, air-loaded drum ratios, breath noise (§15) | physics dial |
 | 19 | Reed | 0..100 / per body | reed stiffness/asymmetry, head tension, pick hardness (§15) | physics dial |
 | 20 | Follow | 0..100 / 0 | Tune follows the tracked input pitch (0 = fixed Tune, 100 = full), 40 ms glide (§13) | small dial |
-| 21 | Hold | Off/On / Off | freezes the line's tails (loop gains → 1 − ε under governor) (§14) | button |
-66 parameters in total. All event handlers NaN/Inf-guarded and clamped (BODY:120-124); smoothing via BODY's 32-sample target stepping; ids exactly `paramN` (P03 §2a). Enum parameters use `text:` annotations and real buttons in the UI.
+| 21 | Hold | Off/On / Off | linear freeze of the line's tails: injection muted, loop gains and modal radii → 1 − ε, no governor (§14) | button |
+| 22 | Blend | 0..100 / 0 | in strike modes only: 0 = striker alone, 100 = Through alone, in between both excite the same body (§14) | small dial |
+69 parameters in total. All event handlers NaN/Inf-guarded and clamped (BODY:120-124); smoothing via BODY's 32-sample target stepping; ids exactly `paramN` (P03 §2a). Enum parameters use `text:` annotations and real buttons in the UI.
 
 ## 6. Morph
 - Anchor order v1 (decided, see 22 §0): Bass Drum, Snare, Timpani, Piano, Guitar, Ukulele, Fiddle, Clarinet, Oboe, Sax, Obosaxolele. The hybrid segment is 9→10.
@@ -150,7 +151,8 @@ Cost: three banks ≈ 3 × (≈1 % core) at 48 kHz by PHYSIFY's bench; disabled 
 - **Breath**: onset triggers a noise burst (20-80 ms envelope) through the reed shaping into bores, through the contact low-pass into modal bodies; while the listened component stays above threshold the burst sustains (breath follows the pad).
 - Strikers live in `namespace strikers`, shared by the lines; velocity and position come from the line parameters.
 - **Chain**: Listen = Chain feeds the previous line's body output (post-calibration, pre-Level) × Sensitivity into this line's contact stage; onsets for strikers are detected on that chained signal.
-- **Hold**: loop gains and modal radii of the line move to `1 − ε` through PHYSIFY's T60-exact loss compensation with the governor (`CORE:67-79`) at every injection point; Through feed is attenuated −12 dB while held; releasing restores the recipe decay with the 32-sample ramps.
+- **Hold** (linear freeze): all injection into the line is muted, loop gains and modal radii move to `1 − ε` (T60 ≈ 60 s) via PHYSIFY's T60-exact loss maths (`CORE:79`), no governor and no nonlinearity in the path; the stored state rings on unchanged. Releasing restores the recipe decay and the injection with the 32-sample ramps (click-free). Rule: Hold off = the identical code path as without Hold. Playing *into* a held body is done with a second line in Chain mode fed by the held line.
+- **Blend**: in strike modes the striker and the Through contact can excite the same body; Blend crossfades them (equal-power). At 0 the audio is not injected at all (pure striker).
 
 ## 15. Physics knobs: one meaning per knob, mapped per body
 Each recipe carries a `physics_map` (22 §13) so the same knob is sensible on every anchor:
