@@ -42,6 +42,11 @@
   "OBOSAX·"
  ],
  "lines": {
+  "G": [
+   "param3",
+   "param5",
+   "param6"
+  ],
   "A": [
    "param1",
    "param2",
@@ -113,11 +118,6 @@
    "param67",
    "param68",
    "param69"
-  ],
-  "global": [
-   "param3",
-   "param5",
-   "param6"
   ]
  },
  "blockOrder": [
@@ -199,7 +199,7 @@
    "unit": "",
    "text": "",
    "ui": "slider",
-   "note": "BODY param4, range 0..10 (11 anchors)"
+   "note": "BODY param4 was 0..7 (8 anchors); RE·BODY 0..10 (11 anchors); init 7 = Clarinet = BODY's default stop"
   },
   {
    "id": "param5",
@@ -1127,31 +1127,119 @@
    "id": "lineStateB",
    "type": "float<16>",
    "rateHz": 30,
-   "fields": "same as lineStateA"
+   "fields": [
+    "wet",
+    "onset",
+    "listenEnergy",
+    "followHz",
+    "hold",
+    "engine0",
+    "engine1",
+    "engine2",
+    "engine3",
+    "engine4",
+    "engine5",
+    "engine6",
+    "engine7",
+    "engine8",
+    "engine9",
+    "engine10"
+   ]
   },
   {
    "id": "lineStateC",
    "type": "float<16>",
    "rateHz": 30,
-   "fields": "same as lineStateA"
+   "fields": [
+    "wet",
+    "onset",
+    "listenEnergy",
+    "followHz",
+    "hold",
+    "engine0",
+    "engine1",
+    "engine2",
+    "engine3",
+    "engine4",
+    "engine5",
+    "engine6",
+    "engine7",
+    "engine8",
+    "engine9",
+    "engine10"
+   ]
   },
   {
    "id": "lineModesA",
    "type": "float<16>",
    "rateHz": 30,
-   "fields": "energy of the 16 loudest modes of the dominant body"
+   "fields": [
+    "mode0",
+    "mode1",
+    "mode2",
+    "mode3",
+    "mode4",
+    "mode5",
+    "mode6",
+    "mode7",
+    "mode8",
+    "mode9",
+    "mode10",
+    "mode11",
+    "mode12",
+    "mode13",
+    "mode14",
+    "mode15"
+   ],
+   "note": "energy of the 16 loudest modes of the line's dominant body"
   },
   {
    "id": "lineModesB",
    "type": "float<16>",
    "rateHz": 30,
-   "fields": "same"
+   "fields": [
+    "mode0",
+    "mode1",
+    "mode2",
+    "mode3",
+    "mode4",
+    "mode5",
+    "mode6",
+    "mode7",
+    "mode8",
+    "mode9",
+    "mode10",
+    "mode11",
+    "mode12",
+    "mode13",
+    "mode14",
+    "mode15"
+   ],
+   "note": "energy of the 16 loudest modes of the line's dominant body"
   },
   {
    "id": "lineModesC",
    "type": "float<16>",
    "rateHz": 30,
-   "fields": "same"
+   "fields": [
+    "mode0",
+    "mode1",
+    "mode2",
+    "mode3",
+    "mode4",
+    "mode5",
+    "mode6",
+    "mode7",
+    "mode8",
+    "mode9",
+    "mode10",
+    "mode11",
+    "mode12",
+    "mode13",
+    "mode14",
+    "mode15"
+   ],
+   "note": "energy of the 16 loudest modes of the line's dominant body"
   }
  ]
 }

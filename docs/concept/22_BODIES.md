@@ -5,10 +5,10 @@ Companion to `20_DSP_CONCEPT.md` (recipe format §3, damping law §4, parameters
 chosen by us where no open measurement exists; they are the first thing to tune by ear.
 
 ## 0. Common rules
-- **Anchor order (param4 Morph 0..10):** 0 Bass Drum · 1 Snare · 2 Timpani · 3 Piano · 4 Guitar · 5 Ukulele · 6 Fiddle · 7 Clarinet · 8 Oboe · 9 Sax · 10 Obosaxolele. Drums, then strings, then reeds, the hybrid last as in BODY's title. Default Morph = 7 (Clarinet: BODY's init 4.0 in its series (0,1,3,6,2,4,5) is the Clarinet stop, see index.js:313 "Clarinet illustration at rest").
-- **Tune (param1):** drums use BODY's continuous size law (BODY:177-178); timpani and all pitched bodies use the note law C2..C5 (BODY:179-180). Modes flagged `fixed` ignore Tune and follow Size (param7).
+- **Anchor order (param4 Morph 0..10):** 0 Bass Drum · 1 Snare · 2 Timpani · 3 Piano · 4 Guitar · 5 Ukulele · 6 Fiddle · 7 Clarinet · 8 Oboe · 9 Sax · 10 Obosaxolele (row label `OBOSAX·`, D14). BODY had seven engines plus the hybrid stop = 8 anchors; RE·BODY has 11. Drums, then strings, then reeds, the hybrid last as in BODY's title. Default Morph = 7 (Clarinet: BODY's init 4.0 in its series (0,1,3,6,2,4,5) is the Clarinet stop, see index.js:313 "Clarinet illustration at rest").
+- **Tune (line block #1):** drums use BODY's continuous size law (BODY:177-178); timpani and all pitched bodies use the note law C2..C5 (BODY:179-180). Modes flagged `fixed` ignore Tune and follow Size (line block #11).
 - **Decay (param2):** per-body `seconds = base × ratio^decay` exactly as BODY `anchorSeconds` (BODY:183-192) for the original seven; new bodies get the values below. Modal bodies additionally obey the damping law; `ρ = T60(2 kHz) / T60(200 Hz)` at Material 50 is given per body; Material 0 → ρ/4, Material 100 → min(1, 4ρ).
-- **Contact:** `sustain` is BODY's per-body constant (BODY:23, :194-201), now the default of Touch (param12). Position (param8) defaults are per body.
+- **Contact:** `sustain` is BODY's per-body constant (BODY:23, :194-201), now the default of Touch (line block #9, 50 = recipe value). Position (line block #12) defaults are per body (50 = recipe value).
 - **Loudness:** every modal body is energy-normalised with BODY's closed-form (BODY:282-301); `out_gain` starts from BODY's calibration constants (BODY:831-843) and is re-measured in M1.
 - **Mode budget:** ≤48 modes per body, stereo; all bodies keep state (tail holding), see 20 §3.
 - **Depth (UI):** z per path for the layer table in `21_UI_CONCEPT.md` §2, back (−) to front (+), at perspective 1600 px.
@@ -46,7 +46,7 @@ chosen by us where no open measurement exists; they are the first thing to tune 
 - Body: soundboard as a dense fixed-Hz modal bank, 40 modes: the FEM low modes 84, 127, 194, 204, 229, 271, 301 Hz (R10 B4 piano) then log-spaced to 4 kHz (mean spacing ≈ 22 Hz below 1.1 kHz is approximated, not matched one by one). Loss factor η 2.3 % → T60 ≈ 96/f s (1.1 s at 85 Hz, 0.1 s at 1 kHz); Material scales η 4.6 % .. 1.15 %. Gains ∝ f^−0.5 with alternating signs; L/R position gains from bass-left/treble-right placement for Width.
 - Decay 0.25 × 24^d for the strings (BODY:188); board T60 is physical and only scaled ×0.5..2 by Decay.
 - Contact: sustain 0.045, hammer edge × novelty² (BODY:601); Position = hammer strike point 0.12 of string length (sets the pickup comb, BODY:486).
-- Body (param10) default 0.45: balance string direct vs soundboard.
+- Body (line block #14) recipe default 45 %: balance string direct vs soundboard.
 - Calibration: 0.341 × (17 piano + 0.8 board) (BODY:832) as starting point.
 - Depth: lid inner rim (1) −200, strings (3-5) −60, case rim (0) 0, keyboard (2, 6-9) +160.
 - Validation: string pitch at note ±5 ct; board peaks at the FEM frequencies ±3 %; T60(1 kHz) 0.1 s ±20 %.
@@ -55,7 +55,7 @@ chosen by us where no open measurement exists; they are the first thing to tune 
 - Line engine: single string loop with pick-position comb (as the Ukulele, BODY:680-710) tuned to the note.
 - Body: box = Helmholtz air mode + top plate as a coupled 2-DOF pair solved at control rate (plate 150 Hz, cavity 129 Hz → coupled ≈ 97 / 200 Hz, R10 B1 Christensen; Size shifts both), measured signature modes 103, 205, 286, 436 Hz with Q ≈ 20 (R10 B4 guitar; T60 = 2.2·Q/f → 0.41, 0.23, 0.17, 0.11 s), plus 12 log-spaced modes 500 Hz-3 kHz with η 3 % for the mid-range hump. All fixed-Hz. 18 modes.
 - Decay 0.25 × 24^d (string); ρ 0.25 (η constant → T60 ∝ 1/f).
-- Contact: sustain 0.045 with BODY's pluck-contrast law (BODY:685-687); Position 0.25 (pick point) → comb; Body default 0.6.
+- Contact: sustain 0.045 with BODY's pluck-contrast law (BODY:685-687); Position 0.25 (pick point) → comb; Body recipe default 60 %.
 - Depth: back and sides (2) −260, sound-hole cavity (1) −420, top (0) 0, strings (3-6) +40, bridge and pegs (7-9) +120.
 - Validation: A0 peak 95-110 Hz, T1 peak 195-210 Hz; string pitch ±5 ct.
 
@@ -63,7 +63,7 @@ chosen by us where no open measurement exists; they are the first thing to tune 
 - Line engine: BODY's short string + 0.32-period pick comb + transient contact unchanged (BODY:368-380, :680-710).
 - Body: box pair A0 ≈ 230 Hz, T1 ≈ 290 Hz (soprano body resonance ≈ D4 −19 ct, builder data R10 B4 *(design-grade)*), T2 ≈ 480 Hz, plus 8 log-spaced modes 600 Hz-4 kHz; Q ≈ 12-15 (small body, more damped than a guitar but far less than BODY's Q ≈ 6/3.5 at 310/690 Hz, BODY:543-549). All fixed-Hz. 11 modes.
 - Decay 0.07 × 12^d (BODY:191); ρ 0.30.
-- Contact: sustain 0.025 (BODY: index 6 = 0.025), pluck-contrast law kept; Position 0.32; Body default 0.5.
+- Contact: sustain 0.025 (BODY: index 6 = 0.025), pluck-contrast law kept; Position 0.32; Body recipe default 50 %.
 - Hybrid role: the bridge signal `picked`/wood body feeds the Obosaxolele (BODY:725-727) — keep the same tap.
 - Depth: sound-hole cavity (1) −420, body (0) 0, strings (2-5) +40, frets/bridge (6-7) +90, pegs (8-9) +130.
 - Validation: A0/T1 peaks ±5 %; pluck → body T60 at 290 Hz ≈ 0.1 s ±30 %.
@@ -72,7 +72,7 @@ chosen by us where no open measurement exists; they are the first thing to tune 
 - Line engine: single string loop with high sustained feed (bowed character comes from the input, no bow model); Position = bridge-side pickup 0.1.
 - Body: violin corpus means A0 275, CBR 407, B1− 475, B1+ 541, A1 469 Hz (R10 B4 violin), Q 30 at A0 *(design within typical range)* → T60 0.24 s; damping law ζ ∝ f^−0.45 (R10 B4) sets ρ; bridge hill: 10 log-spaced modes 1.8-4 kHz, η 4 %. All fixed-Hz. 15 modes.
 - Decay 0.2 × 20^d *(design)*.
-- Contact: sustain 0.6 (continuous input sustains the string); Body default 0.7.
+- Contact: sustain 0.6 (continuous input sustains the string); Body recipe default 70 %.
 - Depth: f-hole cavity (1) −420, body (0) 0, strings (2-5) +60, fingerboard (6) +140, bridge (7) +120, scroll/pegs (8-9) +100.
 - Validation: A0 and B1± peaks ±3 %; no self-oscillation (loop gain < 1 at all Decay).
 
@@ -86,7 +86,7 @@ chosen by us where no open measurement exists; they are the first thing to tune 
 
 ## 9. Oboe (anchor 8, BODY engine 4)
 - Line engine (new): truncated-cone "blowed string" (R10 B1 Scavone), blow point β = 0.08 (short mouthpiece volume), lattice cutoff 1.5 kHz (R10 B4), double-reed excitation = BODY's reed shaping with stronger asymmetry *(design)*. Cone half-angle 0.71° is informative only.
-- Body: BODY's 8-mode nasal cluster with Tune-following ratios 1, 2.73, 3.0, 3.29, 6.43, 7.0, 7.61, 10.57 (BODY:114-118) is **kept as the identity body**, including its float64 energy normalisation and the hybrid beating-pair reshaping (BODY:399-420). **Conscious deviation from physics:** real formants are fixed in Hz; therefore 4 fixed-Hz formant modes 1.1 / 1.4 / 2.8 / 3.2 kHz, Q 8 *(design)* are added and weighted by Body (param10). 12 modes.
+- Body: BODY's 8-mode nasal cluster with Tune-following ratios 1, 2.73, 3.0, 3.29, 6.43, 7.0, 7.61, 10.57 (BODY:114-118) is **kept as the identity body**, including its float64 energy normalisation and the hybrid beating-pair reshaping (BODY:399-420). **Conscious deviation from physics:** real formants are fixed in Hz; therefore 4 fixed-Hz formant modes 1.1 / 1.4 / 2.8 / 3.2 kHz, Q 8 *(design)* are added and weighted by Body (line block #14). 12 modes.
 - Decay 0.12 × 25^d (BODY:189); sustain 1.0.
 - Depth: bell (1) −120, body (0) 0, keys (6-9) +120, reed (2) +170.
 - Validation: cluster peaks at the ratios ±1 %; cone series contains even and odd harmonics; no blow-up at Material 100.

@@ -8,7 +8,9 @@ Naming rule: `RE·BODY` (U+00B7 middle dot) for every user-facing string (GUI he
 metadata); `RE_BODY` (ASCII underscore) for code identifiers, targets, folders and binaries.
 
 ## Layout
-- `reference/body_original/` — the unmodified original BODY (`dsp.cmajor`, `index.js`). Baseline, never edited.
+- `reference/body_original/` — the unmodified original BODY (`dsp.cmajor`, `index.js`, `PROVENANCE.md`). Baseline, never edited.
+- `plugin/spec.json` — single source of truth for the 69 parameters, anchors and the 10 telemetry outputs.
+- `docs/review/` — concept review and consistency checks.
 - `docs/index/` — the research index built before concept work:
   - `00_MATERIAL_INDEX.md` — inventory of the LALAFY archive export (versions, duplicates, newest state)
   - `01_BODY_ORIGINAL.md` — architecture of the original plugin

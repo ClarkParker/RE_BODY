@@ -8,7 +8,7 @@ LALAFY prototype v0.71 (`styles.css:55-137`, `js/08-main.js:95-99`), platform ru
 - Depth and parallax come from LALAFY's technique: a perspective frame, layers with `translateZ(z) scale(s)`, the scene tilted a few degrees by the pointer, atmospheric perspective per layer.
 - Focus is the graphic in the middle: many layers, real depth; the rest of the panel gains the new functions and a quality pass, not a redesign.
 - Resizable window via the DEV-Kit scaling recipe (`docs/07_SCALING.md`, kit rule 8); the deviation from the upstream fluid-layout rule is documented (R11 §2, P03 §6).
-- Telemetry from the DSP is available: `bodyViz`, `bodyBands`, `bodyOnset`, `bodyEngines`, `bodyModes`, `bodyRegister` (see `20_DSP_CONCEPT.md` §8).
+- Telemetry from the DSP is available: `bodyViz`, `bodyBands`, `bodyOnset`, `analysisViz`, `lineStateA/B/C`, `lineModesA/B/C` (see `20_DSP_CONCEPT.md` §8, `plugin/spec.json` outputs).
 
 ## 1. Chassis and layout
 Design chassis 720 × 460 (original 620 × 340 proportions, field enlarged to ≥50 % height, R11 §3 W2; +40 px for the line tabs and the physics dials), scaled with CSS `zoom` per 07_SCALING; manifest `view.resizable: true`, `// WINDOW SIZE: 720x460` on line 2.
@@ -33,7 +33,7 @@ Layers, back to front (z in px at P = 1600):
 | L3…L12 | contour paths 0…9 | per instrument, −300…+220 | the ten morphing paths of the original, one per layer | from z |
 | L13 | specular | +260 | one soft highlight that follows the light position | from z |
 | L14 | air | +320 | ≤40 faint particles (SVG circles) on a slow flow field, brightness from wet energy | from z |
-| L15 | caption | +60 | instrument name (13-14 px, R11 R1), note / seconds from `bodyRegister` | 0.2 |
+| L15 | caption | +60 | instrument name (13-14 px, R11 R1), note name and decay seconds computed from the line's Tune/Decay/Morph as the original does (index.js:21-36), tracked pitch from `lineState*.followHz` while Follow > 0 | 0.2 |
 
 **Depth table.** `zTable[template][path]` (8 original templates + new bodies × 10 paths). Examples: bass drum rear shell (path 2) −300, front hoop (path 0) 0, tension rods (6-9) +120; piano rim (0) 0, lid inner rim (1) −200, keyboard (2-5) +160; sax rear tube (2) −260, bell rim (1) +220, keys (6-9) +180. During a morph the z of each path is interpolated with the same `t` as its geometry (UI:353-357), so depth morphs with the instrument.
 **Atmospheric perspective.** Stroke colour and opacity per layer are baked from z (far = darker, lower contrast; near = full white), applied once per morph step, never via animated filters (R11 B2).
@@ -54,13 +54,13 @@ tilt smoothing: v += (target − v)·(1 − exp(−dt/0.12))  (same form as UI:3
 ## 4. Energy response of the silhouette
 - Per-layer vibration amplitude table: membrane/head 1.0, strings 0.8, openings 0.5, body 0.4, fittings 0.15 (physically plausible: fittings do not flex).
 - Deformation = superposition of three contour modes (1, 2, 3 half-waves, inharmonic phase ratios) driven by `bodyBands` low/mid/high groups; amplitude 1.5-3 px scaled by the field size (R11 R6), onset kick from `bodyOnset`, decay with the wet tail. Under reduced motion brightness carries the information instead of motion.
-- `bodyModes` (16 loudest modes) draw faint standing-wave markers along contour 0, fading with mode energy.
-- `bodyEngines` feeds the morph slider's weight bars (§5).
+- `lineModesA/B/C` (16 loudest modes of the active line) draw faint standing-wave markers along contour 0, fading with mode energy.
+- `lineState*.engine0..engine10` feed the morph slider's weight bars (§5).
 
 ## 5. Controls: the original, extended
-- **Morph row as hero** (R11 R4): 3 px engraved groove, detents that grow when the thumb approaches, 14 px lit thumb, ≥28 px hit height, hairline weight bars from `bodyEngines`, anchors ≥10 px with abbreviations where the name is wider than its cell; anchor list and order come from the shared anchors table (11 anchors, `22_BODIES.md` §0), generated into `plugin/bodies.json`.
+- **Morph row as hero** (R11 R4): 3 px engraved groove, detents that grow when the thumb approaches, 14 px lit thumb, ≥28 px hit height, hairline weight bars from `lineState*.engine0..engine10`, anchors ≥10 px with abbreviations where the name is wider than its cell; anchor list and order come from the shared anchors table (11 anchors, `22_BODIES.md` §0), generated into `plugin/bodies.json`.
 - **Deck**: four main dials Tune, Decay, Material, Mix as dial v2 (R11 R3: 64-72 px, 3 px arc, static specular crescent, pressed/hover states, default tick, typed entry as in UI:360-426).
-- **Advanced strip**: Size, Position, Bright, Body, Width, Touch, Stretch as 40 px dials, collapsible via a "MORE" button; collapsed state stored UI-only.
+- **Advanced strip**: Size, Position, Bright, Body, Touch, Stretch and the four physics dials as 40 px dials (Width sits in the deck as a small dial), collapsible via a "MORE" button; collapsed state stored UI-only.
 - Bypass switch and state lamp (R11 R7): `--lamp` 1 active, 0.7 no input, 0.25 bypass, text state in the caption, never colour alone.
 - Keyboard, wheel, dblclick reset, Shift fine, ARIA slider semantics as in the original `BodyDial` (UI:103-248); Delete resets the focused control (R11 R8).
 - Typography pass (R11 R1): all text ≥4.5:1, tracks ≥3:1; the HONE-dim greys are lifted only where readability needs it.
@@ -71,11 +71,11 @@ Single ES module, default export `createPatchView`, light DOM with `classList.ad
 
 ## 7. Verification
 - `run_ui_probe` on the real Amorph build: `data-param` audit, custom endpoint delivery, pointermove delivery inside a DAW.
-- Frame time with 16 compositing layers at 720×420 and at zoom 2.0 in WebKit and WebView2; target ≤4 ms per frame while moving, 0 when idle.
+- Frame time with up to 19 compositing layers at 720×460 and at zoom 2.0 in WebKit and WebView2; target ≤4 ms per frame while moving, 0 when idle.
 - Reduced-motion and Motion-switch states reviewed visually; contrast checked numerically.
 
 ## 8. Steps
-U0 tokens, typography, lamp, grain · U1 field: layer stack, z-table, scale compensation, fog, light · U2 motion sources, smoothing, reduced motion, Motion switch · U3 telemetry binding (bands, onset, modes, engines, register) · U4 morph hero and anchors table · U5 dial v2, main deck, advanced strip · U6 07_SCALING chassis, manifest, probes.
+U0 tokens, typography, lamp, grain · U1 field: layer stack, z-table, scale compensation, fog, light · U2 motion sources, smoothing, reduced motion, Motion switch · U3 telemetry binding (bodyBands, bodyOnset, analysisViz, lineState*, lineModes*) · U4 morph hero and anchors table · U5 dial v2, main deck, advanced strip · U6 07_SCALING chassis, manifest, probes.
 
 ## 9. Fine questions (later)
 Whether strip 2 starts collapsed; exact grey levels; tab placement left or right of the title.

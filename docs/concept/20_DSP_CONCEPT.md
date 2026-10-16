@@ -48,12 +48,12 @@ line: { kind: none|cylinder|cone|string|string_pair, beta, cutoff_hz, dispersion
 contact: { sustain, novelty_power }                                # BODY per-body "sustain" (BODY:23,194-201)
 calibration: { out_gain, energy_target }                           # BODY:831-843, :427
 ```
-`fixed:true` marks resonances that do **not** follow Tune (real body resonances do not move with the played note, R10 B1 Woodhouse); `Size` (param7) scales them instead.
+`fixed:true` marks resonances that do **not** follow Tune (real body resonances do not move with the played note, R10 B1 Woodhouse); `Size` (line block #11) scales them instead.
 Emission strategy (to validate with `cmaj` first, PHYSIFY note on large literals): namespace-scope constant arrays, else processor members assigned at `main()` start. Manifest `externals` only if Amorph is shown to load them.
 Capacity: 48 modes × ~11 bodies ≈ 530 complex stereo modes ≈ 1 % of one core at 48 kHz by PHYSIFY's bench (R10 §4 cost basis); tail-holding means every body can carry state, so the bank is sized for all bodies, not two.
 
 ## 4. Damping law and the Material axis
-Per mode: `T60 = ln(1000) / (αG + αR·ω)` with per-body (αG, αR) presets, scaled by Decay (param2, log as BODY `anchorSeconds`) and tilted by Material (param6): 0 = damped/soft (αR high, soundboard-like η 3 %), 50 = recipe default, 100 = hard/ringing (αR low, metal/bell-like). Anchors: soundboard η≈2.3 % → T60≈96/f s; violin corpus ζ∝f^−0.45; membranes short, metal long (R10 B4, PHYSIFY `DSP:568-585`). Control rate only (one `exp` per mode per 32 samples, BODY's stepping idiom).
+Per mode: `T60 = ln(1000) / (αG + αR·ω)` with per-body (αG, αR) presets, scaled by Decay (line block #2, log as BODY `anchorSeconds`) and tilted by Material (line block #10): 0 = damped/soft (αR high, soundboard-like η 3 %), 50 = recipe default, 100 = hard/ringing (αR low, metal/bell-like). Anchors: soundboard η≈2.3 % → T60≈96/f s; violin corpus ζ∝f^−0.45; membranes short, metal long (R10 B4, PHYSIFY `DSP:568-585`). Control rate only (one `exp` per mode per 32 samples, BODY's stepping idiom).
 
 ## 5. Parameters (append-only after the original five; line blocks, see §12)
 Three identical **lines** A, B, C (§12). `param1..param5` keep BODY's meaning: Tune, Decay and Morph of **Line A**, Mix and Bypass global. Every other parameter is appended in fixed blocks so the scheme is mechanical for DSP, UI and tools.
@@ -71,22 +71,22 @@ Three identical **lines** A, B, C (§12). `param1..param5` keep BODY's meaning: 
 | 1 | Tune | 0..100 / 58 | as BODY (drums size law, pitched note law C2..C5); ignored by `fixed` modes | main dial |
 | 2 | Decay | 0..100 / 50 | global αG scale, log seconds per body | main dial |
 | 3 | Morph | 0..10 / 7 | anchor position (22 §0); 7 = Clarinet = BODY's default stop | hero slider |
-| 4 | Enable | Off/On / A On, B Off, C Off | line runs and sums; Off gates all its engines | tab lamp |
+| 4 | Enable | Off/On / A On, B Off, C Off | line runs and sums; Off gates all its engines | button (in the line tab) |
 | 5 | Level | −60..+6 dB / 0 | line wet level before the shared balance stage | small dial |
 | 6 | Listen | All / Transient / Sustain / Low / Mid / High / Chain | which analysed component excites the line (§13); Chain = previous line's body output (A: falls back to All) | segmented buttons |
 | 7 | Sensitivity | 0..100 / 50 | gain of the listened component into the contact stage | small dial |
 | 8 | Excite | Through / Hammer / Pluck / Breath | Through = BODY contact; others = onset-triggered strikers (§14) | segmented buttons |
-| 9 | Touch | 0..100 / per body | onset sensitivity vs sustained excitation; in Strike modes = velocity curve | advanced dial |
+| 9 | Touch | 0..100 / 50 (= recipe default) | onset sensitivity vs sustained excitation; in Strike modes = velocity curve | advanced dial |
 | 10 | Material | 0..100 / 50 | damping-vs-frequency law (§4) | main dial |
 | 11 | Size | −100..100 / 0 | log shift of fixed-Hz resonances ±1 oct | advanced dial |
-| 12 | Position | 0..100 / per body | excitation point (mode gains, pick/blow point β) | advanced dial |
+| 12 | Position | 0..100 / 50 (= recipe default) | excitation point (mode gains, pick/blow point β) | advanced dial |
 | 13 | Bright | 0..100 / 50 | contact low-pass + upper-mode tilt | advanced dial |
-| 14 | Body | 0..100 / per body | line engine ↔ modal body balance | advanced dial |
+| 14 | Body | 0..100 / 50 (= recipe default) | line engine ↔ modal body balance | advanced dial |
 | 15 | Stretch | −100..100 / 0 | mode spacing around 1 kHz | advanced dial |
-| 16 | Stiffness | 0..100 / per body | string dispersion, plate/bar inharmonicity (§15) | physics dial |
-| 17 | Coupling | 0..100 / per body | string/bore → body feed, >50 adds bounded bridge reflection (§15) | physics dial |
-| 18 | Air | 0..100 / per body | Helmholtz/air modes, air-loaded drum ratios, breath noise (§15) | physics dial |
-| 19 | Reed | 0..100 / per body | reed stiffness/asymmetry, head tension, pick hardness (§15) | physics dial |
+| 16 | Stiffness | 0..100 / 50 (= recipe default) | string dispersion, plate/bar inharmonicity (§15) | physics dial |
+| 17 | Coupling | 0..100 / 50 (= recipe default) | string/bore → body feed, >50 adds bounded bridge reflection (§15) | physics dial |
+| 18 | Air | 0..100 / 50 (= recipe default) | Helmholtz/air modes, air-loaded drum ratios, breath noise (§15) | physics dial |
+| 19 | Reed | 0..100 / 50 (= recipe default) | reed stiffness/asymmetry, head tension, pick hardness (§15) | physics dial |
 | 20 | Follow | 0..100 / 0 | Tune follows the tracked input pitch (0 = fixed Tune, 100 = full), 40 ms glide (§13) | small dial |
 | 21 | Hold | Off/On / Off | linear freeze of the line's tails: injection muted, loop gains and modal radii → 1 − ε, no governor (§14) | button |
 | 22 | Blend | 0..100 / 0 | in strike modes only: 0 = striker alone, 100 = Through alone, in between both excite the same body (§14) | small dial |
@@ -112,7 +112,7 @@ Display names carry the line letter (`A Tune`, `B Listen` …) so DAW automation
 | bodyViz | float<4> | input, wet, L, R peaks (BODY compat) | lamp, breathing |
 | bodyBands | float<8> | summed wet energy in 8 log bands (60 Hz-10 kHz) | layer vibration modes |
 | bodyOnset | float | shared `onset` 0..1 (BODY:593) | strike push, ripple |
-| lineStateA/B/C | float<16> | [wet, onset, listenEnergy, followHz, holdFlag, engine0..engine10] per line | tabs, weight bars, silhouettes, captions |
+| lineStateA/B/C | float<16> | [wet, onset, listenEnergy, followHz, hold, engine0..engine10] per line | tabs, weight bars, silhouettes, captions |
 | lineModesA/B/C | float<16> | energy of the 16 loudest modes of the line's dominant body | standing-wave markers |
 | analysisViz | float<6> | transient, sustain, low, mid, high energies, pitch confidence | listen selector feedback |
 
