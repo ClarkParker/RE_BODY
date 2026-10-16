@@ -10,10 +10,10 @@
   "description": "Imaginary instrument bodies excited by incoming audio. Based on BODY by Artists in DSP; rebuilt on physically modelled bodies with three independent lines.",
   "view": {
    "src": "index.js",
-   "width": 720,
-   "height": 540,
+   "width": 960,
+   "height": 600,
    "resizable": true,
-   "note": "height pending owner Q1 (540 recommended, 460 alternative)"
+   "note": "design chassis 16:10, zoom 0.5..2.0 via kit 07_SCALING, min width 640; owner answer to Q1 pending confirmation of 960x600"
   }
  },
  "anchors": [

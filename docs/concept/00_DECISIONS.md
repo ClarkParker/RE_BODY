@@ -38,3 +38,8 @@
 | D34 | 2026-10-16 | **Anchor abbreviations as in `plugin/spec.json`** (`anchorLabels`): BASS, SNARE, TIMP, PIANO, GUITAR, UKE, FIDDLE, CLAR, OBOE, SAX, `OBOSAX·` (D14 stays for the hybrid; full names in the caption) (review A4-A6; triage 42 T5). |
 
 D26-D34 are lead decisions from `docs/review/42_REVIEW_TRIAGE.md`, applied 2026-10-16; the owner questions Q1-Q5 of that file remain open.
+| D35 | 2026-10-16 | Design chassis **960 × 600** (16:10), zoom 0.5-2.0, min width 640 (supersedes D16; lead proposal after owner's Q1, to be confirmed). |
+| D36 | 2026-10-16 | Material is the fourth main dial (Tune, Decay, Material, Mix). |
+| D37 | 2026-10-16 | **No Classic view.** Removed entirely (supersedes D24's Classic toggle; the rest of the preservation contract stands). |
+| D38 | 2026-10-16 | Motion budget: Off = static depth; Calm (default) = tilt 1.5°, audio motion, no idle drift; Full = tilt 4° + idle drift ±1°. Depth must read strongly in every state through light (rim, fog, shadow, specular); parallax adds to it. |
+| D39 | 2026-10-16 | Lines B/C as tabs; if the host spike shows hidden controls fail the probe, fallback = compact always-visible strip. |
