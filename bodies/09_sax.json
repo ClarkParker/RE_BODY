@@ -113,6 +113,7 @@
     "out_gain": 0.181752,
     "energy_target": 0.4496,
     "engine_gain": 3.3,
+    "strike_gain": 0.404,
     "body_gain": 0.0,
     "terms": {"pickup": 3.3, "breath": 1.1},
     "design": false,

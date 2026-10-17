@@ -87,6 +87,7 @@
     "out_gain": 0.07,
     "energy_target": 0.4496,
     "engine_gain": 3.8,
+    "strike_gain": 0.1318,
     "body_gain": 0.0,
     "terms": {"boreRadiation": 3.8},
     "design": false,

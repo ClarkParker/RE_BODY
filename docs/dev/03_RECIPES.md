@@ -62,7 +62,7 @@ File `bodies/NN_name.json`, `NN` = anchor index. Every value that 22 marks (desi
 | `decay` | `base`, `ratio` (seconds = base * ratio^d, d = Decay/100, BODY `anchorSeconds`) |
 | `contact` | `sustain`, `novelty_power` (law in text), `position` (Position knob 50), `body_default` (Body knob 50) |
 | `line` | `kind` none\|cylinder\|cone\|string\|string_pair, `loop_lowpass_hz`, `radiation_hz` (outside the loop), `beta`, `dispersion`, `dispersion_b`, `tune_lut_cents` (null until P3 measures it) |
-| `calibration` | `out_gain`, `energy_target`, `engine_gain`, `body_gain`, `terms` (BODY's bracket), `energy_law` (oboe) |
+| `calibration` | `out_gain`, `energy_target`, `engine_gain`, `body_gain`, `strike_gain` (P4b, required, > 0: contact amplitude of a velocity 1 striker into this body, table `strikeGain`, calibration in `07_P4B_LINES.md` section 4), `terms` (BODY's bracket), `energy_law` (oboe) |
 | `physics_map` | 22 section 13 text: stiffness, coupling, air, reed, excite |
 | `ui` | `label`, `label_long` (must equal spec), `depth.z[10]` (path 0..9, 22 "Depth" lines), `depth.filled_paths` |
 | Obosaxolele only | `constituents[]` (recipe, weight 1/3 each at the end stop), `hybrid.constants[]` (11 named BODY constants + 3 related), `hybrid.pairs` (BODY:105-110) |

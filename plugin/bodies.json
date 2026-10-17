@@ -2237,17 +2237,17 @@
   "schema": "rebody.bodies/1",
   "slotLayout": "modes[k] (padded): k 0-7 = feature slot k, k 8-15 = following slot k-8, the first 16 of the 18 slots in fixed recipe index order, null = unused slot; modesCompact[k]: the same modes packed without gaps (features first, then following), for a telemetry that packs densely",
   "sources": {
-    "00_bass_drum.json": "7b95ee3339fe",
-    "01_snare.json": "7fd4ac044548",
-    "02_timpani.json": "011227fdc2aa",
-    "03_piano.json": "6a49cff0aa1a",
-    "04_guitar.json": "32cf21cb0146",
-    "05_ukulele.json": "56373a90ed35",
-    "06_fiddle.json": "ee9dec6c53bd",
-    "07_clarinet.json": "d2ea7258d51b",
-    "08_oboe.json": "44e53e3efa37",
-    "09_sax.json": "9f298142ead7",
-    "10_obosaxolele.json": "b36994bebe74"
+    "00_bass_drum.json": "1430cf18862d",
+    "01_snare.json": "b26e63f4d970",
+    "02_timpani.json": "e5c034e63f9e",
+    "03_piano.json": "5959de3d63cf",
+    "04_guitar.json": "8ee653423624",
+    "05_ukulele.json": "c68d6edbf72e",
+    "06_fiddle.json": "06bb8d1b3092",
+    "07_clarinet.json": "9832f5fe53ce",
+    "08_oboe.json": "3951d32b6a9f",
+    "09_sax.json": "421ebe812b5f",
+    "10_obosaxolele.json": "be3130f4c41e"
   },
   "zTable": [
     [0, -40, -300, 92, 92, 60, 100, 100, 100, 100],

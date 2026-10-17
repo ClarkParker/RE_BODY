@@ -4,11 +4,15 @@
 // the same code and are Enable Off by default. All 73 parameters and 10 telemetry endpoints keep their final ids.
 // P3: the physics knobs of every line (Touch .. Reed, Width inside the bodies) are read by 50_line.cmajor at the control
 // tick; this file only hands the smoothed global Width to the lines (docs/dev/06_P3_PHYSICS.md).
+// P4b: the shared analysis stage (Splitter, PitchTracker) lives here; each line listens to All / Transient / Sustain /
+// Low / Mid / High or, with Chain, to the previous line's body output; chained-from lines are computed even when
+// disabled; the tracker runs only while a computed line has Follow > 0 (docs/dev/07_P4B_LINES.md).
 //
 // Signal path per sample (concept 20 section 2):
 //   in -> NaN guard, DC block, clamp, bypass fade                         (BODY:587-590)
-//      -> per line (Listen = All in P2): onset detector, feeds, engines, grid and slots, loudness stage,
-//         Level, Pan, Enable                                              (50_line.cmajor, BODY:591-856)
+//      -> analysis: transient / sustain, three bands, pitch tracker       (20_analysis.cmajor)
+//      -> per line (its Listen component or Chain): onset detector, strikers, feeds, engines, grid and slots,
+//         loudness stage, Level, Pan, Enable                              (50_line.cmajor, BODY:591-856)
 //      -> sum of lines -> Width -> Low Cut -> wet DC block -> shared protector + knee   (BODY:857-889)
 //      -> Mix, linear as BODY on purpose                                   (BODY:890)
 //   meters and telemetry every max(1, int(sr / 30)) samples               (BODY:893)
@@ -209,6 +213,9 @@ processor RE_BODY [[ main ]]
     // END TABLES MEMBER
 
     rebody::line::Line[3] lines;
+    rebody::analysis::Splitter splitter;
+    rebody::analysis::PitchTracker tracker;
+    bool trackerOn;
     rebody::line::Protector protector;
     rebody::analysis::BandMeters bandMeters;
     rebody::analysis::BandCoefficients bandCoeffs;
@@ -226,6 +233,70 @@ processor RE_BODY [[ main ]]
     // Meters and telemetry (BODY:26-27, :893).
     float inputMeter, wetMeter, leftMeter, rightMeter, meterRelease;
     int vizCounter, vizPeriod;
+
+    // Denormal guard of the shared stages at the control tick (see flushLine in 50_line.cmajor): the Splitter's followers,
+    // powers and filter states and the octave meters decay toward 0 and would stop at the smallest denormal.
+    void flushAnalysis()
+    {
+        splitter.fast = rebody::line::flushTiny (splitter.fast);
+        splitter.slow = rebody::line::flushTiny (splitter.slow);
+        splitter.gain = rebody::line::flushTiny (splitter.gain);
+
+        for (int k = 0; k < 5; k += 1)
+            splitter.power.at (k) = rebody::line::flushTiny (splitter.power.at (k));
+
+        for (int k = 0; k < 2; k += 1)
+        {
+            splitter.low200.at (k).z1 = rebody::line::flushTiny2 (splitter.low200.at (k).z1);
+            splitter.low200.at (k).z2 = rebody::line::flushTiny2 (splitter.low200.at (k).z2);
+            splitter.high200.at (k).z1 = rebody::line::flushTiny2 (splitter.high200.at (k).z1);
+            splitter.high200.at (k).z2 = rebody::line::flushTiny2 (splitter.high200.at (k).z2);
+            splitter.low2k.at (k).z1 = rebody::line::flushTiny2 (splitter.low2k.at (k).z1);
+            splitter.low2k.at (k).z2 = rebody::line::flushTiny2 (splitter.low2k.at (k).z2);
+            splitter.high2k.at (k).z1 = rebody::line::flushTiny2 (splitter.high2k.at (k).z1);
+            splitter.high2k.at (k).z2 = rebody::line::flushTiny2 (splitter.high2k.at (k).z2);
+        }
+
+        splitter.allpass2k.z1 = rebody::line::flushTiny2 (splitter.allpass2k.z1);
+        splitter.allpass2k.z2 = rebody::line::flushTiny2 (splitter.allpass2k.z2);
+
+        for (int k = 0; k < 7; k += 1)
+            bandMeters.lowpass.at (k) = rebody::line::flushTiny (bandMeters.lowpass.at (k));
+
+        for (int k = 0; k < 8; k += 1)
+            bandMeters.power.at (k) = rebody::line::flushTiny (bandMeters.power.at (k));
+    }
+
+    // Routing at the control tick (concept 12 and 13), from the host targets (Enable and Listen are discrete): a line is
+    // computed when it is enabled or when a later computed line listens to it through Chain (transitively, never
+    // backwards: line k only ever listens to line k - 1), and the pitch tracker runs only while a computed line has
+    // Follow > 0.
+    void updateRouting()
+    {
+        bool chainedFrom = false;
+        bool needTracker = false;
+
+        for (int i = rebody::numLines - 1; i >= 0; i -= 1)
+        {
+            int base = i * rebody::params::lineSlots;
+            bool enabled = paramTarget.at (rebody::params::lineParam.at (base + rebody::params::slotEnable)) >= 0.5f;
+            int listen = int (paramTarget.at (rebody::params::lineParam.at (base + rebody::params::slotListen)) + 0.5f);
+            float follow = paramTarget.at (rebody::params::lineParam.at (base + rebody::params::slotFollow));
+            bool computed = enabled || chainedFrom;
+            lines.at (i).chainedFrom = chainedFrom;
+
+            if (computed && follow > 0.0f)
+                needTracker = true;
+
+            chainedFrom = computed && listen == 6;       // the line before this one is listened to
+        }
+
+        if (needTracker != trackerOn)
+        {
+            trackerOn = needTracker;
+            rebody::analysis::setEnabled (tracker, needTracker);
+        }
+    }
 
     // Step the 23 block parameters of one line towards the host values and run its control tick (32 samples,
     // BODY:579); `snap` jumps straight to the targets (first sample). Discrete parameters (step >= 1: Enable,
@@ -257,6 +328,8 @@ processor RE_BODY [[ main ]]
         }
 
         lines.at (k).width = widthPercent;
+        lines.at (k).trackHz = trackerOn ? rebody::analysis::hz (tracker) : 0.0f;
+        lines.at (k).trackConfidence = trackerOn ? rebody::analysis::confidence (tracker) : 0.0f;
         rebody::line::tick (lines.at (k), snap);
     }
 
@@ -289,6 +362,8 @@ processor RE_BODY [[ main ]]
         meterRelease = rebody::analysis::releaseMultiplier (0.11f, sr);
         vizPeriod = max (1, int (sr / float (rebody::vizRateHz)));
         rebody::analysis::bandCoefficients (bandCoeffs, sr);
+        rebody::analysis::prepare (splitter, sr);
+        rebody::analysis::prepare (tracker, sr);
 
         for (int k = 0; k < rebody::numLines; k += 1)
             rebody::line::initLine (lines.at (k), k, sr);
@@ -304,6 +379,8 @@ processor RE_BODY [[ main ]]
             if (! started)
             {
                 // Host values set before the first sample are honoured: snap to them.
+                updateRouting();
+
                 for (int k = 0; k < rebody::numLines; k += 1)
                     controlLine (k, true);
 
@@ -313,9 +390,14 @@ processor RE_BODY [[ main ]]
                 started = true;
             }
 
-            // Staggered control ticks: line k at sample 11 k of every 32.
+            // Staggered control ticks: line k at sample 11 k of every 32. The tracker works once per tick, ahead of the lines.
             if (counter == 0)
+            {
+                updateRouting();
+                flushAnalysis();
+                rebody::analysis::work (tracker);
                 controlGlobal (false);
+            }
 
             for (int k = 0; k < rebody::numLines; k += 1)
                 if (counter == 11 * k)
@@ -344,6 +426,11 @@ processor RE_BODY [[ main ]]
 
             float<2> x = dry - previousInput + dcRadius * dcState;
             previousInput = dry;
+
+            for (int ch = 0; ch < 2; ch += 1)
+                if (abs (x.at (ch)) < 1.0e-20f)
+                    x.at (ch) = 0.0f;                  // the DC blocker's tail would stop at the smallest denormal
+
             dcState = x;
 
             for (int ch = 0; ch < 2; ch += 1)
@@ -352,20 +439,30 @@ processor RE_BODY [[ main ]]
             x *= 1.0f - bypassNow;
             float level = max (abs (x.at (0)), abs (x.at (1)));
 
-            // Lines: each listens to its component of the conditioned input (P2: All) and runs the whole chain.
+            // Analysis (host rate, shared): transient / sustain, three bands, and the pitch tracker's input.
+            rebody::analysis::step (splitter, x);
+            rebody::analysis::push (tracker, 0.5f * (x.at (0) + x.at (1)));
+
+            // Lines: each listens to its component of the conditioned input (Listen: All, Transient, Sustain, Low, Mid,
+            // High) or, with Chain, to the body output of the line before it (before Level; Line A falls back to All).
             bool inputActive = max (abs (dry.at (0)), abs (dry.at (1))) > 0.00001f && bypassNow < 0.5f;
             float<2> wetSum = float<2> (0.0f);
 
             for (int k = 0; k < rebody::numLines; k += 1)
             {
-                if (lines.at (k).dormant && ! lines.at (k).enabled)
+                if (lines.at (k).dormant && ! lines.at (k).computed)
                 {
                     rebody::line::idleSample (lines.at (k));
                 }
                 else
                 {
                     int listen = int (lines.at (k).control.at (rebody::params::slotListen) + 0.5f);
-                    wetSum += rebody::line::process (lines.at (k), rebody::analysis::listenComponent (listen, x), inputActive);
+                    float<2> heard = rebody::analysis::listened (splitter, listen);
+
+                    if (listen == 6 && k > 0)
+                        heard = lines.at (k - 1).bodyOut;
+
+                    wetSum += rebody::line::process (lines.at (k), heard, inputActive);
                 }
 
                 rebody::line::accumulate (lines.at (k));
@@ -413,8 +510,7 @@ processor RE_BODY [[ main ]]
                 bodyViz <- float<4> (inputMeter, wetMeter, leftMeter, rightMeter);
                 bodyBands <- rebody::analysis::bandLevels (bandMeters);
                 bodyOnset <- onsetMax;
-                // P2: transient, sustain, low, mid and high report the input energy until the P4b split exists.
-                analysisViz <- float<6> (inputMeter, inputMeter, inputMeter, inputMeter, inputMeter, 0.0f);
+                analysisViz <- rebody::analysis::analysisFrame (splitter, tracker);
                 lineStateA <- rebody::line::takeState (lines.at (0));
                 lineStateB <- rebody::line::takeState (lines.at (1));
                 lineStateC <- rebody::line::takeState (lines.at (2));

@@ -1,0 +1,537 @@
+// RE.BODY line wiring tests (P4b): rebody::line Chain / Enable, Excite and Blend, Hold v2, Follow, Pan, the pinch weights.
+// run: cmaj test tests/lines.cmajtest
+//
+// The table data comes from tests/tables_data.cmajor (namespace-form copy written by tools/bodytab.py); the line,
+// modal, striker and analysis code are the real source files. Contract: docs/dev/00_P1_CONTRACTS.md (P4b additions),
+// 20_DSP_CONCEPT sections 12-14, docs/dev/07_P4B_LINES.md. A Line is about 270 KB: every test keeps one in a
+// processor member through the shared helpers below, so nothing large sits on the stack.
+// Typed locals only (no let), .at(i) indexing, float(...) around intrinsics.
+
+## global ("../src/dsp/00_header.cmajor", "tables_data.cmajor", "../src/dsp/20_analysis.cmajor", "../src/dsp/30_strikers.cmajor", "../src/dsp/40_modal.cmajor", "../src/dsp/50_line.cmajor")
+
+## testFunction()
+
+bool near (float a, float b, float tol) { return abs (a - b) <= tol; }
+
+bool isFinite (float v) { return ! (isnan (v) || isinf (v)); }
+
+float dbOf (float v) { return 20.0f * float (log10 (max (v, 1.0e-30f))); }
+
+// Follow folds the tracked pitch into every body's Tune range and keeps the pitch class; 440 Hz stays 440 Hz on the
+// bodies whose range holds it.
+bool followFoldsIntoTheTuneRange()
+{
+    bool inRange = true;
+
+    for (int body = 0; body < rebody::numBodies; body += 1)
+    {
+        float a = rebody::line::anchorRoot (body, 0.0f);
+        float b = rebody::line::anchorRoot (body, 1.0f);
+        float lo = min (a, b);
+        float hi = max (a, b);
+        float hz = 20.0f;
+
+        for (int octave = 0; octave < 9; octave += 1)
+        {
+            float f = rebody::line::followRoot (body, hz);
+            inRange = inRange && f >= lo * 0.9999f && f <= hi * 1.0001f;
+            hz *= 2.0f;
+        }
+    }
+
+    float guitar = rebody::line::followRoot (rebody::line::bodyGuitar, 440.0f);
+    float folded = rebody::line::followRoot (rebody::line::bodyGuitar, 1000.0f);
+    return inRange && near (guitar, 440.0f, 0.01f) && near (folded, 500.0f, 0.01f);
+}
+
+// The wiring reads the Splitter through listened(): Transient + Sustain is the input (gate -100 dB, here -120 dB), All
+// and Chain (the caller's, line B and C take the previous line's body output) return the input itself.
+bool listenedTransientPlusSustainIsTheInput()
+{
+    rebody::analysis::Splitter s;
+    float sr = 48000.0f;
+    rebody::analysis::prepare (s, sr);
+    float worst = 0.0f;
+    bool selectors = true;
+
+    for (int n = 0; n < 48000; n += 1)
+    {
+        float t = float (n) / sr;
+        float local = float (n % 12000) / sr;
+        float click = 0.8f * float (exp (-local / 0.01f)) * float (sin (float (twoPi) * 1000.0f * local));
+        float<2> x = float<2> (0.3f * float (sin (float (twoPi) * 220.0f * t)) + click, 0.3f * float (sin (float (twoPi) * 330.0f * t)) - 0.7f * click);
+        rebody::analysis::step (s, x);
+        float<2> e = rebody::analysis::listened (s, 1) + rebody::analysis::listened (s, 2) - x;
+        worst = max (worst, max (abs (e.at (0)), abs (e.at (1))));
+        float<2> all = rebody::analysis::listened (s, 0);
+        float<2> chain = rebody::analysis::listened (s, 6);
+        selectors = selectors && all.at (0) == x.at (0) && all.at (1) == x.at (1) && chain.at (0) == x.at (0) && chain.at (1) == x.at (1);
+    }
+
+    return worst <= 0.00001f && selectors;
+}
+
+## testProcessor()
+
+processor LineTests
+{
+    output stream int out;
+    rebody::line::Line line;
+
+    // Defaults of the 23 block parameters from the generated table (A Tune 58 ... A Pan 0), line A.
+    void setDefaults()
+    {
+        for (int s = 0; s < rebody::params::lineSlots; s += 1)
+            line.control.at (s) = rebody::params::initValue.at (rebody::params::lineParam.at (s));
+    }
+
+    void reset (float sr)
+    {
+        line = rebody::line::Line();                      // initLine only sets the non-zero defaults: start from a zeroed line
+        rebody::line::initLine (line, 0, sr);
+        setDefaults();
+    }
+
+    bool near (float a, float b, float tol) { return abs (a - b) <= tol; }
+
+    bool isFinite (float v) { return ! (isnan (v) || isinf (v)); }
+
+    // Hold v2: Off -> Armed (nothing held) -> Capture (excitation) -> Frozen after 200 ms -> Armed (below -60 dB) -> Off.
+    bool holdStateMachine()
+    {
+        reset (48000.0f);
+        line.control.at (rebody::params::slotHold) = 1.0f;
+        line.holdPower = 0.0f;
+        rebody::line::updateHold (line, true);
+        bool armed = line.holdMode == rebody::line::holdArmed && line.holdFlag && near (line.inject.target, 1.0f, 0.0f) && near (line.holdState, 0.25f, 0.0001f);
+
+        rebody::line::updateHold (line, false);
+        bool waits = line.holdMode == rebody::line::holdArmed;             // nothing excited it yet
+        line.holdExcited = true;
+        rebody::line::updateHold (line, false);
+        bool capture = line.holdMode == rebody::line::holdCapture && near (line.inject.target, 1.0f, 0.0f) && near (line.holdState, 0.5f, 0.0001f);
+
+        line.holdPower = 0.001f;
+        int ticks = 0;
+
+        while (line.holdMode == rebody::line::holdCapture && ticks < 1000)
+        {
+            rebody::line::updateHold (line, false);
+            ticks += 1;
+        }
+
+        // 200 ms at 48 kHz = 300 ticks of 32 samples
+        bool frozen = line.holdMode == rebody::line::holdFrozen && ticks >= 299 && ticks <= 301
+                      && near (line.inject.target, 0.0f, 0.0f) && near (line.holdState, 1.0f, 0.0001f) && line.holdFlag;
+
+        line.holdPower = 0.0000001f;
+        rebody::line::updateHold (line, false);
+        bool rearmed = line.holdMode == rebody::line::holdArmed && near (line.inject.target, 1.0f, 0.0f);
+
+        line.holdPower = 0.001f;
+        line.holdMode = rebody::line::holdOff;
+        rebody::line::updateHold (line, false);
+        bool straightToFrozen = line.holdMode == rebody::line::holdFrozen;      // held energy above -60 dB when Hold is pressed
+
+        line.control.at (rebody::params::slotHold) = 0.0f;
+        rebody::line::updateHold (line, false);
+        bool released = line.holdMode == rebody::line::holdOff && ! line.holdFlag && near (line.inject.target, 1.0f, 0.0f)
+                        && near (line.inject.step, 1.0f / 32.0f, 0.0001f) && near (line.holdState, 0.0f, 0.0f);
+
+        return armed && waits && capture && frozen && rearmed && straightToFrozen && released;
+    }
+
+    // Excite and Blend targets: equal power in the strike modes, Through = (1, 0) whatever Blend says.
+    bool blendIsEqualPower()
+    {
+        reset (48000.0f);
+        rebody::line::tick (line, true);
+        bool through = near (line.throughTarget, 1.0f, 0.0f) && near (line.strikeTarget, 0.0f, 0.0f);
+
+        bool power = true;
+        line.control.at (rebody::params::slotExcite) = 1.0f;
+
+        for (int step = 0; step <= 4; step += 1)
+        {
+            line.control.at (rebody::params::slotBlend) = 25.0f * float (step);
+            rebody::line::tick (line, false);
+            power = power && near (line.throughTarget * line.throughTarget + line.strikeTarget * line.strikeTarget, 1.0f, 0.00001f);
+
+            if (step == 0)
+                power = power && near (line.strikeTarget, 1.0f, 0.00001f) && near (line.throughTarget, 0.0f, 0.00001f);
+
+            if (step == 2)
+                power = power && near (line.strikeTarget, 0.70710678f, 0.00001f) && near (line.throughTarget, 0.70710678f, 0.00001f);
+
+            if (step == 4)
+                power = power && near (line.strikeTarget, 0.0f, 0.00001f) && near (line.throughTarget, 1.0f, 0.00001f);
+        }
+
+        line.control.at (rebody::params::slotExcite) = 0.0f;
+        line.control.at (rebody::params::slotBlend) = 0.0f;
+        rebody::line::tick (line, false);
+        return through && power && near (line.throughTarget, 1.0f, 0.0f) && near (line.strikeTarget, 0.0f, 0.0f);
+    }
+
+    // Pan is a balance: unity at 0, the opposite channel falls by cos, full left / right at +-100.
+    bool panIsAnEqualPowerBalance()
+    {
+        reset (48000.0f);
+        rebody::line::tick (line, true);
+        bool centre = near (line.panL.target, 1.0f, 0.0f) && near (line.panR.target, 1.0f, 0.0f);
+
+        line.control.at (rebody::params::slotPan) = 50.0f;
+        rebody::line::tick (line, false);
+        bool half = near (line.panL.target, 0.70710678f, 0.00001f) && near (line.panR.target, 1.0f, 0.0f);
+
+        line.control.at (rebody::params::slotPan) = 100.0f;
+        rebody::line::tick (line, false);
+        bool right = line.panL.target >= 0.0f && line.panL.target < 0.000001f && near (line.panR.target, 1.0f, 0.0f);
+
+        line.control.at (rebody::params::slotPan) = -100.0f;
+        rebody::line::tick (line, false);
+        bool left = line.panR.target >= 0.0f && line.panR.target < 0.000001f && near (line.panL.target, 1.0f, 0.0f);
+        return centre && half && right && left;
+    }
+
+    // One accepted onset per rise: hysteresis 0.15 (the novelty must fall to 0.15 before it can re-arm) and a 30 ms refractory time.
+    bool strikeDetectionHysteresisAndRefractory()
+    {
+        reset (48000.0f);
+        line.control.at (rebody::params::slotExcite) = 1.0f;
+        rebody::line::tick (line, true);
+        line.onset.peak = 0.3f;
+        int fires = 0;
+        int firstFire = -1;
+        int secondFire = -1;
+
+        for (int n = 0; n < 6000; n += 1)
+        {
+            float nov = 0.0f;
+
+            if (n >= 100 && n < 500) nov = 0.5f;              // an onset
+            else if (n >= 500 && n < 700) nov = 0.20f;        // falls but stays above the re-arm level 0.15
+            else if (n >= 700 && n < 900) nov = 0.5f;         // second rise without re-arming: ignored
+            else if (n >= 900 && n < 1000) nov = 0.05f;       // re-armed, inside the refractory time
+            else if (n >= 1000 && n < 1200) nov = 0.5f;       // crosses while refractory: blocked, and gone again before it ends
+            else if (n >= 1200 && n < 2500) nov = 0.05f;
+            else if (n >= 2500 && n < 2800) nov = 0.5f;       // a real second onset
+            else nov = 0.05f;
+
+            rebody::line::strikeStep (line, nov);
+
+            if (line.strikeCooldown == line.strikeRefractorySamples)
+            {
+                fires += 1;
+
+                if (firstFire < 0) firstFire = n; else if (secondFire < 0) secondFire = n;
+            }
+        }
+
+        // the first onset fires 3 ms (144 samples) after the crossing at sample 100
+        return fires == 2 && firstFire >= 240 && firstFire <= 246 && secondFire >= 2640 && secondFire <= 2646;
+    }
+
+    // Through mode is the old code path: the striker contact is exactly 0 and the Through gain exactly 1.
+    bool throughModeAddsNothing()
+    {
+        reset (48000.0f);
+        rebody::line::tick (line, true);
+        bool exact = true;
+
+        for (int n = 0; n < 2000; n += 1)
+        {
+            float<2> s = rebody::line::strikeStep (line, n < 1000 ? 0.0f : 0.9f);
+            exact = exact && s.at (0) == 0.0f && s.at (1) == 0.0f && line.throughNow == 1.0f && line.strikeNow == 0.0f;
+        }
+
+        return exact;
+    }
+
+    // Excite = Hammer, Pluck, Breath: finite, non-silent output for a hit, silent without input, and the velocity of two
+    // hits (-20 and -4 dB) orders the wet peaks.
+    bool strikersDriveTheLine()
+    {
+        bool finite = true;
+        bool loud = true;
+
+        for (int mode = 1; mode <= 3; mode += 1)
+        {
+            float peakSoft = 0.0f;
+            float peakHard = 0.0f;
+            float silent = 0.0f;
+
+            for (int pass = 0; pass < 3; pass += 1)
+            {
+                reset (48000.0f);
+                line.control.at (rebody::params::slotMorph) = 0.0f;        // Bass Drum (no balance AGC)
+                line.control.at (rebody::params::slotExcite) = float (mode);
+                line.control.at (rebody::params::slotBlend) = 0.0f;
+                rebody::line::tick (line, true);
+                float level = pass == 0 ? 0.1f : (pass == 1 ? 0.6f : 0.0f);
+                float peak = 0.0f;
+
+                for (int n = 0; n < 24000; n += 1)
+                {
+                    float x = n >= 480 && n < 700 ? level * (n % 2 == 0 ? 1.0f : -0.7f) * float (exp (-0.01f * float (n - 480))) : 0.0f;
+                    float<2> y = rebody::line::process (line, float<2> (x), level > 0.0f);
+                    finite = finite && isFinite (y.at (0)) && isFinite (y.at (1));
+                    peak = max (peak, abs (y.at (0)));
+
+                    if (n % 32 == 31)
+                        rebody::line::tick (line, false);
+                }
+
+                if (pass == 0) peakSoft = peak; else if (pass == 1) peakHard = peak; else silent = peak;
+            }
+
+            loud = loud && peakHard > peakSoft && peakSoft > 0.0f && silent == 0.0f;
+        }
+
+        return finite && loud;
+    }
+
+    // A disabled line that a later line listens to (Chain) keeps computing: its body output is alive, its contribution to
+    // the sum is silent; without the chain flag it drains and goes dormant.
+    bool chainedFromLineComputesWhenDisabled()
+    {
+        reset (48000.0f);
+        line.control.at (rebody::params::slotEnable) = 0.0f;
+        line.chainedFrom = true;
+        rebody::line::tick (line, true);
+        bool computed = line.computed && ! line.enabled && ! line.dormant;
+        float bodyPeak = 0.0f;
+        float wetPeak = 0.0f;
+
+        for (int n = 0; n < 12000; n += 1)
+        {
+            float<2> noise = float<2> (0.3f * float (rebody::analysis::noiseOf (rebody::analysis::xorshift (n * 7919 + 13))));
+            float<2> y = rebody::line::process (line, noise, true);
+            bodyPeak = max (bodyPeak, abs (line.bodyOut.at (0)));
+            wetPeak = max (wetPeak, abs (y.at (0)));
+
+            if (n % 32 == 31)
+                rebody::line::tick (line, false);
+        }
+
+        bool alive = bodyPeak > 0.0001f && wetPeak == 0.0f && line.computed && ! line.dormant;
+
+        // the flag goes away: tails drain, the line becomes dormant
+        line.chainedFrom = false;
+
+        for (int n = 0; n < 480000 && ! line.dormant; n += 1)
+        {
+            rebody::line::process (line, float<2> (0.0f), false);
+
+            if (n % 32 == 31)
+                rebody::line::tick (line, false);
+        }
+
+        return computed && alive && line.dormant && ! line.computed;
+    }
+
+    // Hold v2 on the states: engage Hold on a ringing Bass Drum and every grid pole and every slot mode keeps its share:
+    // after 3 s the per-mode energy ratio is one number (T60 45 s = -4.0 dB in 3 s) within 0.3 dB, while the same body without
+    // Hold has lost very different amounts per mode.
+    bool holdFreezesEveryMode()
+    {
+        float spreadHeld = 0.0f;
+        float spreadFree = 0.0f;
+        float meanHeld = 0.0f;
+        float meanFree = 0.0f;
+
+        for (int hold = 0; hold < 2; hold += 1)
+        {
+            reset (48000.0f);
+            line.control.at (rebody::params::slotMorph) = 0.0f;
+            rebody::line::tick (line, true);
+
+            for (int n = 0; n < 9600; n += 1)                      // 200 ms of noise strikes the body
+            {
+                float<2> noise = float<2> (0.2f * float (rebody::analysis::noiseOf (rebody::analysis::xorshift (n * 104729 + 7))));
+                rebody::line::process (line, noise, true);
+
+                if (n % 32 == 31)
+                    rebody::line::tick (line, false);
+            }
+
+            for (int n = 0; n < 4800; n += 1)                      // 100 ms of ring, then Hold is pressed
+            {
+                rebody::line::process (line, float<2> (0.0f), false);
+
+                if (n % 32 == 31)
+                    rebody::line::tick (line, false);
+            }
+
+            line.control.at (rebody::params::slotHold) = float (hold);
+            rebody::line::tick (line, false);
+
+            for (int n = 0; n < 64; n += 1)                        // the 32-sample ramps finish
+                rebody::line::process (line, float<2> (0.0f), false);
+
+            float[96] gridBefore;
+            float[18] slotBefore;
+            record (gridBefore, slotBefore);
+
+            for (int n = 0; n < 144000; n += 1)                    // 3 s
+            {
+                rebody::line::process (line, float<2> (0.0f), false);
+
+                if (n % 32 == 31)
+                    rebody::line::tick (line, false);
+            }
+
+            float[96] gridAfter;
+            float[18] slotAfter;
+            record (gridAfter, slotAfter);
+
+            // per-mode level change in dB over all modes that carry energy
+            float sum = 0.0f;
+            int count = 0;
+            float[114] change;
+
+            for (int k = 0; k < 96; k += 1)
+                if (gridBefore.at (k) > 1.0e-14f)
+                {
+                    change.at (count) = 10.0f * float (log10 (max (gridAfter.at (k), 1.0e-30f) / gridBefore.at (k)));
+                    sum += change.at (count);
+                    count += 1;
+                }
+
+            for (int k = 0; k < 18; k += 1)
+                if (slotBefore.at (k) > 1.0e-14f)
+                {
+                    change.at (count) = 10.0f * float (log10 (max (slotAfter.at (k), 1.0e-30f) / slotBefore.at (k)));
+                    sum += change.at (count);
+                    count += 1;
+                }
+
+            float mean = count > 0 ? sum / float (count) : 0.0f;
+            float spread = 0.0f;
+
+            for (int i = 0; i < count; i += 1)
+                spread = max (spread, abs (change.at (i) - mean));
+
+            if (hold == 1)
+            {
+                spreadHeld = count > 8 ? spread : 1000.0f;
+                meanHeld = mean;
+            }
+            else
+            {
+                spreadFree = spread;
+                meanFree = mean;
+            }
+        }
+
+        // energy falls by 60 dB per 45 s: 3 s = -4.0 dB
+        return spreadHeld < 0.3f && near (meanHeld, -4.0f, 0.3f) && spreadFree > 3.0f && meanFree < -20.0f;
+    }
+
+    void record (float[96]& grid, float[18]& slots)
+    {
+        for (int lane = 0; lane < rebody::modal::gridLanes; lane += 1)
+            for (int e = 0; e < 8; e += 1)
+            {
+                float re = line.grid.reL.at (lane).at (e);
+                float im = line.grid.imL.at (lane).at (e);
+                float reR = line.grid.reR.at (lane).at (e);
+                float imR = line.grid.imR.at (lane).at (e);
+                grid.at (lane * 8 + e) = 0.5f * (re * re + im * im + reR * reR + imR * imR);
+            }
+
+        for (int k = 0; k < 18; k += 1)
+            slots.at (k) = rebody::modal::slotEnergy (line.slots, rebody::line::bodyBass, k);
+    }
+
+    // BODY:755-764 radiation weights: pairs (-0.28, -0.10, 0.45, 1.05) x amount on the eight Tune-following modes.
+    bool pinchDeltaWeightsThePairs()
+    {
+        reset (48000.0f);
+
+        for (int e = 0; e < 8; e += 1)
+        {
+            line.slots.bodies.at (rebody::line::bodyHybrid).reL.at (1).at (e) = 1.0f;
+            line.slots.bodies.at (rebody::line::bodyHybrid).reR.at (1).at (e) = 2.0f;
+        }
+
+        float<2> d = rebody::line::pinchDelta (line, rebody::line::bodyHybrid, 0.5f);
+        float<2> zero = rebody::line::pinchDelta (line, rebody::line::bodyHybrid, 0.0f);
+        // sum of pinch = 2 * (-0.28 - 0.10 + 0.45 + 1.05) = 2.24
+        return near (d.at (0), 1.12f, 0.0001f) && near (d.at (1), 2.24f, 0.0001f) && zero.at (0) == 0.0f && zero.at (1) == 0.0f;
+    }
+
+    // Follow glide: a jump of the target restarts a 40 ms linear glide (60 ticks) that lands exactly on the followed root.
+    bool followGlidesIn40ms()
+    {
+        reset (48000.0f);
+        line.control.at (rebody::params::slotMorph) = 4.0f;                // Guitar
+        rebody::line::tick (line, true);
+        float before = line.rootHz;
+
+        line.control.at (rebody::params::slotFollow) = 100.0f;
+        line.trackHz = 0.5f * before * 3.0f;                                // a fifth-ish above, inside the range
+        float target = rebody::line::followRoot (rebody::line::bodyGuitar, line.trackHz);
+        int arrived = -1;
+        bool monotonic = true;
+        float previous = before;
+
+        for (int tickNo = 0; tickNo < 120; tickNo += 1)
+        {
+            rebody::line::tick (line, false);
+
+            if (line.rootHz < previous - 0.001f)
+                monotonic = false;
+
+            previous = line.rootHz;
+
+            if (arrived < 0 && abs (1731.2340f * float (log (line.rootHz / target))) < 1.0f)
+                arrived = tickNo + 1;
+        }
+
+        // 40 ms = 60 ticks of 32 samples at 48 kHz; the one-pole afterwards keeps it on target
+        return monotonic && near (before * 1.5f, target, 0.01f) && arrived >= 58 && arrived <= 62
+               && abs (1731.2340f * float (log (line.rootHz / target))) < 0.1f && near (line.followHz, line.trackHz, 0.0001f);
+    }
+
+    void report (bool ok, string name)
+    {
+        if (! ok)
+            console <- "lines.cmajtest: " <- name <- " failed\n";
+    }
+
+    void main()
+    {
+        // Every property emits 1 (pass) or 0 (fail), then -1 ends the run (cmaj test, testProcessor).
+        bool[10] ok;
+        ok.at (0) = holdStateMachine();
+        ok.at (1) = blendIsEqualPower();
+        ok.at (2) = panIsAnEqualPowerBalance();
+        ok.at (3) = strikeDetectionHysteresisAndRefractory();
+        ok.at (4) = throughModeAddsNothing();
+        ok.at (5) = strikersDriveTheLine();
+        ok.at (6) = chainedFromLineComputesWhenDisabled();
+        ok.at (7) = holdFreezesEveryMode();
+        ok.at (8) = pinchDeltaWeightsThePairs();
+        ok.at (9) = followGlidesIn40ms();
+
+        wrap<10> i = 0;
+
+        loop
+        {
+            if (! ok.at (i))
+                console <- "lines.cmajtest: property " <- int (i) <- " failed\n";
+
+            out <- (ok.at (i) ? 1 : 0);
+            advance();
+
+            if (i == 9)
+                break;
+
+            i += 1;
+        }
+
+        out <- -1;
+        advance();
+    }
+}

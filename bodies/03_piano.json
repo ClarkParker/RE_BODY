@@ -133,6 +133,7 @@
     "out_gain": 0.341292457,
     "energy_target": 0.4496,
     "engine_gain": 17.0,
+    "strike_gain": 0.0216,
     "body_gain": 0.8,
     "terms": {"strings": 17.0, "board": 0.8},
     "design": false,

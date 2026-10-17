@@ -108,6 +108,7 @@
     "out_gain": 0.30,
     "energy_target": 0.3,
     "engine_gain": 18.0,
+    "strike_gain": 0.0221,
     "body_gain": 0.72,
     "terms": {"pluck": 18.0, "wood": 0.72},
     "design": false,

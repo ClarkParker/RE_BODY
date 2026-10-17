@@ -318,6 +318,7 @@ def validate_structure(recs, spec):
         need(is_num(ct.get("position")) and is_num(ct.get("body_default")), r, "contact needs position and body_default", errs)
         for k in ("engine_gain", "body_gain"):
             need(is_num(r["calibration"].get(k)) and r["calibration"][k] >= 0, r, "calibration.%s must be >= 0" % k, errs)
+        need(is_num(r["calibration"].get("strike_gain")) and r["calibration"]["strike_gain"] > 0, r, "calibration.strike_gain must be > 0 (P4b)", errs)
         if i == NUM_BODIES - 1:
             need(isinstance(r.get("constituents"), list) and len(r["constituents"]) == 3, r, "needs three constituents", errs)
             hy = r.get("hybrid", {})
@@ -637,6 +638,7 @@ def build_tables(ghz, rows, cons):
     add("dispersionB", "float", [row["rec"]["line"].get("dispersion_b", 0.0) for row in rows], "second string dispersion (piano pair BODY:70), 0 otherwise", ext)
     add("engineGain", "float", [row["rec"]["calibration"]["engine_gain"] for row in rows], "line-engine term inside the BODY calibration bracket (0 = none)", ext)
     add("bodyGain", "float", [row["rec"]["calibration"]["body_gain"] for row in rows], "modal-body term inside the BODY calibration bracket (0 = none)", ext)
+    add("strikeGain", "float", [row["rec"]["calibration"]["strike_gain"] for row in rows], "P4b: contact amplitude of a velocity 1 striker (Hammer / Pluck / Breath) into this body; calibrated so a strike-only line matches Through on drum-like hits", ext)
     hyb = rows[NUM_BODIES - 1]["rec"]["hybrid"]
     add("followBesselOrder", "int", bo, "[body*10 + i] Bessel order m of a drum mode (gain = J_m(j_mn r), r = Position), -1 = no Position law", ext, FOLLOW_STRIDE)
     add("followBesselZero", "float", bz, "[body*10 + i] first zero j_mn of J_m for that mode, 0 = none", ext, FOLLOW_STRIDE)

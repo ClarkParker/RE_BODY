@@ -168,6 +168,7 @@
     "out_gain": 1.0,
     "energy_target": 0.2,
     "engine_gain": 1.0,
+    "strike_gain": 0.0199,
     "body_gain": 1.0,
     "terms": {"endpoint_calibration": 2.0, "feed_trim": 1.5},
     "design": true,

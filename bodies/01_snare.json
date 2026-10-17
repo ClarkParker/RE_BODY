@@ -145,6 +145,7 @@
     "out_gain": 1.48,
     "energy_target": 0.4496,
     "engine_gain": 1.9286,
+    "strike_gain": 0.213,
     "body_gain": 1.0,
     "terms": {"shell": 1.4, "rattle": 2.7},
     "design": false,
