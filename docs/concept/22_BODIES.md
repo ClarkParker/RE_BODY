@@ -84,7 +84,7 @@ are chosen by us where no open measurement exists; they are the first thing to t
 - **Line engine:** shared string engine (buffer 4096): single string loop with high sustained feed (bowed character comes from the input, no bow model); Position = bridge-side pickup tap 0.1.
 - **Damping:** string 0.2 × 20^d *(design)*; body αG 18.3, αR 5.82, ρ 0.28 (T200 0.27 s; ζ ∝ f^−0.45 → T60 ∝ f^−0.55, R10 B4), Decay ×0.5..2.
 - **Contact:** sustain 0.6 (continuous input sustains the string); Body recipe default 70 %. **Calibration:** energy normalisation, `out_gain` measured in M1.
-- **Depth:** f-hole cavity (1) −420, body (0) 0, strings (2-5) +60, fingerboard (6) +140, bridge (7) +120, scroll/pegs (8-9) +100.
+- **Depth:** f-hole cavity (1) −420, body (0) 0, strings (2-5) +60, fingerboard (6) +140, bridge (7) +120, scroll (8) +100, second f-hole (9) −420.
 - **Validation:** A0 and B1± peaks ±3 %; no self-oscillation (loop gain < 1 at all Decay).
 
 ## 8. Clarinet `CLAR` (anchor 7, BODY engine 2)
