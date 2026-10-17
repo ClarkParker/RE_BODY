@@ -113,3 +113,63 @@ MORE collapse of strip 2; hover-label on mini dials; dial v2 extras (specular cr
 | `tools/build_ui.py` | done | `python3 tools/build_ui.py [--check]` |
 | `02_UI_DEVIATIONS.md` | done | this file |
 | lint ×2, smoke test, two screenshots | done | §F |
+
+## H. P6 panel (U3 telemetry, U4 morph hero, U5 Control v2 and panel): `10_control.js`, `30_panel.js`, `40_telemetry.js`
+Original look stays the base (21 §11); this block adds only what 21 §5 / §10 and R11 R1-R4, R7-R9 name. Closes the §E items "dial v2 extras", "Timpani greyed arc", "morph weight bars", "Follow lock lamp", "Excite hairlines", "`lineModes*`". Still open: MORE collapse of strip 2, Copy undo snapshot (both not in this block).
+
+### H1 look (UI:line = original CSS line)
+| item | before (P1) | after (P6) | reason |
+|---|---|---|---|
+| dial sizes (:294) | 70 / 44 / 34 px | 70 / 40 / 28 px (`DIAL_PX`) | brief; mini keeps a >= 24 px target |
+| arc stroke (:296-297) | 8.6 / 11.4 / 11.8 units | 8.6 / 12.5 / 14.3 units = 3 / 2.5 / 2 CSS px (`ARC_PX * 200 / DIAL_PX`, computed, not typed) | B7, R3 |
+| track (:296) | `#303030`, 1.5:1 | `--track` `#686868`, 3.19:1 on the lightest backdrop `#181818` | informational >= 3:1 |
+| cap (:298) | flat `#101010` | conic + sheen gradient, **static crescent** (inset highlight) and cast shadow from `--lx:-.6 / --ly:-.8` on `.body-panel`, painted once; border `#303030` kept | one light (R2, R3) |
+| hover / pressed / fine | none (only the dragging border :298) | hover rim `#5a5a5a`; dragging: border `#ededed` (:298 verbatim) + cap `translateY(1px)` + shadow blur 3 -> 1 px; fine ring (dashed, inside the cap) while Shift is held (pointer or keyboard) | R3 |
+| default tick | none | 1 px radial tick across the arc at `data-init` (note-quantised for pitched Tune), hidden at the arc ends | R3, R8 |
+| Timpani | none | `.body-dial-grey` `#2a2a2a` above the morph-weighted `tuneNoteRange` ceiling (`TUNE_NOTE_MAX`, C4 for Timpani) while Tune is in note mode | 21 §5 (N7); visual only |
+| values (:302-303) | small `50%`, mini 8 px inside the cap | small caps show the number without `%` (10 px; `-100%` does not fit a 28 px cap, unit stays in `aria-valuetext` and the editor); mini: value button transparent (hit zone), value replaces the name on hover / drag / focus | 21 §5 |
+| typography | brand, heads, meter labels 8 px; labels 8-9; state / Enable 9 | every text >= 10 px; caption 13 -> 14 px / 600 / `#c4c4c4`; anchors `#858585` -> `#8c8c8c`; lowest text contrast 5.28:1 | R1 |
+| buttons (:274-277) | flat | original Bypass look verbatim + lit top edge, cast shadow, sheen; hover border `#5c5c5c`; `:active` 1 px down; short flash on reset | R2, R8 |
+| segment meter | `#ededed` (invisible on the lit segment) | `currentColor` | visibility |
+| morph row (:286-289) | groove `#393939`, flat thumb, tick `#777` 9 px centred | groove `--track` + inset shadow (3 px); thumb radial-lit + glow, brighter glow while pressed; 11 detents below the groove, 4 -> 9 px by `--near` (1 stop = 5.7 px, >= 1.5 stops = 4 px), `#a0a0a0`; hairline weight bars above (`--w * 11 px`); bracket on the hybrid stop | R4 |
+| Hold | text only | `::before` lamp (30 % off, 100 % + glow when `lineState.hold`) | 21 §10 |
+| panel (:270) | radial `#181818 -> #090909` | + baked grain (128 px tile, SVG `feTurbulence` data URI, opacity .04, rasterised once by the browser, no CSS filter anywhere) + vignette layer; `--lamp` by `data-lamp` (1 / .7 / .25, 400 ms) on the state lamp before ACTIVE / NO INPUT / BYPASSED; tab lamps default `--lamp:0`, dim to 40 % while held | R7, R9 |
+| strips | `Listen, Excite, Sensitivity, Touch`; heads 8 px | `LISTEN + Sensitivity | EXCITE + Touch`, heads with a hairline rule, strip 2 cell 84 -> 76 px | grouping |
+| meter trough | `#262626` | `--track` | informational >= 3:1 |
+| globals | `.body-globals` | + `.globals` on both docks (21 §1) | naming |
+| reduced motion | none | CSS transitions off under `prefers-reduced-motion` | R7 |
+
+### H2 behaviour
+| item | before | after |
+|---|---|---|
+| reset keys | Delete on dials | Delete and Backspace on dial, morph slider, segmented groups and toggle buttons -> `data-init`; dblclick unchanged; 260 ms rim flash |
+| `setDragging(bool)` | -- | counted (several pointers); first drag calls `this.motion?.pause?.(true)`, last release `pause(false)`; `panel[data-dragging]` |
+| `selectLine(i)` | -- | index 0..2 or letter; field's ghost-click callback |
+| Motion switch | `this.motion` was the mode string | mode in `motionPref` (query still forces Off); `this.motion` is free for the `MotionController`; `setMotion` also calls `this.motion?.setState?.(mode)` |
+| telemetry endpoints | 7 (no `lineModes*`) | all 10; `lineState` reads 20 floats in spec order; `lineTel[l]` = `{wet, onset, listen, followHz, hold, rootHz, t60, sustainEff, dominant, engines[11], modes[16]}` (read by the field too) |
+| loop wake-up | any non-zero lead float kept rAF alive | energies keep it alive; other values (rootHz, t60, engines, pitchConfidence) wake it once per change; steady telemetry lets it sleep (tested); watchdog zeroes in place once |
+| weight bars | -- | `lineState<active>.engine0..10`; while all engines are 0 (no telemetry) `morphWeights()` of the morph position stands in |
+| Hold / lamps | -- | Hold lit from `lineState.hold`; tab lamp dims while held; Follow dial lock lamp from `analysisViz.pitchConfidence` > .5 with Follow > 0 |
+| `lineModes*` | not drawn | active line's 16 energies + `MODE_IDS[dominantBody]` go to `this.field?.setModes?.(energies, identities, line)` once per change, <= 30 Hz; also stored in `this.modeState`; handed over again on a tab switch |
+| Listen / Excite hairlines | Listen only | + Excite: Through = `listenEnergy`, strikers = `onset` |
+| under the caption | `HELD`, `FOLLOW ▸ note` | + `A3 · 0.90 s` (sounding note, T60 from `rootHz`, `t60`); `SHOW_SOUND_READOUT = false` if the field's caption shows it |
+| audio -> field | -- | `this.motion?.notifyAudio?.(onsetLevel, wetLevel)` from the 30 Hz readout paint |
+
+### H3 notes for the other workers and the lead
+- `60_motion.js` writes `--lx/--ly` (pointer position, -1..1) onto its `light` element: pass the specular layer or the scene, **never** the panel or any ancestor of the controls (the panel root holds the static light `-.6 / -.8`).
+- `MODE_IDS` (40_telemetry.js) is a generated copy of `bodies.json` `modes`; regenerate when recipes change (or move it into the generated block of `tools/build_ui.py`): `python3 -c "import json;b=json.load(open('plugin/bodies.json'));[print(json.dumps([0 if m is None else ['f',m['hz'],m['label']] if m['kind']=='feature' else ['r',m['ratio'],m['label']] for m in x['modes']],ensure_ascii=False,separators=(',',':'))) for x in b['bodies']]"` prints one row per body.
+- `TUNE_NOTE_MAX` (10_control.js) mirrors `bodies.json` `tuneNoteRange` (Timpani 60); decay seconds still come from `DECAY_BASE` / `DECAY_RATIO` in the header, cross-checked by `build_ui.py`.
+
+### H4 verification
+`python3 tools/build_ui.py` on a scratch copy of `src/ui/` (also on the current repo parts incl. `15_silhouettes.js`, `60_motion.js`) · kit `ui_lint.py --strict` and branding `ui_lint.py --strict`: 0 errors, 0 warnings · eslint no-undef clean · extended smoke test `scratchpad/panel/uitest/smoke.mjs`: 93 checks (the 49 P1 checks with the endpoint count 7 -> 10, plus dial v2 geometry / states, Delete reset on all kinds, morph detents and bars, lamp states, grain, text and track contrast, typography, layout collisions, hooks, telemetry v2, loop sleep). Screens `docs/dev/screens/p6_panel_960.png`, `p6_panel_480.png`. Not verified: the real Amorph host.
+
+### H5 Fertigmeldung (CLAUDE.md rule 7)
+| point | status | place in the UI |
+|---|---|---|
+| Control v2: dial v2 geometry, crescent + rim, pressed / hover, fine ring, default tick, tracks >= 3:1, labels >= 4.5:1 | done | every dial: deck, strips 1-2, Mix / Width / Low Cut |
+| Delete / Backspace reset, `touch-action:none`, typed editor (notes, seconds, dB, Hz, kHz) | done | focus a control and press Delete; click any value |
+| segmented + toggle buttons with the same light model | done | Listen / Excite, Enable, Bypass, Hold, Copy, Motion |
+| Morph hero: groove, growing detents, lit thumb, weight bars, hybrid bracket, Hold lamp | done | morph row (MORPH ... Hold) |
+| Panel: typography pass, lamp states, grain + vignette, grouped strips, globals once, tab bar, Copy A->B/C | done | whole panel; lamp before the state word in the header |
+| `setDragging(bool)`, `selectLine(i)` | done | view methods (no visible control) |
+| Telemetry v2: 10 outputs, `lineModes*` -> field, Listen / Excite meters, Follow note, 30 Hz cap, idle loop | done | hairlines under Listen / Excite, line under the caption, tab lamps; markers wait for `field.setModes` |
