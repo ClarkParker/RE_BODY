@@ -45,3 +45,4 @@ D26-D34 are lead decisions from `docs/review/42_REVIEW_TRIAGE.md`, applied 2026-
 | D39 | 2026-10-16 | Lines B/C as tabs; if the host spike shows hidden controls fail the probe, fallback = compact always-visible strip. |
 | D40 | 2026-10-16 | **Concept freeze.** Owner confirmed 960 × 600 (D35) and gave Go for P1. Changes to 20/21/22 from here on are logged as decisions. |
 | D41 | 2026-10-16 | Plugin ID `com.clearpeak.rebody` (no underscore: kit reverse-DNS rule; the identifier `RE_BODY` stays for code, files and targets). Tables emitted as namespace constants (01_TABLE_EMISSION). |
+| D42 | 2026-10-17 | Host spike and all owner-side testing deferred to the very end (P7). P2-P6 run without interruption on offline gates (cmaj generate/test/render); the lead asks only for important decisions. |

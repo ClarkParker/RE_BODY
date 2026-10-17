@@ -34,3 +34,11 @@ All floats are `float`, counts are `int`. The emission *form* (namespace constan
 
 ## Cmajor rules that bite (P03 §2a)
 No `let`, no `double` (use `float64`), wrap `sin/cos/tan/pow/exp/log/sqrt` results in `float(...)`, fixed-size arrays with `.at(i)`, no runtime sizing, one `advance()` per loop iteration, DSP only in `main()`, handlers only set targets, every divisor provably nonzero, `float(processor.frequency)`, nothing named `input`/`output`/`stream`, ASCII identifiers.
+
+## P2 additions (2026-10-17)
+File ownership P2: modal worker (Opus) owns `src/dsp/40_modal.cmajor` and `tests/modal.cmajtest`; integration worker (Sonnet) owns `src/dsp/20_analysis.cmajor`, `50_line.cmajor`, `90_main.cmajor` and `docs/dev/05_LINE_A.md`; CI worker (Sonnet) owns `tools/render_ci.py`, `tools/golden/` (reference metrics JSON, no audio in git) and `docs/dev/04_RENDER_CI.md`. The original BODY can be rendered as the golden reference via `reference/body_original/BODY.cmajorpatch` (added by the lead; compiles with cmaj 1.0.3175).
+
+Modal API (behavioural contract; the modal worker fixes the exact signatures and documents them in the header comment of 40_modal.cmajor):
+- Grid bank per line: 96 shared poles (`tables::gridHz`), stereo, phasor/coupled form in `float<8>` lanes; control-rate `setLaw(sr, alphaG, alphaR, decayScale, sizeShiftOct, holdFlag)` computes radius/angle targets; per-sample `step(excitation float<2>, gainL[96], gainR[96]) -> float<2>` with BODY's 32-sample linear stepping and snap; gains are the morph-interpolated per-body vectors supplied by the caller; Nyquist culling above 0.45·sr; flush at control rate; Hold = radii for T60 45 s with float64 coefficients.
+- Slot bank per line: 11 bodies × (8 feature + 10 following) stereo modes; control-rate `setBody(body, rootHz, decaySeconds, material, sizeShiftOct, positionGain[], holdFlag)`; per-sample `step(body, excitation) -> float<2>`; tail holding (a body with weight 0 keeps its last coefficients and keeps ringing); energy normalisation per body with cross terms (BODY:282-301 generalised to ≤ 18 modes), cached per (root, decay, material, size).
+- Damping rule exactly as 20 §4 (one formula, ρ bound 0.1); T60 → radius `exp(-6.907755/(sr·T60))`; per-mode drive `norm·gain·sqrt(2(1-r²))` as BODY:320.

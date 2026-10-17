@@ -1,0 +1,11 @@
+{
+  "CmajorVersion": 1,
+  "ID": "com.artistsindsp.body.reference",
+  "version": "1.0.0",
+  "name": "BODY (reference)",
+  "description": "Unmodified original BODY by Artists in DSP, packaged only so cmaj can render it as the golden reference for RE_BODY.",
+  "category": "effect",
+  "isInstrument": false,
+  "source": "dsp.cmajor",
+  "view": { "src": "index.js", "width": 620, "height": 340, "resizable": false }
+}
