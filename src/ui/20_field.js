@@ -8,10 +8,11 @@
 // detail (paths 3-9 merged), specular, air. Paths are laid out per template; each path's z is interpolated with the same
 // (a, b, t) as its geometry and a layer sits at the mean z of its paths; z, fog and `d` are rewritten only on morph steps.
 // Energy response: opening, detail (strings) and outline are the only layers whose `d` is rewritten by audio, at most 30 Hz;
-// every other layer is transform / opacity only. Silhouettes come from REBODY_TEMPLATES (15_silhouettes.js); without it the
-// original eight drawings stand in (fxFallbackTemplates below, to be removed once 15_silhouettes.js is merged).
-// Hooks with the other parts: view.motion (MotionController: setState / pause / notifyAudio are called by the panel and telemetry), view.field
-// (setModes, called by telemetry with the active line's lineModes), view.onSelectLine (ghost click, goes to the panel's selectLine).
+// every other layer is transform / opacity only. Silhouettes come from REBODY_TEMPLATES (15_silhouettes.js).
+// Chain thread (21 section 10, U6): while a line's Listen = Chain (B listens to A's output, C to B's; A falls back to All) a faint dotted arc
+// is drawn in the ghost-near layer (layer 3) between the two silhouettes, source edge to listener edge; hidden otherwise (fxChain).
+// Hooks with the other parts: view.motion (MotionController: setState / pause / suspend / notifyAudio are called by the panel, scaling and telemetry),
+// view.field (setModes, called by telemetry with the active line's lineModes), view.onSelectLine (ghost click, goes to the panel's selectLine).
 // Morph / scale / flex maths are the original's (index.js:349-359, resampling :78-82, :98-102).
 const FX_NS = "http://www.w3.org/2000/svg";
 const FX_P = 1600;                                              // perspective in px
@@ -28,6 +29,7 @@ const FX_AIR = 40, FX_STEP_MS = 32;                             // air circles, 
 const FX_AIR_FLOW = true, FX_OUTLINE_VIBRATES = true;           // spike switches: freeze the air circles / drop the outline from the audio vibration
 const FX_OPENING_W = [1, 1, 1, .5, .5, .5, .5, .5, .5, .5, .5]; // vibration weight of path 1 per anchor: heads 1.0, other openings 0.5
 const FX_STRING_W = .8, FX_BODY_W = .4, FX_VIB_PATHS = [0, 1, 3, 4, 5];
+const FX_CHAIN = 6;                                             // Listen enum value "Chain" (spec.json param10 text, index 6)
 const FX_STROKE_OPACITY = [.95, .72, .65, .65, .65, .65, .65, .65, .65, .65];   // as the P1 field
 const FX_WIDTH = [1.65, 1, 1, 1, 1, 1, 1, 1, 1, 1];
 let fxUid = 0;
@@ -83,8 +85,7 @@ const fxNormals = (xy, n, closed) => {   // unit normals of the resampled contou
 let fxTemplateCache = null;
 const fxTemplates = () => {
     if (fxTemplateCache) return fxTemplateCache;
-    let source = typeof REBODY_TEMPLATES !== "undefined" ? REBODY_TEMPLATES : null;
-    if (!Array.isArray(source) || source.length < NUM_ANCHORS) source = fxFallbackTemplates();
+    const source = REBODY_TEMPLATES;   // 15_silhouettes.js: 11 entries in anchor order
     const probe = document.createElementNS(FX_NS, "path");
     fxTemplateCache = source.map((tpl, anchor) => ({
         name: tpl.name || ANCHOR_NAMES[anchor],
@@ -98,66 +99,6 @@ const fxTemplates = () => {
     }));
     return fxTemplateCache;
 };
-
-// BEGIN FALLBACK (delete this block and fxFallbackTemplates together with the check above once 15_silhouettes.js is merged)
-// z per path as shipped in plugin/bodies.json `zTable`, 11 anchors x 10 paths (22_BODIES.md "Depth").
-const FX_FALLBACK_Z = [[0, -40, -300, 92, 92, 60, 100, 100, 100, 100], [0, 10, -60, 80, 80, 80, 80, 80, 80, 80], [20, 0, -280, 120, 120, 120, 120, 120, 120, 120],
-    [0, -200, 160, -60, -60, -60, 160, 160, 160, 160], [0, -420, -260, 40, 40, 40, 40, 120, 120, 120], [0, -420, 40, 40, 40, 40, 90, 90, 130, 130],
-    [0, -420, 60, 60, 60, 60, 140, 120, 100, 100], [0, -120, 160, 120, 120, 120, 120, 120, 120, 120], [0, -120, 170, 120, 120, 120, 120, 120, 120, 120],
-    [0, 220, -260, 140, 172, 172, 180, 180, 180, 180], [0, 220, 40, 40, 40, 40, 140, 140, 140, 140]];
-const fxFallbackTemplates = () => {
-const ellipse=(x,y,rx,ry)=>`M ${x-rx} ${y} A ${rx} ${ry} 0 1 1 ${x+rx} ${y} A ${rx} ${ry} 0 1 1 ${x-rx} ${y} Z`;
-const instrumentPaths=[
-    // Bass drum: full circular front, rear shell, four tension rods and feet.
-    ['M -70 0 C -70 -39 -40 -66 0 -66 C 40 -66 70 -39 70 0 C 70 39 40 66 0 66 C -40 66 -70 39 -70 0 Z',
-     ellipse(0,0,61,58), 'M 10 -65 Q 96 -62 96 0 Q 96 62 10 65','M 65 -25 L 89 -25','M 65 25 L 89 25','M -42 52 L -57 69',
-     'M -54 -36 L -46 -31','M 46 -31 L 54 -36','M -54 36 L -46 31','M 46 31 L 54 36'],
-    // Snare: shallow shell, elliptical membrane and snare wires.
-    ['M -106 -12 C -106 -30 -60 -43 0 -43 C 60 -43 106 -30 106 -12 L 106 26 C 106 45 60 55 0 55 C -60 55 -106 45 -106 26 Z',
-     ellipse(0,-12,106,31),'M -103 26 C -78 61 78 61 103 26','M -92 4 L -92 34','M 92 4 L 92 34','M -34 41 L 47 51',
-     'M -60 15 L -60 47','M -22 19 L -22 51','M 22 19 L 22 51','M 60 15 L 60 47'],
-    // Grand piano: long straight rim, curved tail and clear keyboard.
-    ['M -96 58 L -96 -54 C -96 -65 -74 -70 -49 -67 C 2 -62 17 -28 41 -19 C 57 -14 86 -15 100 6 C 109 23 110 45 110 58 Z',
-     'M -85 29 L -85 -50 Q -48 -72 -3 -30 Q 24 -6 62 -4 Q 91 -1 96 29 Z',
-     'M -96 32 L 110 32','M -73 -49 L -73 27','M -41 -49 L -41 27','M -9 -30 L -9 27',
-     'M -66 32 L -66 58 L -38 58 L -38 32','M -10 32 L -10 58 L 18 58 L 18 32','M 46 32 L 46 58 L 74 58 L 74 32','M 96 32 L 96 58'],
-    // Ukulele: lower bout, pronounced waist, upper bout, neck and headstock.
-    ['M -133 0 C -133 -41 -115 -58 -89 -55 C -67 -53 -68 -34 -50 -34 C -34 -34 -35 -52 -13 -46 C 8 -41 14 -23 11 -11 L 91 -11 L 98 -17 L 127 -17 L 136 -10 L 136 10 L 127 17 L 98 17 L 91 11 L 11 11 C 14 23 8 41 -13 46 C -35 52 -34 34 -50 34 C -68 34 -67 53 -89 55 C -115 58 -133 41 -133 0 Z',
-     ellipse(-36,0,17,17),'M -92 -4 L 129 -4','M -92 -1.3 L 129 -1.3','M -92 1.3 L 129 1.3','M -92 4 L 129 4',
-     'M -92 -14 L -92 14','M 30 -11 L 30 11 L 49 11 L 49 -11','M 66 -11 L 66 11 L 81 11 L 81 -11','M 105 -17 L 105 -24 L 121 -24 L 121 -17'],
-    // Clarinet: beak mouthpiece, straight bore, joint rings and flared bell.
-    ['M -140 -5 L -119 -10 L -111 -15 L 72 -15 C 94 -15 101 -27 119 -36 L 137 -36 L 137 36 L 119 36 C 101 27 94 15 72 15 L -111 15 L -119 10 L -140 5 Z',
-     ellipse(135,0,6,36),'M -107 -15 L -107 15','M -29 -15 L -29 15','M 53 -15 L 53 15','M -80 7 L 75 7',
-     ellipse(-81,-4,4,4),ellipse(-52,-4,4,4),ellipse(0,-4,4,4),ellipse(30,-4,4,4)],
-    // Oboe: exposed slender reed and gently conical body with small bell.
-    ['M -140 -2 L -113 -2 L -106 -6 L -92 -8 L 101 -16 L 123 -22 L 139 -22 L 139 22 L 123 22 L 101 16 L -92 8 L -106 6 L -113 2 L -140 2 Z',
-     ellipse(137,0,4,22),'M -93 -8 L -93 8','M -20 -11 L -20 11','M 58 -14 L 58 14','M -75 5 L 111 8',
-     ellipse(-71,-3,3,3),ellipse(-43,-3,3,3),ellipse(8,-4,3,3),ellipse(38,-4,3,3)],
-    // Saxophone: curved neck, descending tube, U-bow and upward opening bell.
-    ['M -85 -55 L -58 -67 Q -29 -80 -24 -51 L -3 27 Q 3 49 24 48 Q 41 46 48 22 L 56 -16 L 36 -33 L 105 -45 L 89 -19 L 73 30 Q 62 71 25 71 Q -18 72 -30 34 L -48 -45 Q -52 -55 -65 -43 Z',
-     'M 36 -33 Q 66 -57 105 -45 Q 85 -24 36 -33 Z','M -37 -42 L -14 32 Q -6 60 23 60 Q 53 60 62 24','M 46 20 L 64 25','M -43 -22 L -21 -27','M -30 25 L -8 20',
-     ellipse(-30,-17,4,4),ellipse(-26,-2,4,4),ellipse(-22,13,4,4),ellipse(-17,28,4,4)]
-];
-
-// A designed hybrid illustration: reed neck, flared bell and a waisted
-// four-string soundbox. The audio endpoint remains the same equal three-body
-// blend. Ten corresponding paths deform into this silhouette without fading.
-const hybridPaths=[
-    "M -123 -59 L -105 -67 L -98 -61 L -72 -72 Q -42 -84 -32 -57 L -25 -38 C -8 -42 7 -32 7 -18 C 7 -4 -11 0 -15 11 C -18 23 -2 29 7 39 Q 25 53 42 36 Q 53 24 56 0 L 59 -13 L 42 -31 L 119 -44 L 96 -15 L 88 25 C 84 53 67 71 36 72 L -38 72 C -80 74 -108 52 -91 28 C -81 14 -66 8 -72 -3 C -83 -15 -88 -30 -78 -42 C -67 -54 -52 -52 -49 -44 L -49 -52 Q -54 -65 -66 -60 L -98 -48 L -105 -54 L -121 -48 Z",
-    "M 42 -31 Q 77 -58 119 -44 Q 96 -19 42 -31 Z",
-    "M -52 -35 L -58 52 L -50 52",
-    "M -46 -36 L -51 52 L -43 52",
-    "M -40 -35 L -44 52 L -36 52",
-    "M -34 -34 L -37 52 L -29 52",
-    "M -60 13 A 14 14 0 1 1 -32 13 A 14 14 0 1 1 -60 13 Z",
-    "M -67 -64 A 3 3 0 1 1 -61 -64 A 3 3 0 1 1 -67 -64 Z",
-    "M -53 -64 A 3 3 0 1 1 -47 -64 A 3 3 0 1 1 -53 -64 Z",
-    "M -42 -50 A 3 3 0 1 1 -36 -50 A 3 3 0 1 1 -42 -50 Z"
-];
-    const drawings = [...instrumentPaths, hybridPaths];   // bass, snare, piano, ukulele, clarinet, oboe, sax, hybrid: the nearest drawing stands in for Timpani, Guitar, Fiddle
-    return ANCHOR_NAMES.map((name, i) => { const paths = drawings[TEMPLATE_OF[i]]; return { name, paths, closed: paths.map((_, k) => k < 2), depth: FX_FALLBACK_Z[i] }; });
-};
-// END FALLBACK
 
 // ---- markup, style ---------------------------------------------------------------------------------------------------
 const FX_CSS = [
@@ -195,7 +136,7 @@ const fxMarkup = (u, air, pad) => {
     return [
         fxLayerHtml("back", FX_Z.back, fxBackHtml(u, pad), pad),
         fxLayerHtml("ghostFar", FX_Z.ghostFar, `<path class="ghost" data-slot="1" fill="none" stroke-width="1.1"/>`),
-        fxLayerHtml("ghostNear", FX_Z.ghostNear, `<path class="ghost" data-slot="0" fill="none" stroke-width="1.1"/>`),
+        fxLayerHtml("ghostNear", FX_Z.ghostNear, `<path class="ghost" data-slot="0" fill="none" stroke-width="1.1"/><path class="chain" data-chain="1" fill="none" stroke-width="1.6" stroke-dasharray="0.01 6" display="none"/><path class="chain" data-chain="2" fill="none" stroke-width="1.6" stroke-dasharray="0.01 6" display="none"/>`),
         fxLayerHtml("hit", FX_Z.hit, `<rect data-slot="0" x="0" y="0" width="0" height="0" fill="none"/><rect data-slot="1" x="0" y="0" width="0" height="0" fill="none"/>`),
         fxLayerHtml("floor", FX_Z.floor, `<defs><radialGradient id="${u}-floor">${fxStops([0, "#fff", .2], [1, "#fff", 0])}</radialGradient>
 <linearGradient id="${u}-fl" x1="0" y1="0" x2="1" y2="0">${fxStops([0, "#fff", 0], [.5, "#fff", .3], [1, "#fff", 0])}</linearGradient></defs>
@@ -265,6 +206,10 @@ const fxGeometry = (fx, T, ids, position, tune) => {
         fx.zp[i] = T[a].depth[i] * (1 - t) + T[b].depth[i] * t;
         fx.norm[i] = null;
     }
+    const body = fx.base[0], bn = fx.n[0];
+    let bx0 = Infinity, bx1 = -Infinity;
+    for (let j = 0; j < 2 * bn; j += 2) { if (body[j] < bx0) bx0 = body[j]; if (body[j] > bx1) bx1 = body[j]; }
+    fx.bx0 = bx0; fx.bx1 = bx1;   // rest extent of the active body, for the chain thread
     fx.weight[0] = fx.outlineOn ? FX_BODY_W : 0;
     fx.weight[1] = FX_OPENING_W[a] * (1 - t) + FX_OPENING_W[b] * t;
     fx.weight[3] = fx.weight[4] = fx.weight[5] = FX_STRING_W;
@@ -333,6 +278,7 @@ const fxGhosts = (view, fx, T) => {
             fxAttr(g.path, "stroke-width", enabled ? "1.1" : ".7");
             let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
             for (let j = 0; j < 2 * n; j += 2) { x0 = Math.min(x0, g.xy[j]); x1 = Math.max(x1, g.xy[j]); y0 = Math.min(y0, g.xy[j + 1]); y1 = Math.max(y1, g.xy[j + 1]); }
+            g.x0 = x0; g.x1 = x1;
             const pad = 10;
             fxAttr(g.hit, "x", (x0 - pad).toFixed(1)); fxAttr(g.hit, "y", (y0 - pad).toFixed(1));
             fxAttr(g.hit, "width", (x1 - x0 + 2 * pad).toFixed(1)); fxAttr(g.hit, "height", (y1 - y0 + 2 * pad).toFixed(1));
@@ -340,6 +286,27 @@ const fxGhosts = (view, fx, T) => {
         }
         const glow = .8 + .2 * log01(view.lineTel[line].wet, 10);   // breathes with the line's own wet signal
         fxOpacity(g.layer, g.base * glow * (fx.hover === slot ? 1.25 : 1));
+    });
+};
+// Chain thread: one dotted quadratic arc per chained line (B <- A, C <- B), between the silhouettes: from the source's edge facing the listener to
+// the listener's edge facing the source. Extents: the active body's rest outline, or the ghost's resampled contour. Rewritten only when something it depends on changed.
+const fxChain = (view, fx) => {
+    const active = view.activeLine, ghosts = LINES.filter(l => l !== active);
+    const chained = [1, 2].map(i => view.valueOf(LINE_IDS[LINES[i]].Listen) === FX_CHAIN);
+    const enabled = LINES.map(l => view.valueOf(LINE_IDS[l].Enable) >= .5);
+    const sig = `${active}|${chained}|${enabled}|${fx.position}|${fx.tune}|${fx.ghost[0].sig}|${fx.ghost[1].sig}`;
+    if (sig === fx.chainSig) return;
+    fx.chainSig = sig;
+    const span = line => { const g = fx.ghost[ghosts.indexOf(line)]; return line === active ? [fx.bx0, fx.bx1] : [g.x0, g.x1]; };
+    fx.chain.forEach((el, k) => {
+        const i = k + 1, from = LINES[i - 1], to = LINES[i];
+        fxAttr(el, "display", chained[k] ? "inline" : "none");
+        if (!chained[k]) { fxAttr(el, "d", ""); return; }
+        const [a0, a1] = span(from), [b0, b1] = span(to), rightward = a0 + a1 < b0 + b1;
+        const xs = rightward ? a1 : a0, xe = rightward ? b0 : b1, y = FX_CY - 4, lift = Math.min(12 + .2 * Math.abs(xe - xs), y - 16);   // apex stays inside the field
+        fxAttr(el, "d", `M${xs.toFixed(1)},${y.toFixed(1)}Q${((xs + xe) / 2).toFixed(1)},${(y - 2 * lift).toFixed(1)} ${xe.toFixed(1)},${y.toFixed(1)}`);
+        fxStroke(el, FX_Z.ghostNear, enabled[i] ? .85 : .42);   // dimmer while the listening line is switched off
+        el.dataset.from = from; el.dataset.to = to;
     });
 };
 const fxFade = fx => {   // 250 ms line cross-fade: compositor-only opacity, geometry stays
@@ -375,11 +342,10 @@ const FieldMethods = {
             coef: [0, 0, 0], vibActive: false, vibAt: -Infinity, cost: 0, costN: 0, outlineOn: FX_OUTLINE_VIBRATES,
             geometry: true, position: NaN, tune: NaN, line: this.activeLine,
             ghost: [0, 1].map(slot => ({ sig: "", base: 1, xy: new Float64Array(2 * sizes[0]), layer: layers[slot === 0 ? "ghostNear" : "ghostFar"], path: layers[slot === 0 ? "ghostNear" : "ghostFar"].querySelector("path"), hit: layers.hit.querySelectorAll("rect")[slot] })),
-            hover: -1,
+            hover: -1, chain: [1, 2].map(i => layers.ghostNear.querySelector(`[data-chain="${i}"]`)), chainSig: "", bx0: 0, bx1: 0,
             air: air.map((p, i) => ({ ...p, el: layers.air.querySelectorAll("circle")[i] })), airAt: -Infinity, airT: 0,
             motion: null
         };
-        this.contourPaths = fx.contour;   // P1 name, kept
         fxStroke(fx.ghost[0].path, FX_Z.ghostNear, 1);
         fxStroke(fx.ghost[1].path, FX_Z.ghostFar, 1);
         this.caption = this.querySelector(".body-caption");
@@ -395,12 +361,10 @@ const FieldMethods = {
         });
         // motion: tilt, drift, push, breathe on the scene; the light position goes to the specular layer through onLight
         // `this.motion` is the controller the panel and telemetry talk to: setState (Motion switch), pause (control drags), notifyAudio (readouts, 30 Hz)
-        fx.motion = this.motion = new MotionController({ host: this, scene, onLight: (x, y) => fxLight(layers.specular, x, y), state: this.motionPref ?? this.motionMode(), isSuspended: () => this.resizing?.() === true });
+        fx.motion = this.motion = new MotionController({ host: this, scene, onLight: (x, y) => fxLight(layers.specular, x, y), state: this.motionPref ?? this.motionMode() });
         fx.motion.start();
         // `this.field` is what the telemetry part feeds with the active line's lineModes
         this.field = { fx, setModes: (energies, identities) => fxSetModes(this.fx, energies, identities) };
-        // teardown without touching the export part: the panel's teardown loop calls removeEventListener on every registered node
-        this.listeners.push([{ removeEventListener: (_type, fn) => fn() }, "teardown", () => this.stopField()]);
         this.drawField();
     },
     stopField() {
@@ -432,6 +396,7 @@ const FieldMethods = {
         if (fx.line !== this.activeLine) { fx.line = this.activeLine; fx.geometry = true; fx.hover = -1; if (!reduced) fxFade(fx); }
         if (fx.geometry || position !== fx.position || tune !== fx.tune) fxGeometry(fx, T, ids, position, tune);
         fxGhosts(this, fx, T);
+        fxChain(this, fx);
         // audio vibration of the opening, strings and outline (30 Hz), flat once the drive is gone or Motion is Off
         const drive = reduced ? 0 : clamp(tail * .8 + excite * .7, 0, 1.25);
         const kick = active && input + wet > 0 ? clamp(Math.max(this.onsetTarget, this.onsetLevel), 0, 1) : 0;

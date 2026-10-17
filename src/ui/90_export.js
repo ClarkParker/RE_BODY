@@ -42,7 +42,9 @@ class RebodyView extends HTMLElement {
         cancelAnimationFrame(this._raf);
         this._raf = 0;
         this.cancelEditor?.();
+        this.clearUndo();                                      // copy-undo timer and snapshot
         this.stopScaling();
+        this.stopField?.();                                    // motion controller, field state
         this.stopTelemetry();
         this.pc.removeAllParameterListener(this._onParam);
         for (const control of this.controls.values()) control.destroy();   // releases pointer capture and open gestures

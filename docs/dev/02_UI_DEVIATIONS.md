@@ -1,6 +1,6 @@
 # 02 — P1 UI deviations (original CSS and behaviour, 07_SCALING, upstream core-ui contract)
 
-Scope: the P1 functional UI (`src/ui/*.js` -> `plugin/index.js`, built by `python3 tools/build_ui.py`). Sources compared: `reference/body_original/index.js` (UI:line), kit `docs/07_SCALING.md` (07), kit `docs/03_UI_WEBCOMPONENT.md` (03), upstream `core-ui-contract.md` and `ui/fx.md` (upstream wins over kit captures, kit rule 9), `docs/concept/21_UI_CONCEPT.md` (21). Class names keep the original `body-*` vocabulary; only the element tag changes (`body-instrument-view` -> `re-body-view`), and `css()` in `30_panel.js` prefixes every rule with it.
+Scope: the P1 functional UI (`src/ui/*.js` -> `plugin/index.js`, built by `python3 tools/build_ui.py`); sections H-L extend the file for the P6 UI (panel, field, scaling, integration). Sources compared: `reference/body_original/index.js` (UI:line), kit `docs/07_SCALING.md` (07), kit `docs/03_UI_WEBCOMPONENT.md` (03), upstream `core-ui-contract.md` and `ui/fx.md` (upstream wins over kit captures, kit rule 9), `docs/concept/21_UI_CONCEPT.md` (21). Class names keep the original `body-*` vocabulary; only the element tag changes (`body-instrument-view` -> `re-body-view`), and `css()` in `30_panel.js` prefixes every rule with it.
 
 ## A. Original CSS, line by line (UI:267-310)
 | UI line | before | after | reason |
@@ -68,7 +68,7 @@ Scope: the P1 functional UI (`src/ui/*.js` -> `plugin/index.js`, built by `pytho
 | (new) copy A -> B / A -> C | — | tab bar buttons; source fixed to A; 21 parameters per target (everything but Enable and Hold, Morph included), one gesture each, resent even if equal | 21 §10, brief (the undo snapshot is deferred) |
 | (new) keys 1 / 2 / 3 | — | listener on the host element switches the line, ignored with a modifier or inside the editor | 21 §10 |
 
-## C. 07_SCALING deviations
+## C. 07_SCALING deviations (P1 state; the final list is section I)
 | item | 07 | here | reason |
 |---|---|---|---|
 | resize observer | recipe observes `this` or the parent | **not used** | upstream §6 "never use ResizeObserver"; 21 §6 |
@@ -87,15 +87,17 @@ Scope: the P1 functional UI (`src/ui/*.js` -> `plugin/index.js`, built by `pytho
 | upstream | here | reason |
 |---|---|---|
 | factory is the first declaration after the receipt comments | `export default function createPatchView` is the last statement of `90_export.js` (a hoisted declaration, so the behaviour is "factory first"); line 1 is a descriptive comment, not receipt comments | lead contract `00_P1_CONTRACTS.md`; the receipt format belongs to the Copy-Prompt flow; if a pasted-file checker needs it textually first, `build_ui.py` could be made to hoist it |
-| < 8000 characters | ~82 KB | "paste-flow budget, not a host limit" (kit 03); a 73-parameter panel cannot fit |
+| < 8000 characters | ~160 KB (P1: ~82 KB) | "paste-flow budget, not a host limit" (kit 03); a 73-parameter panel cannot fit |
 | host has no fixed px; fluid grid layout | fixed 960 × 600 chassis + `zoom`, host sized in px by JS | D4 (07 option 2); the other parameter-binding rules apply unchanged |
 | 270° dial: `--angle` / `--arc` with a conic fill | `--norm` kept, pointer `rotate(calc(var(--norm)*270deg - 135deg))`, fill = original SVG arc (bipolar arcs start at zero) | original look is the base (21 §11); `--norm` audit min / mid / max still holds |
-| subscribe requested outputs | 7 of 10 | `lineModes*` are not drawn in P1 |
+| subscribe requested outputs | 7 of 10 (P1); all 10 since section H2 | `lineModes*` are drawn by the field markers from P6 |
 | one `HTMLElement` subclass, one helper class | `RebodyView` + `Control`; the view is assembled from method bags (`FieldMethods`, `PanelMethods`, `TelemetryMethods`, `ScalingMethods`) with `Object.assign` | the parts must concatenate, one class body cannot span files |
 | `// END_AMORPH_UI` | present | harmless, keeps pasted-file tools happy |
 
 ## E. Not in P1 (concept items deferred, no source involved)
 MORE collapse of strip 2; hover-label on mini dials; dial v2 extras (specular crescent, conic cap, default tick, fine-mode ring); Timpani greyed arc above C4; morph weight bars (`lineState*.engine0..10`); Follow lock lamp; Excite hairlines; `lineModes*` markers; Copy undo snapshot; the whole 11-layer depth field (z-table, fog, light, ghosts, chain thread, hit layer); Motion Calm / Full behaviour; new drawings for Timpani, Guitar, Fiddle. The hidden-control probe (D39) on the real host is the lead's P1 spike; here B and C sets are `hidden` (`display:none`), so they only exist in the DOM.
+
+All of E is closed by P6 (sections H and J) except what J5 lists as open.
 
 ## F. Verification (this block)
 `python3 tools/build_ui.py` (also `--check`) · kit `ui_lint.py --strict` and branding `ui_lint.py --strict`: 0 errors, 0 warnings, no disagreements · headless Chromium smoke test `/tmp/claude-0/-home-user/56398787-a593-57af-8ae9-3f0062939bf1/scratchpad/uitest/smoke.mjs` (`node smoke.mjs`): 49 checks (73 `data-param` once each, line-set `hidden` toggling, drag / Shift / keys / wheel / dblclick / editors, echo guard, morph, Copy, telemetry painting and the 30 Hz cap, idle = no rAF, teardown, zoom 0.5 / 1 / 2 and resize, no console errors). Screens: `docs/dev/screens/p1_ui_960.png`, `p1_ui_480.png`. Not verified: the real Amorph host (WebKit / WebView2 `zoom` behaviour, `eff` probe, hidden-control probe).
@@ -115,7 +117,7 @@ MORE collapse of strip 2; hover-label on mini dials; dial v2 extras (specular cr
 | lint ×2, smoke test, two screenshots | done | §F |
 
 ## H. P6 panel (U3 telemetry, U4 morph hero, U5 Control v2 and panel): `10_control.js`, `30_panel.js`, `40_telemetry.js`
-Original look stays the base (21 §11); this block adds only what 21 §5 / §10 and R11 R1-R4, R7-R9 name. Closes the §E items "dial v2 extras", "Timpani greyed arc", "morph weight bars", "Follow lock lamp", "Excite hairlines", "`lineModes*`". Still open: MORE collapse of strip 2, Copy undo snapshot (both not in this block).
+Original look stays the base (21 §11); this block adds only what 21 §5 / §10 and R11 R1-R4, R7-R9 name. Closes the §E items "dial v2 extras", "Timpani greyed arc", "morph weight bars", "Follow lock lamp", "Excite hairlines", "`lineModes*`". MORE collapse of strip 2 and the Copy undo snapshot are closed in section J.
 
 ### H1 look (UI:line = original CSS line)
 | item | before (P1) | after (P6) | reason |
@@ -173,3 +175,86 @@ Original look stays the base (21 §11); this block adds only what 21 §5 / §10 
 | Panel: typography pass, lamp states, grain + vignette, grouped strips, globals once, tab bar, Copy A->B/C | done | whole panel; lamp before the state word in the header |
 | `setDragging(bool)`, `selectLine(i)` | done | view methods (no visible control) |
 | Telemetry v2: 10 outputs, `lineModes*` -> field, Listen / Excite meters, Follow note, 30 Hz cap, idle loop | done | hairlines under Listen / Excite, line under the caption, tab lamps; markers wait for `field.setModes` |
+
+## I. U7 scaling: final deviation list against 07_SCALING and the upstream contract (`50_scaling.js`, `60_motion.js`, `40_telemetry.js` kick)
+Reviewed line by line against kit `docs/07_SCALING.md` (recipe, gotchas 1-2, §3 suspension, test checklist) and upstream `core-ui-contract.md` §5-§6 / `ui/fx.md` A.13 (upstream wins over the kit, kit rule 9). Section C above is the P1 state; this table is the final one.
+
+### I1 against 07_SCALING
+| item | 07 | here | reason |
+|---|---|---|---|
+| approach | option 2: fixed chassis + CSS `zoom` | same; `.body-panel` is the chassis, 960 x 600 = manifest `view` = `// WINDOW SIZE: 960x600` on line 2 of `plugin/index.js` (checked by `build_ui.py` and the smoke test), `view.resizable: true` | — |
+| host CSS | `plugin-ui{display:flex;…;width:100%;height:100vh;min-width:0;min-height:0;overflow:hidden;background:transparent}` | `re-body-view{display:flex;justify-content:center;align-items:center;width:100%;height:100%;overflow:hidden;background:transparent}`; `100vh` -> `100%` (no vw / vh anywhere, lint `no-vw-vh`), the real px come from JS (next row); `min-*:0` dropped (the host is not a flex item) | kit rule 9, upstream |
+| host size | gotcha 1: Amorph ignores `%` / `vh`; size the host in JS from `innerWidth` / `innerHeight` | same (`rescale`), inline px, compensated by the measured `eff` | — |
+| effective scale | gotcha 2: probe `getBoundingClientRect().width / w`, bounds 0.3..3, compensate host and zoom, re-measure on resize and every ~250 ms | identical formula and bounds; the probe runs synchronously on mount, again at `setTimeout 0`, on every settle after a drag and every 250 ms (skipped while `resizing()`); a resize event itself only rewrites the two host sizes with the cached `eff` | 07 §3 "even with cached eff"; smoke test: a wrapper that renders the host at 0.9 gives `eff` 0.9, zoom 1.1, chassis fills the window; a later scale change without a resize event is found within 700 ms |
+| zoom range / raster | `0.5..2.0` (first recipe), `0.4..2.5` (gotcha code); steps of 0.05 | `0.5..2.0`, 0.05 steps | D16 |
+| `_doResize` | `ch.style.zoom = s; ch.style.transform = ''; this._chassisScale = s` | `panel.style.zoom = z` only: no transform is ever written, the scale is not stored (every geometry read uses `getBoundingClientRect`, which is zoom-aware; the code uses no `offset*` / `client*` for geometry, so the `currentCSSZoom` caveat does not apply) | — |
+| wiring | window `resize` listener, synchronous first resize, optional `ResizeObserver` on the host or its parent (07 itself warns it must watch the wrapper, not `this`) | window listener and synchronous first resize; **no ResizeObserver** | upstream §6 "never use ResizeObserver"; `build_ui.py` and lint reject it; the smoke test counts constructions (0) |
+| wrapper walk-up | once in `connectedCallback` | at every probe (4 Hz), plus the unscoped `::-webkit-scrollbar` / `*{scrollbar-width:none}` / `html,body{overflow:hidden}` rules as the first CSS | 07: "you need both", "the JS walk-up alone can be undone by a re-render"; tested with a wrapper that has `overflow:auto`, margin and padding |
+| transparent host | `background:transparent` | CSS and inline `hs.background`; tested: around an off-aspect (1300 x 950) chassis the page background shows, no box, no scrollbars | 07 "visible background box" |
+| chassis element | separate `.chassis` | the panel is the chassis | one element less |
+| §3 suspension | `resizing()` = 180 ms since the last resize event; zoom deferred to a ~190 ms settle timer; canvas paints skipped; rAF bodies early-return; per event two style writes | all kept, made explicit because the field has 11 compositing layers: (1) per event only `lastResize`, `suspend(true)` and the two host style writes; (2) `kick()` schedules no frame while `resizing()` (it sets `stale`), `tick()` still returns early if a frame was already queued; (3) `MotionController.suspend(true)` cancels its pending frame, drops pointer input and freezes the drift clock; (4) no readout paint, no `d` rewrite, no meter write; (5) the 190 ms settle timer applies the zoom once, calls `suspend(false)` (one frame) and re-kicks the view loop when `stale`. No canvas exists. The brief's "250 ms settle" is the re-measure interval; the settle is the recipe's 190 ms (`SETTLE_MS`), the quiet time 180 ms (`RESIZE_QUIET_MS`) | 07 §3, smoke test (12 events 35 ms apart: 0 motion frames, 0 `d` writes, 0 rAF requests, zoom untouched; resume 190-210 ms after the last event) |
+| `MotionController` option `isSuspended` (P6 field worker) | polled every frame (an idle rAF per frame) | replaced by `suspend(flag)` (no polling) | §3 "do nothing" |
+| diagnostic readout | optional | not included | — |
+| overlays | coordinate math under zoom | none; the value editor is in flow; the morph slider and the motion controller read `getBoundingClientRect()` directly | — |
+| test checklist (7 items) | manual | 1 default size centred, no scrollbars; 2 shrink 700 x 600 -> 0.7, centred; 3 enlarge 1920 x 1200 -> clamp 2.0, 300 x 200 -> 0.5; 4 no overlays; 5 dial drag at zoom 0.5; 6 text sharp at 1.0: grid-aligned zoom steps; 7 1300 x 950 off-aspect: no box, no scrollbars | all in `tests/ui/smoke.mjs` |
+
+### I2 against upstream core-ui contract (§5 layout, §6 canvas / animation)
+| upstream | here | reason |
+|---|---|---|
+| `:host, .patch-root { display:block; width:100%; height:100%; overflow:hidden }` is "the ONLY correct form"; add the `patch-root` class | the class is added in `connectedCallback`; the rule is keyed on the tag selector (same element); `display:flex` (centres the fixed chassis), `width / height:100%` in CSS | 07 option 2 (D4) |
+| "NEVER fixed px width / height on :host / .patch-root" | JS writes inline px (window size / `eff`) on the host; the chassis inside is fixed 960 x 600 | 07 gotcha 1: the host ignores `%` and `vh`; logged since P1 (section D) |
+| first CSS rules reset sizing and scroll | verbatim first rules (`RAW_CSS`) | — |
+| never `ResizeObserver`; no per-frame resize | none; per window event two style writes, the probe on settle and at 4 Hz | — |
+| canvas backing size once | no canvas | — |
+| pointer events | element level only; the single window-level listener is `resize` (07 requires it), spied in the smoke test on `window` and `document`; removed on teardown | — |
+| `// WINDOW SIZE` on line 2 | yes, and it equals the manifest view | — |
+| teardown | `stopScaling()` removes the listener and clears three timers, `stopField()` stops the motion controller (explicit call in `disconnectedCallback`, no longer a registered fake listener) | — |
+Held unchanged: one ES module, no imports, light DOM (no `attachShadow`), no `backdrop-filter`, no vw / vh, selection disabled.
+
+## J. P6 integration: merge and U6 (`15_silhouettes.js`, `20_field.js`, `30_panel.js`, `60_motion.js`, `90_export.js`, `tools/build_ui.py`)
+### J1 merge of the three workers
+| item | before | after |
+|---|---|---|
+| field patches in the panel | an inactive line's Morph / Tune / Enable did not redraw its ghost | `controlChanged`: Enable -> `refreshTabs()` + `touchField()`, Tune of any line -> `touchField()`, Listen -> `touchField()` (chain thread); `refreshMorph`: inactive line -> `touchField()` then return |
+| teardown | the field registered a fake listener in `this.listeners` to be called by the teardown loop | `disconnectedCallback` calls `this.stopField?.()` and `this.clearUndo()` explicitly |
+| fallback silhouettes | `FX_FALLBACK_Z`, `fxFallbackTemplates`, `TEMPLATE_OF` (8 drawings stand in) | deleted; `REBODY_TEMPLATES` (15_silhouettes.js) is the only source |
+| `collapsed` helper | unused function in `15_silhouettes.js` | deleted (no behaviour change; eslint no-unused-vars clean) |
+| depth data | literal z arrays in `15_silhouettes.js`, one value (Fiddle path 9: -420) differed from `plugin/bodies.json` zTable (+100, 22_BODIES §7 "scroll / pegs (8-9) +100") | `Z_TABLE` generated from `bodies.json` `zTable` into the header block; the silhouettes read it (one source, drift impossible) |
+| generated tables | `MODE_IDS` (40_telemetry.js) and `TUNE_NOTE_MAX` (10_control.js) were hand copies of `bodies.json` | generated into the header block between `// BEGIN PARAMS (generated)` and `// END PARAMS` by `tools/build_ui.py` together with `Z_TABLE`; `--check` fails on drift; build dies when `bodies.json` is missing or malformed (11 bodies, 16 mode slots, `tuneNoteRange [36, top]`, 10 z values); `DECAY_BASE` / `DECAY_RATIO` stay hand tables with the existing cross-check |
+| required parts | `build_ui.py` required 7 parts | also `15_silhouettes.js` and `60_motion.js` |
+| flat P1 field | `<svg class="body-object">` placeholder and four `.body-object` CSS rules (replaced at runtime anyway) | removed; `.field` is created by `initField()`, its `data-contour`, `data-shape`, `data-morph`, `data-size` live on `.field` / its paths; `this.contourPaths` removed |
+| sound readout | `SHOW_SOUND_READOUT` with a note "set false if the field's caption shows it" | the field's caption only ever shows the instrument name, so the telemetry line under it (`A3 · 0.90 s`, HELD, FOLLOW) is the one and only place: flag stays `true`; the smoke test counts exactly one occurrence in the view's text |
+| layout | a second visible item in grid row 6 would open an implicit column | `.body-panel > * {grid-column:1}` |
+
+### J2 U6 (21 §10)
+| point | status | behaviour |
+|---|---|---|
+| chain thread | done | `fxChain()` in `20_field.js`: for line B and C, while `Listen = Chain` (6), one faint dotted quadratic arc (`stroke-dasharray 0.01 6` with round caps, fogged stroke of layer 3) in the ghost-near layer (no 12th layer, layer count stays 11) from the source line's silhouette edge facing the listener to the listener's edge facing the source: source ghost -> active body, active body -> ghost, ghost -> ghost; `data-from` / `data-to` name the lines; line A with Chain draws nothing (falls back to All, 20 §13); dimmer while the listening line is disabled; apex capped inside the field; `display="none"` and empty `d` otherwise; rewritten only when its signature (active line, Listen / Enable of B and C, morph, tune, ghost signatures) changes; pointer-events none |
+| strip 2 MORE / LESS | done | button bottom right of row 6 (`[data-more]`, text LESS when expanded, MORE when collapsed, `aria-expanded`); collapsed = `hidden` on the three strip-2 line sets only, all controls stay in the DOM with their `data-param`; `applySets()` merges line-set and collapse state; UI-only (nothing is sent), stored in `localStorage` key `rebody.strip2` (`collapsed` / `expanded`, try / catch), default expanded; collapsing with focus inside strip 2 moves focus to the button, cancels the editor and open drags |
+| Copy undo | done | `copyLine()` keeps `copySnap = { src, dst, values: 21 x [key, value] }` of the target before writing; an `UNDO` button (`[data-undo]`, 25 px high) appears in the copy group for 10 s (`UNDO_MS`), the `COPY` label hides while it shows (header budget; `.body-copy[data-undoable]`); UNDO writes the 21 values back through ordinary parameter events, one gesture each, resent even when equal; a second copy replaces the snapshot (one step); timer and snapshot are cleared on teardown |
+| Enable >= 24 px | verified | Enable buttons 34 x 24 px, tab name buttons 26 x 24 px at the design size (smoke test) |
+| keys 1 / 2 / 3 | done | keydown on the host element selects the tab, ignored with Ctrl / Alt / Meta and inside the editor input; the panel has `tabindex="-1"` (no outline) so a click on any empty area focuses it and the keys work without a focused control |
+
+### J3 DOM and API contract after the merge (for the lead)
+`.field` (perspective frame, `data-shape` / `data-morph` / `data-size`) > `.scene` > 11 `svg.layer[data-layer]`; contours are `path[data-contour="0..9"]`; chain paths `path.chain[data-chain="1|2"]` in `[data-layer="ghostNear"]`; panel hooks `view.motion` (MotionController: `start`, `stop`, `setState`, `pause`, `suspend`, `notifyAudio`, `snapshot`), `view.field.setModes`, `view.selectLine(i)`, `view.setStrip2Collapsed(flag)`, `view.copyLine(src, dst)` / `undoCopy()` / `clearUndo()`; storage keys `rebody.motion`, `rebody.strip2` (both UI-only per-viewer conveniences).
+
+### J4 verification
+`python3 tools/build_ui.py` and `--check` · kit `ui_lint.py --strict` and branding `ui_lint.py --strict` on `plugin/index.js`: 0 errors, 0 warnings · `node --check` · `check_sync.py plugin/dsp.cmajor plugin/index.js`: 73 / 73 · kit `manifest_check.py` on the patch · eslint (no-undef, no-unused-vars) clean · `node tests/ui/smoke.mjs` (see `tests/ui/README.md`): 194 checks, three consecutive runs 194/194 (about 3.3 min each, no flakes; one timing-sensitive comparison of a transition end state was made tolerant on the way) · screens `docs/dev/screens/p6_final_960.png`, `p6_final_480.png` (Clarinet, Calm, tilted, fake audio, B enabled and chained). Final module size 159,993 bytes in 2,254 lines (P1: 82,155 bytes). Not verified: the real Amorph host (WebKit / WebView2 `zoom`, `eff` probe, hidden-control probe, pointer delivery) and any DAW.
+
+### J5 still open
+Real-host probes (above); the ghost silhouettes and chain thread do not follow the tilt of their own depth exactly (the thread sits in layer 3 while a far ghost sits in layer 2: a few px of parallax difference, deliberate); `DECAY_BASE` / `DECAY_RATIO` are still hand tables (cross-checked, not generated); Motion Calm and Full differ only in tilt cap and idle drift (21 §3).
+
+### J6 Fertigmeldung (CLAUDE.md rule 7): each commissioned point, status, place in the UI
+| point | status | place in the UI |
+|---|---|---|
+| merge: three `30_panel.js` patches, explicit `stopField`, fallback block deleted, `collapsed` helper deleted, sound readout once, generated `MODE_IDS` / `TUNE_NOTE_MAX` (+ `Z_TABLE`) | done | field ghosts react to B / C Morph, Tune, Enable; line under the caption; module build |
+| chain thread | done | field, layer 3: dotted arc between the silhouettes while a line's Listen = Chain (set Listen of B or C to Chain) |
+| strip 2 MORE / LESS | done | button at the bottom right of the panel; Position ... Reed row |
+| Copy A->B/C undo (21 values, 10 s) | done | header: UNDO button right of the copy buttons after a copy |
+| Enable >= 24 px | verified | header tabs |
+| keys 1 / 2 / 3 | done, verified | whole panel (focus anywhere inside it) |
+| U7 review against 07 and upstream, section I | done | this file, section I; scaling is invisible except at resize |
+| §3 suspension (motion controller paused, no field redraw while resizing, resume after the settle) | done | window resize drag: field and meters freeze, then catch up once |
+| `// WINDOW SIZE: 960x600` on line 2, manifest matches | verified | `plugin/index.js` line 2, `plugin/RE_BODY.cmajorpatch` view |
+| `tests/ui/smoke.mjs` + README, 3 runs | done | `tests/ui/` |
+| lints, screenshots | done | J4 |

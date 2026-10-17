@@ -28,6 +28,7 @@ const STYLE = css([
     ["[hidden]", "display:none!important"],
     // tokens: ink / text greys (>= 4.5:1 on the lightest backdrop #181818), informational track (>= 3:1), the one light, the lamp
     [".body-panel", `--ink:#ededed;--muted:#969696;--text2:#a5a5a5;--text3:#8c8c8c;--track:#686868;--lx:${LIGHT_X};--ly:${LIGHT_Y};--lamp:.7;position:relative;flex:none;width:${CHASSIS_W}px;height:${CHASSIS_H}px;overflow:hidden;padding:12px 24px;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:36px ${FIELD_H}px 48px 100px 64px 64px;gap:6px;background:${BACKDROP};color:var(--ink);font:12px/1.3 ${FONT}`],
+    [".body-panel > *", "grid-column:1"],   // one explicit column: an overlay in a shared row (MORE) must not open an implicit one
     [".body-panel[data-lamp=\"active\"]", "--lamp:1"],
     [".body-panel[data-lamp=\"idle\"]", "--lamp:.7"],
     [".body-panel[data-lamp=\"bypass\"]", "--lamp:.25"],
@@ -47,7 +48,9 @@ const STYLE = css([
     [".body-tab[data-on=\"false\"] .body-lamp", "background:transparent;box-shadow:inset 0 0 0 1px #777;opacity:1"],
     [".body-copy", "display:flex;align-items:center;gap:4px;flex:none"],
     [".body-copy::before", "content:\"COPY\";margin-right:2px;font-size:10px;letter-spacing:.14em;color:#8c8c8c"],
+    [".body-copy[data-undoable=\"true\"]::before", "display:none"],   // the header has no room for the label and the UNDO button together
     [".body-copybtn", "min-width:40px;min-height:24px;padding:4px 7px"],
+    [".body-undo", "min-width:48px;font-weight:700;letter-spacing:.08em"],
     [".body-state", "display:flex;align-items:center;justify-content:center;gap:5px;flex:none;min-width:84px;font-size:10px;font-weight:600;letter-spacing:.12em;color:#a5a5a5"],
     [".body-state::before", "content:\"\";flex:none;width:6px;height:6px;border-radius:50%;background:#ededed;opacity:var(--lamp);transition:opacity .4s ease"],
     [".body-state[data-state=\"active\"]", "color:#ededed"],
@@ -66,11 +69,8 @@ const STYLE = css([
     [".body-motion-label", "font-size:10px;letter-spacing:.14em;color:#8c8c8c"],
     [".body-motionseg", "display:flex;gap:2px"],
     [".body-motionbtn", `${SEG};height:24px;padding:0 8px`],
-    // field (P1 container; the depth field of the field worker replaces what is inside .body-field)
+    // field container (the depth field of 20_field.js is inserted first inside .body-field; its own rules live in FX_CSS)
     [".body-field", "grid-row:2;min-width:0;min-height:0;position:relative;pointer-events:none"],
-    [".body-object", `width:${FIELD_W}px;height:${FIELD_H}px;overflow:visible;display:block;pointer-events:none;transition:opacity .4s ease`],
-    [".body-object path", "stroke:#d0d0d0;fill:none;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke"],
-    [".body-object [data-contour=\"0\"]", "fill:#121212;stroke-width:1.65"],
     [".body-caption", `position:absolute;left:0;right:0;bottom:13px;height:17px;text-align:center;color:#c4c4c4;font:600 14px/17px ${FONT};letter-spacing:.05em`],
     [".body-follow", `position:absolute;left:0;right:0;bottom:0;height:13px;text-align:center;color:#a0a0a0;font:500 10px/13px ${FONT};letter-spacing:.1em`],
     [".body-scope", "position:absolute;left:0;top:0;width:156px;display:flex;flex-direction:column;gap:5px"],
@@ -150,6 +150,8 @@ const STYLE = css([
     // strips: grouped, with headings
     [".body-strip1", "grid-row:5;display:flex;align-items:center;gap:16px;min-width:0"],
     [".body-strip2", "grid-row:6;display:flex;align-items:flex-end;gap:22px;min-width:0"],
+    [".body-more", "grid-row:6;justify-self:end;align-self:end;display:flex;pointer-events:none"],
+    [".body-morebtn", "min-width:52px;height:24px;padding:0 10px;font-size:10px;font-weight:600;letter-spacing:.14em;pointer-events:auto"],
     [".body-group", "display:flex;flex-direction:column;gap:3px;min-width:0"],
     [".body-grouprow", "display:flex"],
     [".body-grouphead", "display:flex;align-items:center;gap:6px;font-size:10px;line-height:12px;letter-spacing:.14em;color:#8c8c8c"],
@@ -158,8 +160,8 @@ const STYLE = css([
     [".body-segbtn", SEG],
     [".body-segmeter", "position:absolute;left:5px;bottom:2px;height:2px;border-radius:1px;background:currentColor;width:calc((100% - 10px) * var(--lv,0));pointer-events:none"],
     // process states, focus
-    [".body-panel[data-process=\"bypass\"] .body-object,.body-panel[data-process=\"dry\"] .body-object", "opacity:.25"],
     [".body-panel[data-process=\"bypass\"] .body-dial-arc", "opacity:.3"],
+    [".body-panel:focus", "outline:none"],   // tabindex -1: a click on empty panel keeps the 1 / 2 / 3 line keys working
     [".body-dial:focus-visible,.body-morph-slider:focus-visible,button:focus-visible,input:focus-visible", "outline:1px solid #ededed;outline-offset:3px"]
 ]);
 
@@ -170,6 +172,8 @@ const LAYOUT = {
     strip1: [["LISTEN", "Listen", "Sensitivity"], ["EXCITE", "Excite", "Touch"]],
     strip2: [["contact", ["Position", "Bright"]], ["body", ["Size", "Body", "Stretch"]], ["physics", ["Stiffness", "Coupling", "Air", "Reed"]]]
 };
+const COPY_KEYS = Object.keys(LINE_IDS.A).filter(k => k !== "Enable" && k !== "Hold");   // 21 parameters per line are copied (Enable and Hold stay)
+const UNDO_MS = 10000;   // the UNDO button after a Copy lives this long
 const MOTION_MODES = [["off", "Off"], ["calm", "Calm"], ["full", "Full"]];
 const HOLD_TIP = "Hold sustains the body resonance; strings and bores ring out naturally";
 const ctl = (line, key, opt) => Control.html(SPEC.get(LINE_IDS[line][key]), opt);
@@ -182,25 +186,27 @@ const PanelMethods = {
     panelHtml() {
         const tab = line => `<div class="body-tab" data-tab="${line}" data-active="${line === LINES[0]}" data-on="true"><button type="button" class="body-tabname" role="tab" aria-selected="${line === LINES[0]}" title="Line ${line} (key ${LINES.indexOf(line) + 1})">${line}</button>${ctl(line, "Enable", { caption: "ON", off: "OFF", on: "ON", btn: "body-enablebtn", cls: "body-enable" })}<span class="body-lamp" data-lamp="${line}" aria-hidden="true"></span></div>`;
         const copies = LINES.slice(1).map(dst => `<button type="button" class="body-bypass body-copybtn" data-copy="${dst}" aria-label="Copy line ${LINES[0]} to line ${dst}" title="Copy line ${LINES[0]} settings to line ${dst} (Enable and Hold excluded)">${LINES[0]}→${dst}</button>`).join("");
+        const undo = `<button type="button" class="body-bypass body-copybtn body-undo" data-undo hidden>UNDO</button>`;
         const motion = MOTION_MODES.map(([m, t]) => `<button type="button" class="body-motionbtn" role="radio" aria-checked="false" data-motion="${m}">${t}</button>`).join("");
         const bands = Array.from({ length: 8 }, () => "<i></i>").join("");
         const strips = line => lineSet("body-strip1", line,
             LAYOUT.strip1.map(([head, seg, dial]) => group(head, ctl(line, seg, { meters: true })) + ctl(line, dial)).join(""));
         const mini = line => lineSet("body-strip2", line,
             LAYOUT.strip2.map(([head, keys]) => group(head.toUpperCase(), `<div class="body-grouprow">${keys.map(k => ctl(line, k)).join("")}</div>`)).join(""));
-        return `<section class="body-panel" data-process="active" data-motion="calm" data-lamp="idle" data-dragging="false" aria-label="${TITLE} stereo effect">
+        return `<section class="body-panel" tabindex="-1" data-process="active" data-motion="calm" data-lamp="idle" data-dragging="false" aria-label="${TITLE} stereo effect">
 <header class="body-header"><div class="body-ident"><h1 class="body-title">${TITLE}</h1><div class="body-maker">${BRAND}</div></div>
-<div class="body-tabs" role="tablist" aria-label="Line">${LINES.map(tab).join("")}</div><div class="body-copy">${copies}</div>
+<div class="body-tabs" role="tablist" aria-label="Line">${LINES.map(tab).join("")}</div><div class="body-copy">${copies}${undo}</div>
 <div class="body-state" data-state="idle">NO INPUT</div>
 <div class="body-utilities body-globals globals" data-dock="header">${glob("Bypass", { caption: "Bypass" })}<div class="body-motion" role="radiogroup" aria-label="Motion"><span class="body-motion-label">MOTION</span><span class="body-motionseg">${motion}</span></div></div></header>
-<section class="body-field" aria-label="Sounding body"><svg class="body-object" role="img" viewBox="0 0 ${FIELD_W} ${FIELD_H}" aria-label="illustration at rest"><title>One instrument outline morphs continuously. Tune runs from low to high; higher pitch reduces its dimensions; measured input and resonance energy gently move the geometry. Illustration, not a physical measurement.</title>${Array.from({ length: 10 }, (_, i) => `<path data-contour="${i}"/>`).join("")}</svg>
+<section class="body-field" aria-label="Sounding body">
 <div class="body-scope" aria-hidden="true"><div class="body-meter" data-meter="in"><span class="body-meter-l">IN</span><span class="body-meter-bar"><i></i></span></div><div class="body-meter" data-meter="wet"><span class="body-meter-l">WET</span><span class="body-meter-bar"><i></i></span></div><div class="body-onset"><span class="body-meter-l">ONSET</span><span class="body-onset-lamp"></span></div></div>
 <div class="body-bands" aria-hidden="true" title="Wet energy in 8 log bands, 60 Hz to 7.7 kHz">${bands}</div>
 <div class="body-caption" aria-hidden="true"></div><div class="body-follow" aria-hidden="true"></div></section>
 ${LINES.map(line => lineSet("body-morphrow", line, `<span class="body-morph-heading" aria-hidden="true">MORPH</span>${ctl(line, "Morph")}${ctl(line, "Hold", { caption: "Hold", cls: "body-hold", title: HOLD_TIP })}`)).join("")}
 <div class="body-deck">${LINES.map(line => lineSet("body-deckline", line, LAYOUT.deckMain.map(k => ctl(line, k)).join("") + LAYOUT.deckSmall.map(k => ctl(line, k)).join(""))).join("")}<div class="body-deckdiv" aria-hidden="true"></div><div class="body-deckglobal body-globals globals" data-dock="deck">${glob("Mix")}${glob("Width")}${glob("LowCut")}</div></div>
 ${LINES.map(strips).join("")}
-${LINES.map(mini).join("")}</section>`;
+${LINES.map(mini).join("")}
+<div class="body-more"><button type="button" class="body-bypass body-morebtn" data-more aria-expanded="true" title="Show or hide the contact, body and physics controls (strip 2)">LESS</button></div></section>`;
     },
 
     listen(node, type, fn, options) {
@@ -212,6 +218,7 @@ ${LINES.map(mini).join("")}</section>`;
     buildPanel() {
         try { const m = localStorage.getItem(STORE_MOTION); if (MOTION_MODES.some(([k]) => k === m)) this.motionPref = m; } catch { /* storage may be blocked: default stays */ }
         this.motionPref ??= typeof this.motion === "string" ? this.motion : "calm";
+        try { this.strip2Collapsed = localStorage.getItem(STORE_STRIP2) === "collapsed"; } catch { this.strip2Collapsed = false; }   // default: expanded
         this.innerHTML = `<style>${RAW_CSS}\n${STYLE}</style>${this.panelHtml()}`;
         this.panel = this.querySelector(".body-panel");
         this.stateEl = this.querySelector(".body-state");
@@ -223,6 +230,12 @@ ${LINES.map(mini).join("")}</section>`;
         }
         for (const l of LINES) this.listen(this.tabs[l].querySelector(".body-tabname"), "click", () => this.setActiveLine(l));
         for (const node of this.querySelectorAll("[data-copy]")) this.listen(node, "click", () => this.copyLine(LINES[0], node.dataset.copy));
+        this.undoBtn = this.querySelector("[data-undo]");
+        this.listen(this.undoBtn, "click", () => this.undoCopy());
+        this.moreBtn = this.querySelector("[data-more]");
+        this.listen(this.moreBtn, "click", () => this.setStrip2Collapsed(!this.strip2Collapsed));
+        this.applySets();
+        this.refreshMore();
         for (const node of this.querySelectorAll(".body-motionbtn")) this.listen(node, "click", () => this.setMotion(node.dataset.motion));
         this.listen(this, "keydown", event => {
             if (event.ctrlKey || event.metaKey || event.altKey || event.target.closest?.("input")) return;
@@ -295,9 +308,10 @@ ${LINES.map(mini).join("")}</section>`;
             if (key === "Mix" || key === "Bypass") { this.refreshProcessing(); this.touchField(); }
             return;
         }
-        if (key === "Enable") this.refreshTabs();
+        if (key === "Enable") { this.refreshTabs(); this.touchField(); }   // a ghost's thin / full stroke and the chain thread follow Enable
         else if (key === "Morph") this.refreshMorph(line);
-        else if (line === this.activeLine && key === "Tune") this.touchField();
+        else if (key === "Tune") this.touchField();                         // the ghosts scale with their own line's Tune
+        else if (key === "Listen") this.touchField();                       // chain thread
         else if (line === this.activeLine && (key === "Follow" || key === "Hold")) { this.refreshFollow(); this.readoutsDirty = true; this.kick(); }
     },
     // Only the active line's Tune / Decay / caption follow a morph move (F7); hidden sets refresh on a tab switch.
@@ -305,7 +319,7 @@ ${LINES.map(mini).join("")}</section>`;
         const pitched = this.isPitched(line);
         const changed = pitched !== this.pitchedSeen[line];
         this.pitchedSeen[line] = pitched;
-        if (line !== this.activeLine) return;
+        if (line !== this.activeLine) { this.touchField(); return; }   // an inactive line's morph moves its ghost
         const ids = LINE_IDS[line];
         if (changed) this.controls.get(ids.Tune)?.stopDrag();
         this.controls.get(ids.Tune)?.refresh();
@@ -340,8 +354,11 @@ ${LINES.map(mini).join("")}</section>`;
         if (!LINES.includes(line)) return;
         this.cancelEditor?.();
         for (const control of this.controls.values()) if (control.dragging) control.stopDrag();
+        const focused = document.activeElement;
         this.activeLine = line;
-        for (const l of LINES) for (const node of this.sets[l]) node.hidden = l !== line;
+        this.applySets();
+        // the focused control may have just been hidden with its line set: keep the focus inside the panel so keys 1 / 2 / 3 keep working
+        if (focused && focused !== document.body && this.contains(focused) && focused.closest("[data-lineset]")?.hidden) this.panel.focus({ preventScroll: true });
         const ids = LINE_IDS[line];
         this.controls.get(ids.Tune).refresh();
         this.controls.get(ids.Decay).refresh();
@@ -353,14 +370,59 @@ ${LINES.map(mini).join("")}</section>`;
         this.modesDirty = true;   // the field gets the new active line's mode energies on the next readout frame
         this.touchField();
     },
+    // Which line sets are shown: only the active line's, and none of the strip-2 sets while MORE / LESS has collapsed them (`hidden`, controls stay in the DOM).
+    applySets() {
+        for (const l of LINES) for (const node of this.sets[l]) node.hidden = l !== this.activeLine || (this.strip2Collapsed && node.classList.contains("body-strip2"));
+    },
+    // MORE / LESS (21 section 1, UI-only): collapse strip 2; the choice is a stored per-viewer preference (default expanded).
+    setStrip2Collapsed(flag) {
+        flag = !!flag;
+        const hadFocus = flag && this.contains(document.activeElement) && document.activeElement.closest(".body-strip2");
+        if (flag) {
+            this.cancelEditor?.();
+            for (const control of this.controls.values()) if (control.dragging && control.node.closest(".body-strip2")) control.stopDrag();
+        }
+        this.strip2Collapsed = flag;
+        this.applySets();
+        this.refreshMore();
+        if (hadFocus) this.moreBtn.focus({ preventScroll: true });   // focus must not vanish with the hidden controls
+        try { localStorage.setItem(STORE_STRIP2, flag ? "collapsed" : "expanded"); } catch { /* UI-only convenience; fine without storage */ }
+    },
+    refreshMore() {
+        if (!this.moreBtn) return;
+        this.moreBtn.textContent = this.strip2Collapsed ? "MORE" : "LESS";
+        this.moreBtn.setAttribute("aria-expanded", String(!this.strip2Collapsed));
+    },
     // UI-only: writes the source line's values into the target line through ordinary parameter events,
-    // one gesture per parameter; Enable and Hold stay as they are.
+    // one gesture per parameter; Enable and Hold stay as they are. The target's 21 values are kept as a one-step undo snapshot for UNDO_MS.
     copyLine(src, dst) {
         if (src === dst) return;
         const s = LINE_IDS[src], d = LINE_IDS[dst];
-        for (const key of Object.keys(s)) {
-            if (key === "Enable" || key === "Hold") continue;
-            this.controls.get(d[key])?.commit(this.valueOf(s[key]), true);
+        this.copySnap = { src, dst, values: COPY_KEYS.map(key => [key, this.valueOf(d[key])]) };
+        for (const key of COPY_KEYS) this.controls.get(d[key])?.commit(this.valueOf(s[key]), true);
+        const btn = this.undoBtn;
+        btn.hidden = false;
+        btn.parentElement.dataset.undoable = "true";
+        btn.setAttribute("aria-label", `Undo copy of line ${src} to line ${dst}`);
+        btn.title = `Restore line ${dst} as it was before the copy (${UNDO_MS / 1000} s)`;
+        clearTimeout(this._undoTimer);
+        this._undoTimer = setTimeout(() => this.clearUndo(), UNDO_MS);
+    },
+    undoCopy() {
+        const snap = this.copySnap;
+        if (!snap) return;
+        this.clearUndo();
+        const d = LINE_IDS[snap.dst];
+        for (const [key, value] of snap.values) this.controls.get(d[key])?.commit(value, true);
+    },
+    clearUndo() {
+        clearTimeout(this._undoTimer);
+        this._undoTimer = 0;
+        this.copySnap = null;
+        if (this.undoBtn) {
+            if (this.undoBtn.hidden === false && document.activeElement === this.undoBtn) this.querySelector(`[data-copy="${LINES[1]}"]`)?.focus({ preventScroll: true });
+            this.undoBtn.hidden = true;
+            this.undoBtn.parentElement.dataset.undoable = "false";
         }
     },
 

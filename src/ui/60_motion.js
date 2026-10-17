@@ -16,6 +16,8 @@
 // button held is a control or morph drag (the controls capture the pointer themselves), so it is ignored and the
 // target is held; the panel can also call pause(true) explicitly. The effective state is `off` while the OS asks for
 // reduced motion (query and change listener as the original, index.js:330).
+// suspend(true) is the 07 section 3 pause for window-resize drags: no frame is requested, pointer input is dropped and the drift clock stands
+// still until suspend(false), which the scaling part calls from its settle timer.
 const MOTION_STATES = ["off", "calm", "full"];
 const MOTION_TILT = { off: 0, calm: 1.5, full: 4 };   // degrees at the host edge
 const MOTION_DRIFT_DEG = 1, MOTION_DRIFT_HZ = [0.05, 0.07];
@@ -31,12 +33,10 @@ class MotionController {
     // onLight(x, y): optional callback with the smoothed pointer position (-1..1) at most 30 Hz, so the light layer can be moved with an inline
     // transform (a CSS custom property on or above that layer would repaint it, measured: re-raster on every write).
     // state: 'off' | 'calm' | 'full'; when omitted it is read from localStorage (key STORE_MOTION, default calm).
-    // isSuspended: optional () => boolean, true while rendering must pause (window-resize drags, 07 section 3).
-    constructor({ host, scene, onLight = null, state = null, isSuspended = null } = {}) {
+    constructor({ host, scene, onLight = null, state = null } = {}) {
         this.host = host;
         this.scene = scene;
         this.onLight = onLight;
-        this.isSuspended = isSuspended;
         this.state = MOTION_STATES.includes(state) ? state : MotionController.storedState();
         this.mq = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
         this.reduced = !!(this.mq && this.mq.matches);   // cached: reading mq.matches every frame can swallow the change event in Chromium
@@ -49,6 +49,7 @@ class MotionController {
         this.t = 0;                        // drift clock in seconds, advances only while the loop runs and is not paused
         this.activity = 0;
         this.paused = false;
+        this.suspended = false;            // window-resize drag in progress (07 section 3)
         this.running = false;
         this.frames = 0;                   // frames rendered by the loop (diagnostics)
         this.written = "";
@@ -119,14 +120,21 @@ class MotionController {
         this.paused = !!paused;
         if (!this.paused) this.kick();
     }
+    // Window-resize drags (07 section 3): while suspended nothing renders and no frame is requested; the settle timer resumes it.
+    suspend(suspended) {
+        const was = this.suspended;
+        this.suspended = !!suspended;
+        if (this.suspended && this._raf) { cancelAnimationFrame(this._raf); this._raf = 0; }
+        if (was && !this.suspended) { this.rect = null; this.kick(); }   // the host box moved: re-read it on the next pointer move
+    }
     snapshot() {
-        return { state: this.state, effective: this.effective(), yaw: this.yaw, pitch: this.pitch, push: this.push, breathe: 1 + MOTION_BREATHE * this.wet,
+        return { state: this.state, suspended: this.suspended, effective: this.effective(), yaw: this.yaw, pitch: this.pitch, push: this.push, breathe: 1 + MOTION_BREATHE * this.wet,
             px: this.px, py: this.py, gain: this.gain, running: this._raf !== 0, frames: this.frames, transform: this.written };
     }
 
     // ---- input ----------------------------------------------------------------------------------------------------
     _move(event) {
-        if (!this.running || this.paused || event.buttons || event.pointerType === "touch" || this.effective() === "off") return;
+        if (!this.running || this.paused || this.suspended || event.buttons || event.pointerType === "touch" || this.effective() === "off") return;
         const now = performance.now();
         if (!this.rect || now - this.rectAt > 250) { this.rect = this.host.getBoundingClientRect(); this.rectAt = now; }   // zoom-aware box of the host
         const r = this.rect;
@@ -145,15 +153,14 @@ class MotionController {
 
     // ---- frame loop: exists only while something moves ------------------------------------------------------------
     kick() {
-        if (this._raf || !this.running) return;
+        if (this._raf || !this.running || this.suspended) return;
         this._last = performance.now() - 16.7;
         this._raf = requestAnimationFrame(this._tick);
     }
     driftWanted(now) { return this.effective() === "full" && now - this.activity < MOTION_IDLE_MS; }
     _frame(now) {
         this._raf = 0;
-        if (!this.running) return;
-        if (this.isSuspended && this.isSuspended()) { this._last = now; this._raf = requestAnimationFrame(this._tick); return; }   // 07 section 3
+        if (!this.running || this.suspended) return;
         const dt = clamp((now - this._last) / 1000, 0, 0.1);
         this._last = now;
         const eff = this.effective(), full = eff === "full", T = MOTION_TILT[eff];

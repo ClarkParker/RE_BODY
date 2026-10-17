@@ -4,7 +4,7 @@
 //            0 outline (closed), 1 opening / membrane (closed), 2 rear part, 3-5 strings or seams, 6-9 fittings.
 //            Missing details contract to a point (collapsed), their opacity never changes.
 //   closed : [true, true, false x 8], the original's `closed: index < 2` (the field resamples with getPointAtLength).
-//   depth  : z in px at perspective 1600 per path (negative = back), the `zTable` of plugin/bodies.json = 22_BODIES.md "Depth".
+//   depth  : z in px at perspective 1600 per path (negative = back): Z_TABLE, generated into 00_header.js from the `zTable` of plugin/bodies.json (22_BODIES.md "Depth").
 // The eight originals (index.js:42-97) are copied verbatim, including their ellipse(...) expressions; Timpani, Guitar and
 // Fiddle are drawn in the same style. The helpers live inside the IIFE so they never collide with other parts.
 const REBODY_TEMPLATES = (() => {
@@ -12,7 +12,6 @@ const REBODY_TEMPLATES = (() => {
     // Outer edges, openings, strings/seams, and fittings move between corresponding
     // locations. Missing details contract to a point; their opacity never changes.
     const ellipse=(x,y,rx,ry)=>`M ${x-rx} ${y} A ${rx} ${ry} 0 1 1 ${x+rx} ${y} A ${rx} ${ry} 0 1 1 ${x-rx} ${y} Z`;
-    const collapsed=(x,y)=>`M ${x} ${y} L ${x} ${y}`;
     const instrumentPaths=[
         // Bass drum: full circular front, rear shell, four tension rods and feet.
         ['M -70 0 C -70 -39 -40 -66 0 -66 C 40 -66 70 -39 70 0 C 70 39 40 66 0 66 C -40 66 -70 39 -70 0 Z',
@@ -106,17 +105,17 @@ const REBODY_TEMPLATES = (() => {
     ];
 
     const ordered=[
-        ['Bass Drum', instrumentPaths[0], [0, -40, -300, 92, 92, 60, 100, 100, 100, 100]],
-        ['Snare', instrumentPaths[1], [0, 10, -60, 80, 80, 80, 80, 80, 80, 80]],
-        ['Timpani', timpaniPaths, [20, 0, -280, 120, 120, 120, 120, 120, 120, 120]],
-        ['Piano', instrumentPaths[2], [0, -200, 160, -60, -60, -60, 160, 160, 160, 160]],
-        ['Guitar', guitarPaths, [0, -420, -260, 40, 40, 40, 40, 120, 120, 120]],
-        ['Ukulele', instrumentPaths[3], [0, -420, 40, 40, 40, 40, 90, 90, 130, 130]],
-        ['Fiddle', fiddlePaths, [0, -420, 60, 60, 60, 60, 140, 120, 100, -420]],
-        ['Clarinet', instrumentPaths[4], [0, -120, 160, 120, 120, 120, 120, 120, 120, 120]],
-        ['Oboe', instrumentPaths[5], [0, -120, 170, 120, 120, 120, 120, 120, 120, 120]],
-        ['Sax', instrumentPaths[6], [0, 220, -260, 140, 172, 172, 180, 180, 180, 180]],
-        ['Obosaxolele', hybridPaths, [0, 220, 40, 40, 40, 40, 140, 140, 140, 140]]
+        ['Bass Drum', instrumentPaths[0]],
+        ['Snare', instrumentPaths[1]],
+        ['Timpani', timpaniPaths],
+        ['Piano', instrumentPaths[2]],
+        ['Guitar', guitarPaths],
+        ['Ukulele', instrumentPaths[3]],
+        ['Fiddle', fiddlePaths],
+        ['Clarinet', instrumentPaths[4]],
+        ['Oboe', instrumentPaths[5]],
+        ['Sax', instrumentPaths[6]],
+        ['Obosaxolele', hybridPaths]
     ];
-    return ordered.map(([name, paths, depth]) => ({ name, paths, closed: paths.map((_, i) => i < 2), depth }));
+    return ordered.map(([name, paths], anchor) => ({ name, paths, closed: paths.map((_, i) => i < 2), depth: Z_TABLE[anchor].slice() }));
 })();

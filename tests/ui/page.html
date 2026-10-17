@@ -1,0 +1,31 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>RE-BODY UI smoke</title>
+<style>html,body{margin:0;background:#222}</style></head>
+<body>
+<!-- Mock Amorph host for tests/ui/smoke.mjs: a patchConnection stub that records everything the view sends and lets the test play the host. -->
+<script type="module">
+import createPatchView from '/index.js';
+const spec = await (await fetch('/spec.json')).json();
+const init = Object.fromEntries(spec.params.map(p => [p.id, p.init]));
+const hostValues = Object.assign({}, init, window.__hostOverrides || {});
+const mock = window.mock = {
+  sent: [], gestures: [], requested: [], allListeners: new Set(), ep: new Map(), spec,
+  addAllParameterListener(fn) { this.allListeners.add(fn); },
+  removeAllParameterListener(fn) { this.allListeners.delete(fn); },
+  requestParameterValue(id) { this.requested.push(id); const v = hostValues[id]; for (const fn of [...this.allListeners]) fn({ endpointID: id, value: v }); },
+  addEndpointListener(id, fn) { if (!this.ep.has(id)) this.ep.set(id, new Set()); this.ep.get(id).add(fn); },
+  removeEndpointListener(id, fn) { this.ep.get(id)?.delete(fn); },
+  sendEventOrValue(id, v) { this.sent.push({ id, v }); },
+  sendParameterGestureStart(id) { this.gestures.push(['start', id]); },
+  sendParameterGestureEnd(id) { this.gestures.push(['end', id]); },
+  emit(id, v) { for (const fn of [...(this.ep.get(id) || [])]) fn(v); },
+  host(id, v) { for (const fn of [...this.allListeners]) fn({ endpointID: id, value: v }); },
+  endpointCount() { let n = 0; for (const s of this.ep.values()) n += s.size; return n; }
+};
+const view = window.view = createPatchView(mock);
+const mark = window.__lis ? window.__lis.length : 0;   // listener spy of the test (optional): what the mount itself registers on window / document
+document.body.appendChild(view);
+window.__mountLis = window.__lis ? window.__lis.slice(mark) : [];
+window.ready = true;
+</script>
+</body></html>

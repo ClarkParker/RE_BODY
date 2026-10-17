@@ -3,29 +3,14 @@ const READOUT_MS = 32;          // readout paint cap (30 Hz)
 const STATE_HOLD_MS = 1500;     // caption stays ACTIVE this long after the last input
 const WATCHDOG_MS = 500;        // no packet for this long = silence (as the original, index.js:333)
 const EPS = 1e-5;
-const SHOW_SOUND_READOUT = true;   // "A3 · 1.2 s" (lineState rootHz, t60) in front of HELD / FOLLOW under the caption; set false if the field's caption shows it
+const SHOW_SOUND_READOUT = true;   // "A3 · 1.2 s" (lineState rootHz, t60) in front of HELD / FOLLOW under the caption: the one place for note and seconds (the field's caption shows only the instrument name)
 // [endpoint, minimum floats, floats read, leading floats that are energies]. Energies decide `live` (the loop keeps running while they are non-zero);
 // everything else (rootHz, t60, engines, pitchConfidence ...) needs one repaint when it changes, so steady telemetry lets the loop sleep.
 const TELEMETRY = [["bodyViz", 4, 4, 4], ["bodyBands", 8, 8, 8], ["bodyOnset", 1, 1, 1], ["analysisViz", 6, 6, 5],
     ["lineStateA", 5, 20, 3], ["lineStateB", 5, 20, 3], ["lineStateC", 5, 20, 3], ["lineModesA", 16, 16, 16], ["lineModesB", 16, 16, 16], ["lineModesC", 16, 16, 16]];
 // lineState float<24> field order (plugin/spec.json outputs): wet, onset, listenEnergy, followHz, hold, rootHz, t60, sustainEff, dominantBody, engine0..engine10, spare0..3.
 const LS = { wet: 0, onset: 1, listen: 2, followHz: 3, hold: 4, rootHz: 5, t60: 6, sustainEff: 7, dominant: 8, engine0: 9 };
-// Identity of the 16 lineModes slots per body (anchor order) from plugin/bodies.json `modes` (slotLayout: k 0-7 feature slots, k 8-15 following slots):
-// 0 = unused slot, ["f", Hz, label] = feature mode, ["r", ratio, label] = following mode. Generated from bodies.json (generator bodytab 1.0.0, schema
-// rebody.bodies/1; snippet in docs/dev/02_UI_DEVIATIONS.md section H); regenerate when the recipes change, or move it into the generated block of tools/build_ui.py.
-const MODE_IDS = [
-  [["f",310.0,"wood shell 310"],["f",520.0,"wood shell 520"],0,0,0,0,0,0,["r",1.0,"(0,1) batter"],["r",0.94,"(0,1) pair -"],["r",1.0638,"(0,1) pair +"],["r",1.594,"(1,1)"],["r",2.136,"(2,1)"],["r",2.296,"(0,2)"],["r",2.653,"(3,1)"],0],
-  [["f",450.0,"shell 450"],["f",1100.0,"shell 1100"],0,0,0,0,0,0,["r",1.0,"(0,1) batter"],["r",0.92,"(0,1) pair -"],["r",1.1,"(0,1) pair +"],["r",1.594,"(1,1)"],["r",2.136,"(2,1)"],0,0,0],
-  [["f",160.0,"kettle shell 160"],0,0,0,0,0,0,0,["r",0.81,"(0,1) kettle-damped"],["r",1.0,"(1,1)"],["r",1.5,"(2,1)"],["r",1.98,"(3,1)"],["r",2.44,"(4,1)"],["r",2.91,"(5,1)"],0,0],
-  [["f",84.0,"FEM 84"],["f",127.0,"FEM 127"],["f",194.0,"FEM 194"],["f",204.0,"FEM 204"],["f",229.0,"FEM 229"],["f",271.0,"FEM 271"],["f",301.0,"FEM 301"],0,0,0,0,0,0,0,0,0],
-  [["f",103.0,"A0"],["f",205.0,"T1"],["f",286.0,"286 Hz"],["f",436.0,"436 Hz"],0,0,0,0,0,0,0,0,0,0,0,0],
-  [["f",230.0,"A0"],["f",290.0,"T1"],["f",480.0,"T2"],0,0,0,0,0,0,0,0,0,0,0,0,0],
-  [["f",275.0,"A0"],["f",407.0,"CBR"],["f",475.0,"B1-"],["f",541.0,"B1+"],["f",469.0,"A1"],0,0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  [["f",1100.0,"formant 1.1k"],["f",1400.0,"formant 1.4k"],["f",2800.0,"formant 2.8k"],["f",3200.0,"formant 3.2k"],0,0,0,0,["r",1.0,"cluster 1"],["r",2.73,"cluster 2"],["r",3.0,"cluster 3"],["r",3.29,"cluster 4"],["r",6.43,"cluster 5"],["r",7.0,"cluster 6"],["r",7.61,"cluster 7"],["r",10.57,"cluster 8"]],
-  [["f",780.0,"brass 780"],["f",1750.0,"brass 1750"],0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-  [0,0,0,0,0,0,0,0,["r",0.99273,"pair 1-"],["r",1.00727,"pair 1+"],["r",1.99741,"pair 2-"],["r",2.02059,"pair 2+"],["r",3.0045,"pair 3-"],["r",3.0395,"pair 3+"],["r",5.02432,"pair 4-"],["r",5.07568,"pair 4+"]]
-];
+// MODE_IDS (identity of the 16 lineModes slots per body, anchor order) is generated into 00_header.js from plugin/bodies.json `modes` by tools/build_ui.py.
 const lv = (el, v) => {   // write the --lv custom property only when it visibly changed
     const s = v.toFixed(3);
     if (el._lv !== s) { el._lv = s; el.style.setProperty("--lv", s); }
@@ -130,6 +115,7 @@ const TelemetryMethods = {
     // ---- frame loop: re-armed only while something moves --------------------------------------
     kick() {
         if (this._raf || !this._mounted) return;
+        if (this.resizing()) { this.stale = true; return; }   // 07 section 3: nothing is scheduled during a window drag; the settle timer re-kicks
         this.prevTime = performance.now() - 16;
         this._raf = requestAnimationFrame(this._tick);
     },

@@ -14,8 +14,7 @@ const unitsOf = (kind, px) => Number((px * 200 / DIAL_PX[kind]).toFixed(1));
 const ARC_RADIUS = 91;                                   // as index.js:39-40
 // One light, top-left (R11 R2): unit-ish vector from the object towards the light; every highlight and shadow derives from it.
 const LIGHT_X = -.6, LIGHT_Y = -.8;
-// Tune ceiling per anchor in MIDI notes (plugin/bodies.json tuneNoteRange): Timpani stops at C4, so its arc is greyed above that.
-const TUNE_NOTE_MAX = [72, 72, 60, 72, 72, 72, 72, 72, 72, 72, 72];
+// TUNE_NOTE_MAX (generated block in 00_header.js, from plugin/bodies.json): Timpani stops at C4, so its Tune arc is greyed above that.
 const polar = (angle, r) => { const t = (angle - 90) * Math.PI / 180; return [100 + r * Math.cos(t), 100 + r * Math.sin(t)]; };
 const arcPath = (from, to) => {
     if (Math.abs(to - from) < .001) return "";
