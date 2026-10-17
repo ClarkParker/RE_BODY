@@ -1,153 +1,818 @@
-// RE-BODY modal bodies (concept sections 2, 3, 4, 16). Per line, the body is
-//  (a) one shared log pole GRID (96 poles, 60 Hz .. 8 kHz) that carries the dense fixed-Hz
-//      response (soundboard, box hump, bridge hill, bell and brass radiation); each body owns a
-//      signed L/R gain vector over the grid, Size shifts the grid, Material/Decay set the T60 law;
-//  (b) per-body SLOTS: up to 8 fixed-Hz feature modes and 10 Tune-following modes per body,
-//      for 11 bodies, with BODY-style tail holding (a body at weight 0 keeps its last voicing).
-// Every mode is a complex one-pole (phasor, coupled form) as BODY:604-613: click-free under
-// modulation by construction. Coefficients are stepped from a target at the 32-sample control
-// tick (BODY:579), so the per-sample cost is the coupled-form update only.
+// RE-BODY modal bodies (concept 20 sections 2-4, 6, 7, 14, 16; docs/dev/00_P1_CONTRACTS.md "P2 additions").
 //
-// P1 provides the final-size state and the pure step helpers; the table-driven control logic
-// (blended T60, normalisation, Size shift, staggered recompute) is P2.
+// Per line the body is
+//  (a) one shared log pole GRID: the 96 poles of rebody::tables::gridHz (60 Hz .. 8 kHz), stereo. Size
+//      shifts every pole (+-1 oct), Decay and Material set the per-pole T60 law, and the caller supplies
+//      the morph-interpolated signed L/R gain vectors (gainVectorBlend) at control rate. The poles are
+//      shared by all bodies, so stored energy keeps ringing through any morph (20 section 6).
+//  (b) per-body SLOTS: 11 bodies x (8 fixed-Hz feature + 10 Tune-following) stereo modes, with BODY's
+//      tail holding and a per-body energy normalisation (BODY:282-301 generalised to 18 modes).
+// Every mode is a complex one-pole in coupled form (BODY:604-613, PHYSIFY DSP:606-677):
+//      re' = c re - s im + d x,   im' = s re + c im,   output re,   c = r cos w, s = r sin w.
+// Coefficients move linearly from the current value to the target in 32 samples and snap to the target
+// at the end of the ramp (BODY:313-325, :604-609). Both ends have |r| < 1, so every pole on the straight
+// path stays inside the unit circle: click-free and stable under modulation (R10 B1, B5).
+//
+// ---- Final API (namespace rebody::modal) -----------------------------------------------------------------
+// Damping rule (20 section 4), pure functions:
+//   float t60For (float hz, float alphaG, float alphaR, float decayScale, float material)
+//       T60 in seconds, clamped to [t60Min, t60Max] = [0.001, 60]. At decayScale 1 and Material 50 it is
+//       exactly ln(1000) / (alphaG + alphaR 2 pi hz). decayScale multiplies every T60 (alphaG and alphaR
+//       scaled jointly). Material keeps T60(200 Hz) and moves rho = T60(2 kHz) / T60(200 Hz) log-linearly
+//       from max(0.1, rho/4) at 0 through the recipe rho at 50 to min(1, 4 rho) at 100. When neither bound
+//       clips, that is exactly one log-linear line from rho/4 to 4 rho; when a bound clips (pure-alphaR
+//       bodies, rho = 0.1) the two halves are log-linear on their own, so Material 50 is always the recipe
+//       (22 section 0: "pure-eta bodies react only above 50").
+//   float rhoFromAlphas (float alphaG, float alphaR)         rho at Material 50, in [0.1, 1]
+//   float materialRho (float rho50, float material)          the Material axis above
+//   float radiusFor (float sr, float t60)                    exp(-6.907755 / (sr t60)), float64 inside
+//   float driveFor (float sr, float r, float gain)           sqrt(48000/sr) gain sqrt(2 (1 - r^2)) (BODY:312, :320)
+//   bool  culled (float hz, float sr)                        hz >= 0.45 sr (Nyquist culling, 20 section 7)
+//   float decayScaleForSeconds (int body, float seconds)     Decay factor relative to Decay 50 (22 section 0):
+//       anchor-law bodies seconds / (base sqrt(ratio)); bodies behind a loop (tables::decayScaleLo > 0)
+//       lo (hi/lo)^d with d the dial position that gives these seconds (x0.5 .. x2 over the dial).
+//   float<2> lawBlend (const float[11]& weights)             grid law of the active bodies (20 section 4):
+//       log-blended T60(200 Hz), weight-blended rho, returned as (alphaG, alphaR) at Decay 50 / Material 50.
+//
+// Grid (one GridState per line). Call order per control tick (32 samples): setLaw, setGains, flush.
+//   void resetGrid (GridState& g)
+//   void setLaw (GridState& g, float sr, float alphaG, float alphaR, float decayScale, float material,
+//                float sizeShiftOct, bool hold)
+//       Pole targets from gridHz x 2^sizeShiftOct (clamped +-1 oct) and the damping rule; returns at once
+//       when no input changed (cached). Hold: radius for T60 45 s, coefficients computed in float64 and
+//       cast. Poles >= 0.45 sr get radius 0 and drive 0. The per-pole law drive driveFor(sr, rLaw, 1) is
+//       always taken at the law radius, so Hold only changes radii (Hold off = the same code path, 20 s14).
+//   void setGains (GridState& g, const float[96]& gainL, const float[96]& gainR)
+//       Drive targets = law drive x signed gain per channel; arms the 32-sample ramp of all coefficients
+//       (the first call snaps). The gains are the morph-interpolated vectors, normally from gainVectorBlend.
+//   float<2> step (GridState& g, float<2> excitation)       per sample, returns the stereo sum of re
+//   void flush (GridState& g)                                control rate: zero a lane whose energy < 1e-20
+//   bool isSilent (GridState& g)                             every lane below 1e-20
+// Slots (one SlotState per line). Per control tick: setBody for the bodies that need it (staggered, one
+// body per tick is enough; a body not called keeps its coefficients and rings out = tail holding), then
+// flush. Per sample: step for every body that is fed or still ringing (gate with isSilent).
+//   void resetSlots (SlotState& st)
+//   void setBody (SlotState& st, int body, float sr, float rootHz, float decaySeconds, float material,
+//                 float sizeShiftOct, const float[18]& positionGain, bool hold)
+//       Feature modes: tables::featureHz x 2^sizeShiftOct; their table T60 (Material 50 / Decay 50) follows
+//       the body's law ratio t60For(shifted Hz, decayScale, material) / t60For(table Hz, 1, 50), i.e. the
+//       Decay factor, the Material tilt and the law's frequency dependence under Size. Following modes:
+//       rootHz x followRatio (Tune, no Size), T60 = followT60Mult x t60For(that Hz). decayScale comes from
+//       decayScaleForSeconds(body, decaySeconds). positionGain[k] multiplies the recipe gain of slot k
+//       (k 0..7 feature, 8..17 following; 1 = recipe Position). Drive = energyGain x driveFor(sr, rLaw,
+//       recipe gain x positionGain). energyGain = sqrt(48000/sr) energyTarget / sqrt(E), E = mean over L/R
+//       of the closed-form impulse energy with all cross terms (float64, BODY:282-301), computed at the law
+//       radii and the recipe gains, cached per body and recomputed only when sr, root, decay, material or
+//       size change. Hold and Position therefore never change the normalisation (no history dependence).
+//   float<2> step (SlotState& st, int body, float<2> excitation)
+//   void flush (SlotState& st)                               control rate, all 33 lanes per channel
+//   bool isSilent (SlotState& st, int body)                  all six lanes of the body below 1e-20
+//   float slotEnergy (SlotState& st, int body, int slot)     (re^2 + im^2) mean over L/R, lineModes telemetry
+// Helpers:
+//   void gainVectorBlend (int bodyA, int bodyB, float t, float[96]& outL, float[96]& outR)
+//       (1 - t) gA + t gB from tables::gridGainL/R; t = 0 and t = 1 return the table vectors exactly.
+//   int featureCount (int body), int followCount (int body)   table counts, clamped to 0..8 / 0..10
+//
+// ---- Lane layout -----------------------------------------------------------------------------------------
+// Grid: float<8>[12] per field; lane j holds poles 8j .. 8j+7 of one channel (pole p -> lane p/8, element
+//   p%8, ascending Hz). L and R have separate state lanes (reL/imL, reR/imR) and drive lanes (dL, dR) and
+//   share the coefficient lanes (c, s), because a pole is the same in both channels.
+// Slots: SlotState.bodies[11], each a SlotBody with float<8>[3] per field:
+//   lane 0 = feature modes 0..7, lane 1 = following modes 0..7, lane 2 = following modes 8, 9 + 6 padding.
+//   Slot k (0..17) -> lane k/8, element k%8. Unused slots, culled modes and padding have c = s = d = 0, so
+//   their state stays exactly 0.
+//
+// ---- State size per line (floats; int and bool counted as one) -------------------------------------------
+//   GridState: 17 x 96 (16 coefficient/state lanes + lawDrive) + 6 keys + 4 = 1642
+//   SlotBody:  16 x 24 + 6 keys + 3 = 393;  SlotState = 11 x 393 = 4323
+//   Total 5965 floats (23.9 KB) per line, 17 895 for three lines (the P1 stub had 4902 per line).
+//
+// ---- Per-sample cost (flops, stereo, a mode update = 5 mul + 3 add) -------------------------------------
+//   Grid: 24 lane updates x 8 x 8 = 1536 + output sums 206 = about 1.74 k (24 float<8> lane updates);
+//         +384 while a 32-sample ramp runs (c, s, dL, dR).
+//   One slot body: 6 x 8 x 8 = 384 + sums 62 = about 0.45 k (6 lane updates, 25 % padding); +96 in a ramp.
+//   Typical line (grid + 2 morph bodies): about 2.6 k flops/sample; everything ringing (grid + 11 bodies)
+//   about 6.6 k static, 8.1 k while every ramp runs. No transcendental and no per-mode branch per sample:
+//   one ramp branch per bank/body. Control rate: setLaw 96 x (exp, cos, sin) in float64 only when the law
+//   changed; setBody <= 18 x (exp, cos, sin) plus <= 171 float64 pair terms (cached) for that body only.
+//
+// ---- Integration notes (no Line change needed) -----------------------------------------------------------
+// Line already holds `rebody::modal::GridState grid; rebody::modal::SlotState slots;` and initLine calls
+// resetGrid/resetSlots. The caller owns: grid law (lawBlend over the morph weights, decayScale = the
+// weight-log-blend of decayScaleForSeconds over the active bodies), the per-tick gainVectorBlend ->
+// setGains, the excitation per body (feed x contact), Hold injection muting and arming (20 section 14),
+// the -120 dB relative gating (20 section 7) and the loudness stage.
+// Grid level: each pole's drive normalises its own impulse energy to gain^2 (sqrt(2(1-r^2))). Cross terms
+// between neighbouring grid poles (they depend on the sign pattern of the body vector: alternating vectors
+// fill between poles, same-sign vectors notch) are not compensated; the "grid normalisation per
+// Size/Material/Decay" of 20 section 7 is left to the M1 loudness calibration.
+// Culling: the highest grid pole is 16 kHz at Size +1 oct, below 0.45 x 44.1 kHz (19.8 kHz), so grid
+// culling engages below about 35.6 kHz only; slot modes cull at 44.1 kHz from a root of about 1.9 kHz
+// (oboe ratio 10.57).
 
 namespace rebody::modal
 {
-    // Slot mode layout inside the flat slot arrays (index = slot mode number):
-    //   feature mode k of body b   -> b * 8 + k                      (0 .. 87)
-    //   following mode k of body b -> 88 + b * 10 + k                (88 .. 197)
-    int featureIndex (int body, int k)
+    const float lnThousand = 6.907755f;
+    const float64 levelRate = 48000.0;         // BODY's level reference rate for sqrt(levelRate / sr) (BODY:312)
+    const float referenceHz = 200.0f;          // Material keeps T60 at this frequency (20 section 4)
+    const float t60Min = 0.001f;
+    const float t60Max = 60.0f;
+    const float holdSeconds = 45.0f;           // Hold v2 radius (20 section 14)
+    const float nyquistFraction = 0.45f;       // Nyquist culling (20 section 7)
+    const float flushEnergy = 1.0e-20f;        // lane energy below this is zeroed at control rate
+    const float maxSizeOct = 1.0f;             // Size range, +-1 octave (20 section 5, block #11)
+    const int rampSamples = 32;                // control tick (BODY:579)
+    const int gridLanes = 12;                  // 96 poles / 8
+    const int slotLanes = 3;                   // 8 feature + 10 following, padded to 24
+    const int slotsPerBody = 18;
+
+    // ---- damping rule (20 section 4) --------------------------------------------------------------------
+
+    // rho = T60(2 kHz) / T60(200 Hz) of the law alpha(w) = alphaG + alphaR w, in [0.1, 1] since both >= 0.
+    float rhoFromAlphas (float alphaG, float alphaR)
     {
-        return clamp (body, 0, numBodies - 1) * featureStride + clamp (k, 0, featureStride - 1);
+        float aG = max (alphaG, 0.0f);
+        float aR = max (alphaR, 0.0f) * float (twoPi);
+        float at2k = aG + aR * 2000.0f;
+
+        if (at2k <= 0.0f)
+            return 1.0f;
+
+        return clamp ((aG + aR * referenceHz) / at2k, 0.1f, 1.0f);
     }
 
-    int followIndex (int body, int k)
+    // Material axis: max(0.1, rho/4) at 0, the recipe rho at 50, min(1, 4 rho) at 100, log-linear in between.
+    float materialRho (float rho50, float material)
     {
-        return numBodies * featureStride + clamp (body, 0, numBodies - 1) * followStride + clamp (k, 0, followStride - 1);
-    }
+        float rho = clamp (rho50, 0.1f, 1.0f);
+        float m = clamp (material, 0.0f, 100.0f);
 
-    // The 96 shared poles of one line. re/im hold the L/R phasor state; the pole (cos/sin form)
-    // and the per-channel drive ramp from the current value to the target over one control tick.
-    struct GridState
-    {
-        float<2>[96] re;
-        float<2>[96] im;
-        float[96] poleRe;
-        float[96] poleIm;
-        float[96] targetPoleRe;
-        float[96] targetPoleIm;
-        float[96] stepPoleRe;
-        float[96] stepPoleIm;
-        float<2>[96] drive;             // signed L/R input gain of each pole (blended body gains)
-        float<2>[96] targetDrive;
-        float<2>[96] stepDrive;
-    }
-
-    // The 198 slot modes of one line (11 bodies x (8 feature + 10 following)). Same layout as the
-    // grid; weight-0 bodies keep their coefficients and ring out (tail holding, BODY:226-266).
-    struct SlotState
-    {
-        float<2>[198] re;
-        float<2>[198] im;
-        float[198] poleRe;
-        float[198] poleIm;
-        float[198] targetPoleRe;
-        float[198] targetPoleIm;
-        float[198] stepPoleRe;
-        float[198] stepPoleIm;
-        float<2>[198] drive;
-        float<2>[198] targetDrive;
-        float<2>[198] stepDrive;
-        float[198] energy;              // control-rate energy estimate per mode (gating, lineModes telemetry)
-    }
-
-    // T60 in seconds of a mode at `hz` under the damping law alpha(w) = alphaG + alphaR * w
-    // (concept 4): T60 = ln(1000) / (alphaG + alphaR * 2 pi f). Never returns less than 1 ms.
-    float t60FromDamping (float hz, float alphaG, float alphaR)
-    {
-        float alpha = max (alphaG, 0.0f) + max (alphaR, 0.0f) * float (twoPi) * max (hz, 0.0f);
-        return max (0.001f, 6.907755f / max (alpha, 0.000001f));
-    }
-
-    // Pole radius for a given T60: the amplitude falls by 60 dB in t60 seconds (BODY: exp(-ln(1000)/(sr*t))).
-    float poleRadius (float t60Seconds, float sr)
-    {
-        return float (exp (-6.907755f / (max (t60Seconds, 0.001f) * max (sr, 1000.0f))));
-    }
-
-    // Cos/sin form of a pole at `hz` with the given radius. Frequencies are limited to 0.45 * sr
-    // (Nyquist culling, concept 7); the radius stays below 1 by construction.
-    float poleReal (float hz, float radius, float sr)
-    {
-        float angle = float (twoPi) * clamp (hz, 0.0f, 0.45f * max (sr, 1000.0f)) / max (sr, 1000.0f);
-        return min (radius, 0.999999f) * float (cos (angle));
-    }
-
-    float poleImag (float hz, float radius, float sr)
-    {
-        float angle = float (twoPi) * clamp (hz, 0.0f, 0.45f * max (sr, 1000.0f)) / max (sr, 1000.0f);
-        return min (radius, 0.999999f) * float (sin (angle));
-    }
-
-    // Input scaling that keeps a mode's response level independent of its radius (BODY ukeBodyDrive).
-    float driveNormalisation (float radius)
-    {
-        return 2.0f * (1.0f - min (radius, 0.999999f));
-    }
-
-    // Per-sample step that moves `current` onto `target` within `ticks` samples (control tick).
-    float rampStep (float current, float target, int ticks)
-    {
-        return (target - current) / float (max (ticks, 1));
-    }
-
-    // One coupled-form update of a stereo mode (BODY:604-613):
-    //   re' = poleRe * re - poleIm * im + drive * excitation
-    //   im' = poleIm * re + poleRe * im
-    // The modal output is re. |pole| < 1 keeps it stable.
-    void stepMode (float poleRe, float poleIm, float<2> drive, float<2> excitation, float<2>& re, float<2>& im)
-    {
-        float<2> oldRe = re;
-        float<2> oldIm = im;
-        re = poleRe * oldRe - poleIm * oldIm + drive * excitation;
-        im = poleIm * oldRe + poleRe * oldIm;
-    }
-
-    // Zero a mode whose state has decayed below `floorLevel` (flush at control rate, not per
-    // sample; BODY's 1e-12 is -240 dB, concept 7 gates at -120 dB relative).
-    void flushMode (float<2>& re, float<2>& im, float floorLevel)
-    {
-        for (int ch = 0; ch < 2; ch += 1)
+        if (m < 50.0f)
         {
-            if (abs (re.at (ch)) + abs (im.at (ch)) < floorLevel)
+            float lo = max (0.1f, 0.25f * rho);
+            return clamp (lo * float (pow (rho / lo, m / 50.0f)), 0.1f, 1.0f);
+        }
+
+        float hi = min (1.0f, 4.0f * rho);
+        return clamp (rho * float (pow (hi / rho, (m - 50.0f) / 50.0f)), 0.1f, 1.0f);
+    }
+
+    // Share of alphaG in the total damping at 200 Hz for a given rho (rho = 1 / (10 - 9 share)).
+    float shareForRho (float rho)
+    {
+        return clamp ((10.0f - 1.0f / clamp (rho, 0.1f, 1.0f)) / 9.0f, 0.0f, 1.0f);
+    }
+
+    // Law terms of one body or of the blended grid: [0] = T60(200 Hz) x decayScale, [1] = alphaG share at
+    // 200 Hz after the Material tilt. Then T60(f) = [0] / ([1] + (1 - [1]) f / 200).
+    float<2> lawTerms (float alphaG, float alphaR, float decayScale, float material)
+    {
+        float aG = max (alphaG, 0.0f);
+        float aR = max (alphaR, 0.0f);
+        float at200 = aG + aR * float (twoPi) * referenceHz;
+        float t200 = lnThousand / max (at200, 0.000001f);
+        float share = shareForRho (materialRho (rhoFromAlphas (aG, aR), material));
+        return float<2> (t200 * max (decayScale, 0.0f), share);
+    }
+
+    float t60At (float<2> terms, float hz)
+    {
+        float denominator = terms[1] + (1.0f - terms[1]) * max (hz, 0.0f) / referenceHz;
+        return clamp (terms[0] / max (denominator, 0.000001f), t60Min, t60Max);
+    }
+
+    float t60For (float hz, float alphaG, float alphaR, float decayScale, float material)
+    {
+        return t60At (lawTerms (alphaG, alphaR, decayScale, material), hz);
+    }
+
+    float64 radius64 (float sr, float t60)
+    {
+        float64 rate = float64 (max (sr, 1000.0f));
+        float64 seconds = float64 (clamp (t60, t60Min, t60Max));
+        return exp (-6.907755278982137 / (rate * seconds));
+    }
+
+    float radiusFor (float sr, float t60)
+    {
+        return float (radius64 (sr, t60));
+    }
+
+    float64 drive64 (float sr, float64 r, float64 gain)
+    {
+        float64 rr = clamp (r, 0.0, 1.0);
+        return sqrt (levelRate / float64 (max (sr, 1000.0f))) * gain * sqrt (max (0.0, 2.0 * (1.0 - rr * rr)));
+    }
+
+    float driveFor (float sr, float r, float gain)
+    {
+        return float (drive64 (sr, float64 (r), float64 (gain)));
+    }
+
+    bool culled (float hz, float sr)
+    {
+        return hz >= nyquistFraction * sr;
+    }
+
+    float decayScaleForSeconds (int body, float seconds)
+    {
+        int b = clamp (body, 0, rebody::tables::numBodies - 1);
+        float base = max (rebody::tables::decayBase.at (b), 0.0001f);
+        float ratio = max (rebody::tables::decayRatio.at (b), 1.0001f);
+        float lo = rebody::tables::decayScaleLo.at (b);
+        float hi = rebody::tables::decayScaleHi.at (b);
+        float sec = max (seconds, 0.0001f);
+
+        if (lo > 0.0f && hi > 0.0f)
+        {
+            float dial = float (log (sec / base)) / float (log (ratio));
+            return lo * float (pow (hi / lo, dial));
+        }
+
+        return sec / (base * float (sqrt (ratio)));
+    }
+
+    float<2> lawBlend (const float[11]& weights)
+    {
+        float total = 0.0f;
+        float logT200 = 0.0f;
+        float rho = 0.0f;
+
+        for (int b = 0; b < rebody::tables::numBodies; b += 1)
+        {
+            float w = max (weights.at (b), 0.0f);
+
+            if (w > 0.0f)
             {
-                re.at (ch) = 0.0f;
-                im.at (ch) = 0.0f;
+                float aG = max (rebody::tables::alphaG.at (b), 0.0f);
+                float aR = max (rebody::tables::alphaR.at (b), 0.0f);
+                float at200 = max (aG + aR * float (twoPi) * referenceHz, 0.000001f);
+                total += w;
+                logT200 += w * float (log (lnThousand / at200));
+                rho += w * rhoFromAlphas (aG, aR);
             }
         }
+
+        if (total <= 0.0f)
+            return float<2> (lnThousand, 0.0f);     // no active body: T60 1 s everywhere (benign)
+
+        float t200 = float (exp (logT200 / total));
+        float share = shareForRho (rho / total);
+        float at200Blend = lnThousand / t200;
+        return float<2> (share * at200Blend, (1.0f - share) * at200Blend / (float (twoPi) * referenceHz));
+    }
+
+    // Closed-form cross energy of the real parts of two damped phasors p_i^n and p_j^n (BODY:288-296):
+    //   sum_n Re(p_i^n) Re(p_j^n) = 0.5 Re[1/(1 - p_i conj p_j)] + 0.5 Re[1/(1 - p_i p_j)].
+    // Both denominators are |1 - q|^2 >= (1 - |p_i||p_j|)^2 > 0 for poles inside the unit circle.
+    float64 pairCorrelation (float64 ir, float64 ii, float64 jr, float64 ji)
+    {
+        float64 product = (ir * ir + ii * ii) * (jr * jr + ji * ji);
+        float64 difference = ir * jr + ii * ji;
+        float64 sumTerm = ir * jr - ii * ji;
+        return 0.5 * ((1.0 - difference) / max (1.0 - 2.0 * difference + product, 1.0e-30)
+                    + (1.0 - sumTerm) / max (1.0 - 2.0 * sumTerm + product, 1.0e-30));
+    }
+
+    // ---- grid --------------------------------------------------------------------------------------------
+
+    struct GridState
+    {
+        float<8>[12] reL, imL, reR, imR;                          // phasor state per channel
+        float<8>[12] c, s, cTarget, sTarget, cStep, sStep;        // shared pole r cos w, r sin w
+        float<8>[12] dL, dR, dLTarget, dRTarget, dLStep, dRStep;  // drive per channel = law drive x gain
+        float<8>[12] lawDrive;                                    // driveFor(sr, rLaw, 1), 0 when culled
+        float keySr, keyAlphaG, keyAlphaR, keyDecay, keyMaterial, keySize;
+        bool keyHold, lawReady, ready;
+        int rampLeft;
     }
 
     void resetGrid (GridState& g)
     {
-        for (int i = 0; i < gridPoles; i += 1)
+        for (int lane = 0; lane < gridLanes; lane += 1)
         {
-            g.re.at (i) = float<2> (0.0f);
-            g.im.at (i) = float<2> (0.0f);
-            g.drive.at (i) = float<2> (0.0f);
-            g.targetDrive.at (i) = float<2> (0.0f);
-            g.stepDrive.at (i) = float<2> (0.0f);
+            g.reL.at (lane) = float<8> (0.0f);
+            g.imL.at (lane) = float<8> (0.0f);
+            g.reR.at (lane) = float<8> (0.0f);
+            g.imR.at (lane) = float<8> (0.0f);
+            g.cStep.at (lane) = float<8> (0.0f);
+            g.sStep.at (lane) = float<8> (0.0f);
+            g.dLStep.at (lane) = float<8> (0.0f);
+            g.dRStep.at (lane) = float<8> (0.0f);
+        }
+
+        g.lawReady = false;
+        g.ready = false;
+        g.rampLeft = 0;
+    }
+
+    void setLaw (GridState& g, float sr, float alphaG, float alphaR, float decayScale, float material, float sizeShiftOct, bool hold)
+    {
+        float rate = max (sr, 1000.0f);
+        float size = clamp (sizeShiftOct, -maxSizeOct, maxSizeOct);
+
+        if (g.lawReady && rate == g.keySr && alphaG == g.keyAlphaG && alphaR == g.keyAlphaR && decayScale == g.keyDecay
+             && material == g.keyMaterial && size == g.keySize && hold == g.keyHold)
+            return;
+
+        g.keySr = rate;
+        g.keyAlphaG = alphaG;
+        g.keyAlphaR = alphaR;
+        g.keyDecay = decayScale;
+        g.keyMaterial = material;
+        g.keySize = size;
+        g.keyHold = hold;
+        g.lawReady = true;
+
+        float<2> terms = lawTerms (alphaG, alphaR, decayScale, material);
+        float64 shift = pow (2.0, float64 (size));
+        float64 holdRadius = radius64 (rate, holdSeconds);
+        float64 omega = 6.283185307179586 / float64 (rate);
+
+        for (int lane = 0; lane < gridLanes; lane += 1)
+        {
+            float<8> cT = float<8> (0.0f);
+            float<8> sT = float<8> (0.0f);
+            float<8> unit = float<8> (0.0f);
+
+            for (int k = 0; k < 8; k += 1)
+            {
+                float64 hz = float64 (rebody::tables::gridHz.at (lane * 8 + k)) * shift;
+
+                if (! culled (float (hz), rate))
+                {
+                    float64 rLaw = radius64 (rate, t60At (terms, float (hz)));
+                    float64 r = hold ? holdRadius : rLaw;
+                    float64 w = omega * hz;
+                    cT.at (k) = float (r * cos (w));
+                    sT.at (k) = float (r * sin (w));
+                    unit.at (k) = float (drive64 (rate, rLaw, 1.0));
+                }
+            }
+
+            g.cTarget.at (lane) = cT;
+            g.sTarget.at (lane) = sT;
+            g.lawDrive.at (lane) = unit;
         }
     }
 
-    void resetSlots (SlotState& s)
+    void setGains (GridState& g, const float[96]& gainL, const float[96]& gainR)
     {
-        for (int i = 0; i < slotModes; i += 1)
+        for (int lane = 0; lane < gridLanes; lane += 1)
         {
-            s.re.at (i) = float<2> (0.0f);
-            s.im.at (i) = float<2> (0.0f);
-            s.drive.at (i) = float<2> (0.0f);
-            s.targetDrive.at (i) = float<2> (0.0f);
-            s.stepDrive.at (i) = float<2> (0.0f);
+            float<8> gl = float<8> (0.0f);
+            float<8> gr = float<8> (0.0f);
+
+            for (int k = 0; k < 8; k += 1)
+            {
+                gl.at (k) = gainL.at (lane * 8 + k);
+                gr.at (k) = gainR.at (lane * 8 + k);
+            }
+
+            g.dLTarget.at (lane) = g.lawDrive.at (lane) * gl;
+            g.dRTarget.at (lane) = g.lawDrive.at (lane) * gr;
+        }
+
+        float inverse = 1.0f / float (rampSamples);
+
+        for (int lane = 0; lane < gridLanes; lane += 1)
+        {
+            if (g.ready)
+            {
+                g.cStep.at (lane) = (g.cTarget.at (lane) - g.c.at (lane)) * inverse;
+                g.sStep.at (lane) = (g.sTarget.at (lane) - g.s.at (lane)) * inverse;
+                g.dLStep.at (lane) = (g.dLTarget.at (lane) - g.dL.at (lane)) * inverse;
+                g.dRStep.at (lane) = (g.dRTarget.at (lane) - g.dR.at (lane)) * inverse;
+            }
+            else
+            {
+                g.c.at (lane) = g.cTarget.at (lane);
+                g.s.at (lane) = g.sTarget.at (lane);
+                g.dL.at (lane) = g.dLTarget.at (lane);
+                g.dR.at (lane) = g.dRTarget.at (lane);
+            }
+        }
+
+        g.rampLeft = g.ready ? rampSamples : 0;
+        g.ready = true;
+    }
+
+    float<2> step (GridState& g, float<2> excitation)
+    {
+        if (g.rampLeft > 0)
+        {
+            g.rampLeft -= 1;
+
+            if (g.rampLeft == 0)
+            {
+                g.c = g.cTarget;
+                g.s = g.sTarget;
+                g.dL = g.dLTarget;
+                g.dR = g.dRTarget;
+            }
+            else
+            {
+                for (int lane = 0; lane < gridLanes; lane += 1)
+                {
+                    g.c.at (lane) += g.cStep.at (lane);
+                    g.s.at (lane) += g.sStep.at (lane);
+                    g.dL.at (lane) += g.dLStep.at (lane);
+                    g.dR.at (lane) += g.dRStep.at (lane);
+                }
+            }
+        }
+
+        float<8> xL = float<8> (excitation[0]);
+        float<8> xR = float<8> (excitation[1]);
+        float<8> accL = float<8> (0.0f);
+        float<8> accR = float<8> (0.0f);
+
+        for (int lane = 0; lane < gridLanes; lane += 1)
+        {
+            float<8> pc = g.c.at (lane);
+            float<8> ps = g.s.at (lane);
+            float<8> re = g.reL.at (lane);
+            float<8> im = g.imL.at (lane);
+            float<8> nextL = pc * re - ps * im + g.dL.at (lane) * xL;
+            g.imL.at (lane) = ps * re + pc * im;
+            g.reL.at (lane) = nextL;
+            re = g.reR.at (lane);
+            im = g.imR.at (lane);
+            float<8> nextR = pc * re - ps * im + g.dR.at (lane) * xR;
+            g.imR.at (lane) = ps * re + pc * im;
+            g.reR.at (lane) = nextR;
+            accL += nextL;
+            accR += nextR;
+        }
+
+        return float<2> (sum (accL), sum (accR));
+    }
+
+    float laneEnergy (float<8> re, float<8> im)
+    {
+        return sum (re * re + im * im);
+    }
+
+    void flush (GridState& g)
+    {
+        for (int lane = 0; lane < gridLanes; lane += 1)
+        {
+            if (laneEnergy (g.reL.at (lane), g.imL.at (lane)) < flushEnergy)
+            {
+                g.reL.at (lane) = float<8> (0.0f);
+                g.imL.at (lane) = float<8> (0.0f);
+            }
+
+            if (laneEnergy (g.reR.at (lane), g.imR.at (lane)) < flushEnergy)
+            {
+                g.reR.at (lane) = float<8> (0.0f);
+                g.imR.at (lane) = float<8> (0.0f);
+            }
+        }
+    }
+
+    bool isSilent (GridState& g)
+    {
+        for (int lane = 0; lane < gridLanes; lane += 1)
+            if (laneEnergy (g.reL.at (lane), g.imL.at (lane)) >= flushEnergy
+                 || laneEnergy (g.reR.at (lane), g.imR.at (lane)) >= flushEnergy)
+                return false;
+
+        return true;
+    }
+
+    // ---- slots -------------------------------------------------------------------------------------------
+
+    struct SlotBody
+    {
+        float<8>[3] reL, imL, reR, imR;
+        float<8>[3] c, s, cTarget, sTarget, cStep, sStep;
+        float<8>[3] dL, dR, dLTarget, dRTarget, dLStep, dRStep;
+        float keySr, keyRoot, keyDecay, keyMaterial, keySize, energyGain;
+        bool normReady, ready;
+        int rampLeft;
+    }
+
+    struct SlotState
+    {
+        SlotBody[11] bodies;
+    }
+
+    void resetSlotBody (SlotBody& sb)
+    {
+        for (int lane = 0; lane < slotLanes; lane += 1)
+        {
+            sb.reL.at (lane) = float<8> (0.0f);
+            sb.imL.at (lane) = float<8> (0.0f);
+            sb.reR.at (lane) = float<8> (0.0f);
+            sb.imR.at (lane) = float<8> (0.0f);
+            sb.cStep.at (lane) = float<8> (0.0f);
+            sb.sStep.at (lane) = float<8> (0.0f);
+            sb.dLStep.at (lane) = float<8> (0.0f);
+            sb.dRStep.at (lane) = float<8> (0.0f);
+        }
+
+        sb.normReady = false;
+        sb.ready = false;
+        sb.rampLeft = 0;
+    }
+
+    void resetSlots (SlotState& st)
+    {
+        for (int b = 0; b < rebody::tables::numBodies; b += 1)
+            resetSlotBody (st.bodies.at (b));
+    }
+
+    int featureCount (int body)
+    {
+        return clamp (rebody::tables::featureCount.at (clamp (body, 0, rebody::tables::numBodies - 1)), 0, rebody::tables::featureStride);
+    }
+
+    int followCount (int body)
+    {
+        return clamp (rebody::tables::followCount.at (clamp (body, 0, rebody::tables::numBodies - 1)), 0, rebody::tables::followStride);
+    }
+
+    void setBodyState (SlotBody& sb, int b, float rate, float rootHz, float decaySeconds, float material, float size,
+                       const float[18]& positionGain, bool hold)
+    {
+        float aG = rebody::tables::alphaG.at (b);
+        float aR = rebody::tables::alphaR.at (b);
+        float<2> terms = lawTerms (aG, aR, decayScaleForSeconds (b, decaySeconds), material);
+        float<2> terms50 = lawTerms (aG, aR, 1.0f, 50.0f);
+        float64 shift = pow (2.0, float64 (size));
+        float64 holdRadius = radius64 (rate, holdSeconds);
+        float64 omega = 6.283185307179586 / float64 (rate);
+        int features = featureCount (b);
+        int follows = followCount (b);
+
+        float64[18] lawRe, lawIm, driveL, driveR;     // law geometry and recipe-position drives (float64)
+        float[18] cT, sT;
+
+        for (int k = 0; k < slotsPerBody; k += 1)
+        {
+            float64 hz = 0.0;
+            float t60 = t60Min;
+            float gainL = 0.0f;
+            float gainR = 0.0f;
+            bool used = false;
+
+            if (k < rebody::tables::featureStride)
+            {
+                int i = b * rebody::tables::featureStride + k;
+                float tableHz = rebody::tables::featureHz.at (i);
+                hz = float64 (tableHz) * shift;
+                t60 = rebody::tables::featureT60.at (i) / t60At (terms50, tableHz) * t60At (terms, float (hz));
+                gainL = rebody::tables::featureGainL.at (i);
+                gainR = rebody::tables::featureGainR.at (i);
+                used = k < features;
+            }
+            else
+            {
+                int i = b * rebody::tables::followStride + (k - rebody::tables::featureStride);
+                hz = float64 (max (rootHz, 1.0f)) * float64 (rebody::tables::followRatio.at (i));
+                t60 = rebody::tables::followT60Mult.at (i) * t60At (terms, float (hz));
+                gainL = rebody::tables::followGainL.at (i);
+                gainR = rebody::tables::followGainR.at (i);
+                used = k - rebody::tables::featureStride < follows;
+            }
+
+            if (used && ! culled (float (hz), rate))
+            {
+                float64 rLaw = radius64 (rate, t60);
+                float64 r = hold ? holdRadius : rLaw;
+                float64 w = omega * hz;
+                float64 unit = drive64 (rate, rLaw, 1.0);
+                lawRe.at (k) = rLaw * cos (w);
+                lawIm.at (k) = rLaw * sin (w);
+                driveL.at (k) = unit * float64 (gainL);
+                driveR.at (k) = unit * float64 (gainR);
+                cT.at (k) = float (r * cos (w));
+                sT.at (k) = float (r * sin (w));
+            }
+        }
+
+        // Energy normalisation, cached per (sr, root, decay, material, size).
+        if (! sb.normReady || rate != sb.keySr || rootHz != sb.keyRoot || decaySeconds != sb.keyDecay
+             || material != sb.keyMaterial || size != sb.keySize)
+        {
+            float64 energyL = 0.0;
+            float64 energyR = 0.0;
+
+            for (int i = 0; i < slotsPerBody; i += 1)
+            {
+                if (driveL.at (i) != 0.0 || driveR.at (i) != 0.0)
+                {
+                    for (int j = i; j < slotsPerBody; j += 1)
+                    {
+                        if (driveL.at (j) != 0.0 || driveR.at (j) != 0.0)
+                        {
+                            float64 weight = (j == i ? 1.0 : 2.0)
+                                           * pairCorrelation (lawRe.at (i), lawIm.at (i), lawRe.at (j), lawIm.at (j));
+                            energyL += weight * driveL.at (i) * driveL.at (j);
+                            energyR += weight * driveR.at (i) * driveR.at (j);
+                        }
+                    }
+                }
+            }
+
+            float64 energy = 0.5 * (energyL + energyR);
+            float64 norm = sqrt (levelRate / float64 (rate));
+            sb.energyGain = energy > 1.0e-12 ? float (norm * float64 (rebody::tables::energyTarget.at (b)) / sqrt (energy)) : 0.0f;
+            sb.keySr = rate;
+            sb.keyRoot = rootHz;
+            sb.keyDecay = decaySeconds;
+            sb.keyMaterial = material;
+            sb.keySize = size;
+            sb.normReady = true;
+        }
+
+        float64 gain = float64 (sb.energyGain);
+
+        for (int lane = 0; lane < slotLanes; lane += 1)
+        {
+            float<8> laneC = float<8> (0.0f);
+            float<8> laneS = float<8> (0.0f);
+            float<8> laneL = float<8> (0.0f);
+            float<8> laneR = float<8> (0.0f);
+
+            for (int e = 0; e < 8; e += 1)
+            {
+                int k = lane * 8 + e;
+
+                if (k < slotsPerBody)
+                {
+                    float64 position = float64 (positionGain.at (k));
+                    laneC.at (e) = cT.at (k);
+                    laneS.at (e) = sT.at (k);
+                    laneL.at (e) = float (gain * driveL.at (k) * position);
+                    laneR.at (e) = float (gain * driveR.at (k) * position);
+                }
+            }
+
+            sb.cTarget.at (lane) = laneC;
+            sb.sTarget.at (lane) = laneS;
+            sb.dLTarget.at (lane) = laneL;
+            sb.dRTarget.at (lane) = laneR;
+        }
+
+        float inverse = 1.0f / float (rampSamples);
+
+        for (int lane = 0; lane < slotLanes; lane += 1)
+        {
+            if (sb.ready)
+            {
+                sb.cStep.at (lane) = (sb.cTarget.at (lane) - sb.c.at (lane)) * inverse;
+                sb.sStep.at (lane) = (sb.sTarget.at (lane) - sb.s.at (lane)) * inverse;
+                sb.dLStep.at (lane) = (sb.dLTarget.at (lane) - sb.dL.at (lane)) * inverse;
+                sb.dRStep.at (lane) = (sb.dRTarget.at (lane) - sb.dR.at (lane)) * inverse;
+            }
+            else
+            {
+                sb.c.at (lane) = sb.cTarget.at (lane);
+                sb.s.at (lane) = sb.sTarget.at (lane);
+                sb.dL.at (lane) = sb.dLTarget.at (lane);
+                sb.dR.at (lane) = sb.dRTarget.at (lane);
+            }
+        }
+
+        sb.rampLeft = sb.ready ? rampSamples : 0;
+        sb.ready = true;
+    }
+
+    void setBody (SlotState& st, int body, float sr, float rootHz, float decaySeconds, float material, float sizeShiftOct,
+                  const float[18]& positionGain, bool hold)
+    {
+        int b = clamp (body, 0, rebody::tables::numBodies - 1);
+        setBodyState (st.bodies.at (b), b, max (sr, 1000.0f), rootHz, decaySeconds, material,
+                      clamp (sizeShiftOct, -maxSizeOct, maxSizeOct), positionGain, hold);
+    }
+
+    float<2> stepBody (SlotBody& sb, float<2> excitation)
+    {
+        if (sb.rampLeft > 0)
+        {
+            sb.rampLeft -= 1;
+
+            if (sb.rampLeft == 0)
+            {
+                sb.c = sb.cTarget;
+                sb.s = sb.sTarget;
+                sb.dL = sb.dLTarget;
+                sb.dR = sb.dRTarget;
+            }
+            else
+            {
+                for (int lane = 0; lane < slotLanes; lane += 1)
+                {
+                    sb.c.at (lane) += sb.cStep.at (lane);
+                    sb.s.at (lane) += sb.sStep.at (lane);
+                    sb.dL.at (lane) += sb.dLStep.at (lane);
+                    sb.dR.at (lane) += sb.dRStep.at (lane);
+                }
+            }
+        }
+
+        float<8> xL = float<8> (excitation[0]);
+        float<8> xR = float<8> (excitation[1]);
+        float<8> accL = float<8> (0.0f);
+        float<8> accR = float<8> (0.0f);
+
+        for (int lane = 0; lane < slotLanes; lane += 1)
+        {
+            float<8> pc = sb.c.at (lane);
+            float<8> ps = sb.s.at (lane);
+            float<8> re = sb.reL.at (lane);
+            float<8> im = sb.imL.at (lane);
+            float<8> nextL = pc * re - ps * im + sb.dL.at (lane) * xL;
+            sb.imL.at (lane) = ps * re + pc * im;
+            sb.reL.at (lane) = nextL;
+            re = sb.reR.at (lane);
+            im = sb.imR.at (lane);
+            float<8> nextR = pc * re - ps * im + sb.dR.at (lane) * xR;
+            sb.imR.at (lane) = ps * re + pc * im;
+            sb.reR.at (lane) = nextR;
+            accL += nextL;
+            accR += nextR;
+        }
+
+        return float<2> (sum (accL), sum (accR));
+    }
+
+    float<2> step (SlotState& st, int body, float<2> excitation)
+    {
+        return stepBody (st.bodies.at (clamp (body, 0, rebody::tables::numBodies - 1)), excitation);
+    }
+
+    void flushBody (SlotBody& sb)
+    {
+        for (int lane = 0; lane < slotLanes; lane += 1)
+        {
+            if (laneEnergy (sb.reL.at (lane), sb.imL.at (lane)) < flushEnergy)
+            {
+                sb.reL.at (lane) = float<8> (0.0f);
+                sb.imL.at (lane) = float<8> (0.0f);
+            }
+
+            if (laneEnergy (sb.reR.at (lane), sb.imR.at (lane)) < flushEnergy)
+            {
+                sb.reR.at (lane) = float<8> (0.0f);
+                sb.imR.at (lane) = float<8> (0.0f);
+            }
+        }
+    }
+
+    void flush (SlotState& st)
+    {
+        for (int b = 0; b < rebody::tables::numBodies; b += 1)
+            flushBody (st.bodies.at (b));
+    }
+
+    bool bodySilent (SlotBody& sb)
+    {
+        for (int lane = 0; lane < slotLanes; lane += 1)
+            if (laneEnergy (sb.reL.at (lane), sb.imL.at (lane)) >= flushEnergy
+                 || laneEnergy (sb.reR.at (lane), sb.imR.at (lane)) >= flushEnergy)
+                return false;
+
+        return true;
+    }
+
+    bool isSilent (SlotState& st, int body)
+    {
+        return bodySilent (st.bodies.at (clamp (body, 0, rebody::tables::numBodies - 1)));
+    }
+
+    float slotEnergyOf (SlotBody& sb, int slot)
+    {
+        int k = clamp (slot, 0, slotsPerBody - 1);
+        int lane = k / 8;
+        int e = k % 8;
+        float<8> reL = sb.reL.at (lane);
+        float<8> imL = sb.imL.at (lane);
+        float<8> reR = sb.reR.at (lane);
+        float<8> imR = sb.imR.at (lane);
+        return 0.5f * (reL.at (e) * reL.at (e) + imL.at (e) * imL.at (e) + reR.at (e) * reR.at (e) + imR.at (e) * imR.at (e));
+    }
+
+    float slotEnergy (SlotState& st, int body, int slot)
+    {
+        return slotEnergyOf (st.bodies.at (clamp (body, 0, rebody::tables::numBodies - 1)), slot);
+    }
+
+    // ---- helpers -----------------------------------------------------------------------------------------
+
+    void gainVectorBlend (int bodyA, int bodyB, float t, float[96]& outL, float[96]& outR)
+    {
+        int a = clamp (bodyA, 0, rebody::tables::numBodies - 1) * rebody::tables::gridPoles;
+        int b = clamp (bodyB, 0, rebody::tables::numBodies - 1) * rebody::tables::gridPoles;
+        float u = clamp (t, 0.0f, 1.0f);
+        float v = 1.0f - u;
+
+        for (int k = 0; k < rebody::tables::gridPoles; k += 1)
+        {
+            outL.at (k) = v * rebody::tables::gridGainL.at (a + k) + u * rebody::tables::gridGainL.at (b + k);
+            outR.at (k) = v * rebody::tables::gridGainR.at (a + k) + u * rebody::tables::gridGainR.at (b + k);
         }
     }
 }

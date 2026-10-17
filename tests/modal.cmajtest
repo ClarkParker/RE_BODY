@@ -1,0 +1,609 @@
+// RE.BODY modal engine tests (rebody::modal, src/dsp/40_modal.cmajor) - run: cmaj test tests/modal.cmajtest
+//
+// The table data comes from tests/tables_data.cmajor (namespace-form copy written by tools/bodytab.py, identical
+// to src/dsp/10_tables.cmajor under --emit namespace); the modal code is the real source file.
+// Contract: docs/dev/00_P1_CONTRACTS.md (P2 additions), 20_DSP_CONCEPT sections 4, 7, 14, 16.
+// Typed locals only (no let), .at(i) indexing, float(...) around intrinsics.
+
+## global ("tables_data.cmajor", "../src/dsp/40_modal.cmajor")
+
+## testFunction()
+
+bool near (float a, float b, float tol) { return abs (a - b) <= tol; }
+bool nearRel (float a, float b, float rel) { return abs (a - b) <= rel * max (abs (a), abs (b)); }
+
+float lawT60 (float hz, float alphaG, float alphaR)
+{
+    return 6.907755f / (alphaG + alphaR * float (twoPi) * hz);
+}
+
+float poleMagnitude (float re, float im)
+{
+    return float (sqrt (float64 (re) * float64 (re) + float64 (im) * float64 (im)));
+}
+
+void zeroGains (float[96]& gl, float[96]& gr)
+{
+    for (int k = 0; k < 96; k += 1) { gl.at (k) = 0.0f; gr.at (k) = 0.0f; }
+}
+
+void unitPosition (float[18]& p)
+{
+    for (int k = 0; k < 18; k += 1) p.at (k) = 1.0f;
+}
+
+// ---- damping rule (20 section 4) -------------------------------------------------------------------------
+
+bool rhoStaysInBoundsForEveryBodyAndMaterial()
+{
+    for (int b = 0; b < 11; b += 1)
+    {
+        float rho50 = rebody::modal::rhoFromAlphas (rebody::tables::alphaG.at (b), rebody::tables::alphaR.at (b));
+        if (rho50 < 0.1f || rho50 > 1.0f) return false;
+
+        for (int m = 0; m <= 100; m += 5)
+        {
+            float rho = rebody::modal::materialRho (rho50, float (m));
+            if (rho < 0.1f || rho > 1.0f) return false;
+        }
+    }
+
+    // extreme alphas: pure alphaR is the 0.1 limit, pure alphaG the 1.0 limit
+    return near (rebody::modal::rhoFromAlphas (0.0f, 0.01f), 0.1f, 0.000001f)
+        && rebody::modal::rhoFromAlphas (10.0f, 0.0f) == 1.0f
+        && near (rebody::modal::materialRho (0.1f, 0.0f), 0.1f, 0.000001f)
+        && near (rebody::modal::materialRho (1.0f, 100.0f), 1.0f, 0.000001f);
+}
+
+bool materialEndpointsFollowTheRule()
+{
+    for (int b = 0; b < 11; b += 1)
+    {
+        float rho = rebody::modal::rhoFromAlphas (rebody::tables::alphaG.at (b), rebody::tables::alphaR.at (b));
+        if (rebody::modal::materialRho (rho, 50.0f) != rho) return false;
+        if (! nearRel (rebody::modal::materialRho (rho, 0.0f), max (0.1f, 0.25f * rho), 0.00001f)) return false;
+        if (! nearRel (rebody::modal::materialRho (rho, 100.0f), min (1.0f, 4.0f * rho), 0.00001f)) return false;
+    }
+
+    // unclipped rho: one log-linear line from rho/4 to 4 rho (Material 25 = rho/2, Material 75 = 2 rho)
+    // clipped bounds: each half is log-linear on its own; pure-alphaR bodies (rho 0.1) react only above 50
+    for (int m = 0; m <= 50; m += 5)
+        if (rebody::modal::materialRho (0.1f, float (m)) != 0.1f) return false;
+
+    return nearRel (rebody::modal::materialRho (0.6f, 25.0f), 0.3f, 0.00001f)
+        && nearRel (rebody::modal::materialRho (0.2f, 75.0f), 0.4f, 0.00001f)
+        && rebody::modal::materialRho (0.1f, 75.0f) > 0.1f
+        && nearRel (rebody::modal::materialRho (0.5f, 45.0f), 0.125f * float (pow (4.0f, 0.9f)), 0.00001f)
+        && nearRel (rebody::modal::materialRho (0.5f, 75.0f), 0.5f * float (pow (2.0f, 0.5f)), 0.00001f);
+}
+
+bool t60RatioEqualsMaterialRho()
+{
+    for (int b = 0; b < 11; b += 1)
+    {
+        float aG = rebody::tables::alphaG.at (b);
+        float aR = rebody::tables::alphaR.at (b);
+        float rho50 = rebody::modal::rhoFromAlphas (aG, aR);
+
+        for (int m = 0; m <= 100; m += 10)
+        {
+            float ratio = rebody::modal::t60For (2000.0f, aG, aR, 1.0f, float (m)) / rebody::modal::t60For (200.0f, aG, aR, 1.0f, float (m));
+            if (! nearRel (ratio, rebody::modal::materialRho (rho50, float (m)), 0.0002f)) return false;
+        }
+    }
+
+    return true;
+}
+
+bool t60At200HzInvariantUnderMaterial()
+{
+    for (int b = 0; b < 11; b += 1)
+    {
+        float aG = rebody::tables::alphaG.at (b);
+        float aR = rebody::tables::alphaR.at (b);
+        float reference = rebody::modal::t60For (200.0f, aG, aR, 1.0f, 50.0f);
+
+        for (int m = 0; m <= 100; m += 5)
+            if (! nearRel (rebody::modal::t60For (200.0f, aG, aR, 1.0f, float (m)), reference, 0.00001f)) return false;
+    }
+
+    return true;
+}
+
+bool materialFiftyAndDecayOneIsTheTableLaw()
+{
+    for (int b = 0; b < 11; b += 1)
+    {
+        float aG = rebody::tables::alphaG.at (b);
+        float aR = rebody::tables::alphaR.at (b);
+
+        for (int k = 0; k < 96; k += 5)
+        {
+            float hz = rebody::tables::gridHz.at (k);
+            float expected = lawT60 (hz, aG, aR);
+            if (expected < 60.0f && ! nearRel (rebody::modal::t60For (hz, aG, aR, 1.0f, 50.0f), expected, 0.0002f)) return false;
+        }
+    }
+
+    return true;
+}
+
+bool t60MonotoneInDecay()
+{
+    for (int b = 0; b < 11; b += 1)
+    {
+        float aG = rebody::tables::alphaG.at (b);
+        float aR = rebody::tables::alphaR.at (b);
+
+        for (int k = 0; k < 96; k += 19)
+        {
+            float hz = rebody::tables::gridHz.at (k);
+            float previous = 0.0f;
+
+            for (int d = 1; d <= 20; d += 1)
+            {
+                float t = rebody::modal::t60For (hz, aG, aR, 0.1f * float (d), 30.0f);
+                bool clamped = t <= rebody::modal::t60Min || t >= rebody::modal::t60Max;
+                if (! clamped && ! (t > previous)) return false;
+                if (t < previous) return false;
+                previous = t;
+            }
+
+            // joint scaling: every T60 multiplied by the same factor
+            float one = rebody::modal::t60For (hz, aG, aR, 1.0f, 70.0f);
+            float two = rebody::modal::t60For (hz, aG, aR, 2.0f, 70.0f);
+            if (one > rebody::modal::t60Min && two < rebody::modal::t60Max && ! nearRel (two, 2.0f * one, 0.00001f)) return false;
+        }
+    }
+
+    return true;
+}
+
+bool decayScaleIsOneAtDecayFifty()
+{
+    for (int b = 0; b < 11; b += 1)
+    {
+        float seconds50 = rebody::tables::decayBase.at (b) * float (pow (rebody::tables::decayRatio.at (b), 0.5f));
+        float seconds0 = rebody::tables::decayBase.at (b);
+        float seconds100 = rebody::tables::decayBase.at (b) * rebody::tables::decayRatio.at (b);
+        if (! near (rebody::modal::decayScaleForSeconds (b, seconds50), 1.0f, 0.0002f)) return false;
+
+        float lo = rebody::tables::decayScaleLo.at (b);
+        float hi = rebody::tables::decayScaleHi.at (b);
+        float expectLo = lo > 0.0f ? lo : seconds0 / seconds50;
+        float expectHi = hi > 0.0f ? hi : seconds100 / seconds50;
+        if (! nearRel (rebody::modal::decayScaleForSeconds (b, seconds0), expectLo, 0.0002f)) return false;
+        if (! nearRel (rebody::modal::decayScaleForSeconds (b, seconds100), expectHi, 0.0002f)) return false;
+    }
+
+    return true;
+}
+
+bool lawBlendOfOneBodyIsThatBody()
+{
+    for (int b = 0; b < 11; b += 1)
+    {
+        float[11] w;
+        w.at (b) = 1.0f;
+        float<2> law = rebody::modal::lawBlend (w);
+        float aG = rebody::tables::alphaG.at (b);
+        float aR = rebody::tables::alphaR.at (b);
+        if (! nearRel (rebody::modal::t60For (200.0f, law[0], law[1], 1.0f, 50.0f), lawT60 (200.0f, aG, aR), 0.0002f)) return false;
+        if (! nearRel (rebody::modal::t60For (2000.0f, law[0], law[1], 1.0f, 50.0f), lawT60 (2000.0f, aG, aR), 0.0002f)) return false;
+    }
+
+    // two bodies: log-blended T200, weight-blended rho
+    float[11] pair;
+    pair.at (0) = 0.25f;
+    pair.at (4) = 0.75f;
+    float<2> blend = rebody::modal::lawBlend (pair);
+    float t200 = float (exp (0.25f * float (log (lawT60 (200.0f, 17.6f, 0.00365f))) + 0.75f * float (log (lawT60 (200.0f, 0.0f, 0.025f)))));
+    float rho = 0.25f * rebody::modal::rhoFromAlphas (17.6f, 0.00365f) + 0.75f * rebody::modal::rhoFromAlphas (0.0f, 0.025f);
+    return nearRel (rebody::modal::t60For (200.0f, blend[0], blend[1], 1.0f, 50.0f), t200, 0.0002f)
+        && nearRel (rebody::modal::rhoFromAlphas (blend[0], blend[1]), rho, 0.0002f);
+}
+
+// ---- radius and drive -------------------------------------------------------------------------------------
+
+bool radiusInsideUnitCircleAtAllRates()
+{
+    float[4] rates = (44100.0f, 48000.0f, 96000.0f, 192000.0f);
+
+    for (int i = 0; i < 4; i += 1)
+    {
+        float sr = rates.at (i);
+
+        for (int k = 0; k <= 40; k += 1)
+        {
+            float t60 = 0.009f * float (pow (60.0f / 0.009f, float (k) / 40.0f));
+            float r = rebody::modal::radiusFor (sr, t60);
+            if (! (r > 0.0f && r < 1.0f)) return false;
+
+            // 60 dB after t60 seconds
+            float64 decayed = pow (float64 (rebody::modal::radius64 (sr, t60)), float64 (sr) * float64 (t60));
+            if (abs (decayed - 0.001) > 0.000001) return false;
+        }
+    }
+
+    return true;
+}
+
+bool driveMatchesBodyFormula()
+{
+    float r = 0.99f;
+    float expected48 = 0.7f * float (sqrt (2.0f * (1.0f - r * r)));
+    return nearRel (rebody::modal::driveFor (48000.0f, r, 0.7f), expected48, 0.00001f)
+        && nearRel (rebody::modal::driveFor (96000.0f, r, 0.7f), expected48 * float (sqrt (0.5f)), 0.00001f)
+        && nearRel (rebody::modal::driveFor (44100.0f, r, -1.0f), -float (sqrt (48000.0f / 44100.0f)) * float (sqrt (2.0f * (1.0f - r * r))), 0.00001f)
+        && rebody::modal::driveFor (48000.0f, 0.0f, 1.0f) == float (sqrt (2.0f));
+}
+
+// ---- energy normalisation (BODY:282-301) ------------------------------------------------------------------
+
+bool singleModeEnergyEqualsClosedForm()
+{
+    float64 r = 0.9995;
+    float64 w = 2.0 * 3.141592653589793 * 440.0 / 48000.0;
+    float64 pr = r * cos (w);
+    float64 pi2 = r * sin (w);
+    float64 closed = 0.5 * (1.0 / (1.0 - r * r) + (1.0 - r * r * cos (2.0 * w)) / (1.0 - 2.0 * r * r * cos (2.0 * w) + r * r * r * r));
+    float64 formula = rebody::modal::pairCorrelation (pr, pi2, pr, pi2);
+
+    // brute-force impulse response energy of Re(p^n)
+    float64 re = 1.0;
+    float64 im = 0.0;
+    float64 energy = 0.0;
+
+    for (int n = 0; n < 200000; n += 1)
+    {
+        energy += re * re;
+        float64 nr = pr * re - pi2 * im;
+        im = pi2 * re + pr * im;
+        re = nr;
+    }
+
+    return abs (formula - closed) <= 1.0e-9 * closed && abs (energy - closed) <= 1.0e-6 * closed;
+}
+
+bool crossTermMatchesBruteForce()
+{
+    float64 pr1 = 0.999 * cos (0.05);
+    float64 pi1 = 0.999 * sin (0.05);
+    float64 pr2 = 0.998 * cos (0.052);
+    float64 pi2 = 0.998 * sin (0.052);
+    float64 r1 = 1.0;
+    float64 i1 = 0.0;
+    float64 r2 = 1.0;
+    float64 i2 = 0.0;
+    float64 cross = 0.0;
+
+    for (int n = 0; n < 100000; n += 1)
+    {
+        cross += r1 * r2;
+        float64 a = pr1 * r1 - pi1 * i1;
+        i1 = pi1 * r1 + pr1 * i1;
+        r1 = a;
+        float64 b = pr2 * r2 - pi2 * i2;
+        i2 = pi2 * r2 + pr2 * i2;
+        r2 = b;
+    }
+
+    float64 formula = rebody::modal::pairCorrelation (pr1, pi1, pr2, pi2);
+    return abs (formula - cross) <= 1.0e-6 * abs (cross);
+}
+
+// A single-mode body: the slot output of a unit impulse carries exactly (norm x energyTarget)^2.
+float slotImpulseEnergy (int body, float sr, float rootHz, float decaySeconds, float material, int samples)
+{
+    rebody::modal::SlotState st;
+    rebody::modal::resetSlots (st);
+    float[18] position;
+    unitPosition (position);
+    rebody::modal::setBody (st, body, sr, rootHz, decaySeconds, material, 0.0f, position, false);
+    float64 energyL = 0.0;
+    float64 energyR = 0.0;
+
+    for (int n = 0; n < samples; n += 1)
+    {
+        float<2> y = rebody::modal::step (st, body, n == 0 ? float<2> (1.0f) : float<2> (0.0f));
+        energyL += float64 (y[0]) * float64 (y[0]);
+        energyR += float64 (y[1]) * float64 (y[1]);
+    }
+
+    return float (0.5 * (energyL + energyR));
+}
+
+bool slotEnergyNormalisationWithCrossTerms()
+{
+    // Bass drum: 2 features + 7 following modes incl. the close 0.94 / 1.00 / 1.07 pair (cross terms matter).
+    float target = rebody::tables::energyTarget.at (0);
+    float bass = slotImpulseEnergy (0, 48000.0f, 73.6f, 0.358f, 50.0f, 96000);
+    // Oboe: 4 formants + 8 cluster modes; Material 0 and 96 kHz (norm^2 = 0.5).
+    float oboe = slotImpulseEnergy (8, 96000.0f, 220.0f, 0.6f, 0.0f, 96000);
+    // Obosaxolele beating pairs (long T60 multipliers).
+    float obosax = slotImpulseEnergy (10, 48000.0f, 220.0f, 0.46f, 80.0f, 480000);
+    // Fiddle at 44.1 kHz: five feature modes with L != R gains (normalised on the mean of L and R).
+    float fiddle = slotImpulseEnergy (6, 44100.0f, 220.0f, 0.9f, 50.0f, 88200);
+    float fiddleTarget = rebody::tables::energyTarget.at (6);
+    return nearRel (fiddle, (48000.0f / 44100.0f) * fiddleTarget * fiddleTarget, 0.01f)
+        && nearRel (bass, target * target, 0.01f)
+        && nearRel (oboe, 0.5f * target * target, 0.01f)
+        && nearRel (obosax, target * target, 0.01f);
+}
+
+bool normalisationCachedAndHoldIndependent()
+{
+    rebody::modal::SlotState st;
+    rebody::modal::resetSlots (st);
+    float[18] position;
+    unitPosition (position);
+    rebody::modal::setBody (st, 2, 48000.0f, 110.0f, 1.4f, 50.0f, 0.0f, position, false);
+    float gain = st.bodies.at (2).energyGain;
+    rebody::modal::setBody (st, 2, 48000.0f, 110.0f, 1.4f, 50.0f, 0.0f, position, true);
+    bool holdKeeps = st.bodies.at (2).energyGain == gain;
+    position.at (8) = 0.5f;
+    rebody::modal::setBody (st, 2, 48000.0f, 110.0f, 1.4f, 50.0f, 0.0f, position, false);
+    bool positionKeeps = st.bodies.at (2).energyGain == gain;
+    rebody::modal::setBody (st, 2, 48000.0f, 130.0f, 1.4f, 50.0f, 0.0f, position, false);
+    bool rootChanges = st.bodies.at (2).energyGain != gain;
+    return gain > 0.0f && holdKeeps && positionKeeps && rootChanges;
+}
+
+// ---- grid -------------------------------------------------------------------------------------------------
+
+bool gridImpulseOnOneLaneDecaysByTheLaw()
+{
+    float sr = 48000.0f;
+    float aG = rebody::tables::alphaG.at (4);
+    float aR = rebody::tables::alphaR.at (4);
+    rebody::modal::GridState g;
+    rebody::modal::resetGrid (g);
+    rebody::modal::setLaw (g, sr, aG, aR, 1.0f, 50.0f, 0.0f, false);
+    float[96] gl;
+    float[96] gr;
+    zeroGains (gl, gr);
+    int pole = 43;                       // lane 5, element 3
+    gl.at (pole) = 1.0f;
+    gr.at (pole) = -0.5f;
+    rebody::modal::setGains (g, gl, gr);
+
+    float<2> first = rebody::modal::step (g, float<2> (1.0f));
+    float<8> re = g.reL.at (5);
+    float<8> im = g.imL.at (5);
+    float start = poleMagnitude (re[3], im[3]);
+    bool outputIsThatPole = first[0] == re[3] && near (first[1], -0.5f * re[3], 0.0000001f);
+
+    float t60 = rebody::modal::t60For (rebody::tables::gridHz.at (pole), aG, aR, 1.0f, 50.0f);
+    int samples = int (t60 * sr / 3.0f);       // about 20 dB of decay
+
+    for (int n = 0; n < samples; n += 1)
+        rebody::modal::step (g, float<2> (0.0f));
+
+    re = g.reL.at (5);
+    im = g.imL.at (5);
+    float expected = float (pow (rebody::modal::radius64 (sr, t60), float64 (samples)));
+    float measured = poleMagnitude (re[3], im[3]) / start;
+    bool rightChannel = nearRel (poleMagnitude (g.reR.at (5)[3], g.imR.at (5)[3]), 0.5f * poleMagnitude (re[3], im[3]), 0.0001f);
+    return outputIsThatPole && rightChannel && nearRel (measured, expected, 0.01f) && expected > 0.01f && expected < 0.9f
+        && nearRel (start, rebody::modal::driveFor (sr, rebody::modal::radiusFor (sr, t60), 1.0f), 0.001f);
+}
+
+bool gridRampSnapsToTargetAfter32Samples()
+{
+    rebody::modal::GridState g;
+    rebody::modal::resetGrid (g);
+    float[96] gl;
+    float[96] gr;
+    zeroGains (gl, gr);
+    rebody::modal::setLaw (g, 48000.0f, 0.0f, 0.025f, 1.0f, 50.0f, 0.0f, false);
+    rebody::modal::setGains (g, gl, gr);
+    rebody::modal::setLaw (g, 48000.0f, 0.0f, 0.025f, 1.0f, 50.0f, 0.5f, false);   // Size +0.5 oct
+    rebody::modal::setGains (g, gl, gr);
+    if (g.rampLeft != 32) return false;
+
+    for (int n = 0; n < 16; n += 1) rebody::modal::step (g, float<2> (0.0f));
+    float<8> half = (g.c.at (6) - g.cTarget.at (6)) / (g.cStep.at (6) * 16.0f);
+    bool midway = near (half[0], -1.0f, 0.001f);
+    for (int n = 0; n < 16; n += 1) rebody::modal::step (g, float<2> (0.0f));
+
+    for (int lane = 0; lane < 12; lane += 1)
+        for (int k = 0; k < 8; k += 1)
+            if (g.c.at (lane).at (k) != g.cTarget.at (lane).at (k) || g.s.at (lane).at (k) != g.sTarget.at (lane).at (k))
+                return false;
+
+    // the size shift moved every pole up by half an octave
+    float w = float (atan2 (g.s.at (0)[0], g.c.at (0)[0]));
+    return midway && g.rampLeft == 0 && nearRel (w, float (twoPi) * 60.0f * float (sqrt (2.0f)) / 48000.0f, 0.0001f);
+}
+
+bool gridNyquistCulling()
+{
+    // the predicate at 44.1 kHz
+    bool predicate = rebody::modal::culled (19845.0f, 44100.0f) && ! rebody::modal::culled (19800.0f, 44100.0f);
+
+    // 44.1 kHz, Size +1 oct: the top pole is 16 kHz < 19.845 kHz, nothing is culled
+    rebody::modal::GridState g;
+    rebody::modal::resetGrid (g);
+    rebody::modal::setLaw (g, 44100.0f, 17.6f, 0.00365f, 1.0f, 50.0f, 1.0f, false);
+    bool noneAt44 = g.lawDrive.at (11)[7] > 0.0f && poleMagnitude (g.cTarget.at (11)[7], g.sTarget.at (11)[7]) > 0.5f;
+
+    // 32 kHz, Size +1 oct: poles 93..95 (14.4 / 15.2 / 16 kHz) are >= 14.4 kHz and culled, pole 92 is live
+    rebody::modal::setLaw (g, 32000.0f, 17.6f, 0.00365f, 1.0f, 50.0f, 1.0f, false);
+    bool culledTop = true;
+
+    for (int k = 5; k < 8; k += 1)
+        if (g.lawDrive.at (11).at (k) != 0.0f || g.cTarget.at (11).at (k) != 0.0f || g.sTarget.at (11).at (k) != 0.0f)
+            culledTop = false;
+
+    bool liveBelow = g.lawDrive.at (11)[4] > 0.0f && g.cTarget.at (11)[4] != 0.0f;
+    return predicate && noneAt44 && culledTop && liveBelow;
+}
+
+bool slotNyquistCullingAt44k()
+{
+    // Oboe at a 2 kHz root: following mode 7 (ratio 10.57 -> 21.1 kHz) is culled at 44.1 kHz, mode 6 (15.2 kHz) is live.
+    rebody::modal::SlotState st;
+    rebody::modal::resetSlots (st);
+    float[18] position;
+    unitPosition (position);
+    rebody::modal::setBody (st, 8, 44100.0f, 2000.0f, 0.6f, 50.0f, 0.0f, position, false);
+    float<8> c = st.bodies.at (8).cTarget.at (1);
+    float<8> s = st.bodies.at (8).sTarget.at (1);
+    float<8> dl = st.bodies.at (8).dLTarget.at (1);
+    float<8> dr = st.bodies.at (8).dRTarget.at (1);
+    return c[7] == 0.0f && s[7] == 0.0f && dl[7] == 0.0f && dr[7] == 0.0f
+        && c[6] != 0.0f && dl[6] != 0.0f;
+}
+
+bool holdRadiusAtLeast099999()
+{
+    rebody::modal::GridState g;
+    rebody::modal::resetGrid (g);
+    rebody::modal::setLaw (g, 48000.0f, 37.3f, 0.00085f, 0.3f, 0.0f, 0.0f, true);
+
+    for (int lane = 0; lane < 12; lane += 1)
+    {
+        for (int k = 0; k < 8; k += 1)
+        {
+            float m = poleMagnitude (g.cTarget.at (lane).at (k), g.sTarget.at (lane).at (k));
+            if (! (m >= 0.99999f && m < 1.0f)) return false;
+        }
+    }
+
+    // the drive stays the law drive (Hold changes radii only)
+    rebody::modal::GridState free;
+    rebody::modal::resetGrid (free);
+    rebody::modal::setLaw (free, 48000.0f, 37.3f, 0.00085f, 0.3f, 0.0f, 0.0f, false);
+
+    for (int lane = 0; lane < 12; lane += 1)
+        if (free.lawDrive.at (lane)[0] != g.lawDrive.at (lane)[0] || poleMagnitude (free.cTarget.at (lane)[0], free.sTarget.at (lane)[0]) > 0.9999f)
+            return false;
+
+    // slots too
+    rebody::modal::SlotState st;
+    rebody::modal::resetSlots (st);
+    float[18] position;
+    unitPosition (position);
+    rebody::modal::setBody (st, 0, 48000.0f, 73.6f, 0.358f, 50.0f, 0.0f, position, true);
+    float<8> c = st.bodies.at (0).cTarget.at (1);
+    float<8> s = st.bodies.at (0).sTarget.at (1);
+    float m0 = poleMagnitude (c[0], s[0]);
+    return m0 >= 0.99999f && m0 < 1.0f;
+}
+
+bool gridStaysBoundedAndFlushesToSilence()
+{
+    rebody::modal::GridState g;
+    rebody::modal::resetGrid (g);
+    float[96] gl;
+    float[96] gr;
+    rebody::modal::gainVectorBlend (3, 4, 0.5f, gl, gr);
+    rebody::modal::setLaw (g, 48000.0f, 0.0f, 0.02f, 0.5f, 50.0f, 0.0f, false);
+    rebody::modal::setGains (g, gl, gr);
+    float peak = 0.0f;
+    bool silentAtSomePoint = false;
+
+    for (int n = 0; n < 240000; n += 1)
+    {
+        float<2> y = rebody::modal::step (g, n < 480 ? float<2> (0.5f, -0.5f) : float<2> (0.0f));
+        peak = max (peak, max (abs (y[0]), abs (y[1])));
+
+        if (n % 32 == 31)
+        {
+            rebody::modal::setLaw (g, 48000.0f, 0.0f, 0.02f, 0.5f, 50.0f, 0.0f, false);
+            rebody::modal::setGains (g, gl, gr);
+            rebody::modal::flush (g);
+            if (n == 511 && rebody::modal::isSilent (g)) return false;
+            if (rebody::modal::isSilent (g)) silentAtSomePoint = true;
+        }
+    }
+
+    float<8> re = g.reL.at (0);
+    return peak > 0.01f && peak < 10.0f && silentAtSomePoint && re[0] == 0.0f;
+}
+
+// ---- slots: tail holding, silence ---------------------------------------------------------------------------
+
+bool slotTailHoldingAndSilence()
+{
+    rebody::modal::SlotState st;
+    rebody::modal::resetSlots (st);
+    float[18] position;
+    unitPosition (position);
+    rebody::modal::setBody (st, 1, 48000.0f, 229.0f, 0.283f, 50.0f, 0.0f, position, false);
+    rebody::modal::step (st, 1, float<2> (1.0f));
+    bool ringing = ! rebody::modal::isSilent (st, 1) && rebody::modal::isSilent (st, 0) && rebody::modal::slotEnergy (st, 1, 8) > 0.0f;
+
+    // withdraw the snare (no more setBody), voice the bass drum: the snare keeps its coefficients and rings
+    float<8> before = st.bodies.at (1).c.at (1);
+
+    for (int n = 0; n < 4800; n += 1)
+    {
+        if (n % 32 == 0)
+        {
+            rebody::modal::setBody (st, 0, 48000.0f, 73.6f, 0.358f, 50.0f, 0.0f, position, false);
+            rebody::modal::flush (st);
+        }
+
+        rebody::modal::step (st, 0, float<2> (0.0f));
+        rebody::modal::step (st, 1, float<2> (0.0f));
+    }
+
+    float<8> after = st.bodies.at (1).c.at (1);
+    bool held = before[0] == after[0] && ! rebody::modal::isSilent (st, 1);
+
+    for (int n = 0; n < 480000 && ! rebody::modal::isSilent (st, 1); n += 1)
+    {
+        rebody::modal::step (st, 1, float<2> (0.0f));
+        if (n % 32 == 0) rebody::modal::flush (st);
+    }
+
+    rebody::modal::flush (st);
+    return ringing && held && rebody::modal::isSilent (st, 1) && rebody::modal::slotEnergy (st, 1, 8) == 0.0f;
+}
+
+bool unusedSlotsAndPaddingStayZero()
+{
+    rebody::modal::SlotState st;
+    rebody::modal::resetSlots (st);
+    float[18] position;
+    unitPosition (position);
+    rebody::modal::setBody (st, 2, 48000.0f, 110.0f, 1.4f, 50.0f, 0.0f, position, false);   // timpani: 1 feature, 6 following
+
+    for (int n = 0; n < 100; n += 1) rebody::modal::step (st, 2, float<2> (1.0f));
+
+    float<8> f = st.bodies.at (2).reL.at (0);
+    float<8> p = st.bodies.at (2).reL.at (2);
+    return f[0] != 0.0f && f[1] == 0.0f && f[7] == 0.0f && p[0] == 0.0f && p[2] == 0.0f && p[7] == 0.0f
+        && rebody::modal::featureCount (2) == 1 && rebody::modal::followCount (2) == 6
+        && rebody::modal::featureCount (3) == 7 && rebody::modal::followCount (10) == 8;
+}
+
+// ---- helpers ------------------------------------------------------------------------------------------------
+
+bool gainVectorBlendEndpointsExact()
+{
+    float[96] gl;
+    float[96] gr;
+
+    for (int a = 0; a < 11; a += 1)
+    {
+        for (int b = 0; b < 11; b += 1)
+        {
+            rebody::modal::gainVectorBlend (a, b, 0.0f, gl, gr);
+
+            for (int k = 0; k < 96; k += 1)
+                if (gl.at (k) != rebody::tables::gridGainL.at (a * 96 + k) || gr.at (k) != rebody::tables::gridGainR.at (a * 96 + k))
+                    return false;
+
+            rebody::modal::gainVectorBlend (a, b, 1.0f, gl, gr);
+
+            for (int k = 0; k < 96; k += 1)
+                if (gl.at (k) != rebody::tables::gridGainL.at (b * 96 + k) || gr.at (k) != rebody::tables::gridGainR.at (b * 96 + k))
+                    return false;
+        }
+    }
+
+    rebody::modal::gainVectorBlend (3, 4, 0.25f, gl, gr);
+    return near (gl.at (10), 0.75f * rebody::tables::gridGainL.at (3 * 96 + 10) + 0.25f * rebody::tables::gridGainL.at (4 * 96 + 10), 0.000001f);
+}
