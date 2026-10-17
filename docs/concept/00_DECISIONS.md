@@ -46,3 +46,4 @@ D26-D34 are lead decisions from `docs/review/42_REVIEW_TRIAGE.md`, applied 2026-
 | D40 | 2026-10-16 | **Concept freeze.** Owner confirmed 960 × 600 (D35) and gave Go for P1. Changes to 20/21/22 from here on are logged as decisions. |
 | D41 | 2026-10-16 | Plugin ID `com.clearpeak.rebody` (no underscore: kit reverse-DNS rule; the identifier `RE_BODY` stays for code, files and targets). Tables emitted as namespace constants (01_TABLE_EMISSION). |
 | D42 | 2026-10-17 | Host spike and all owner-side testing deferred to the very end (P7). P2-P6 run without interruption on offline gates (cmaj generate/test/render); the lead asks only for important decisions. |
+| D43 | 2026-10-17 | MIDI pitch input is not in v1 (upstream: Amorph FX has no MIDI; kit claim unverified). v1.1 candidate: per-line Tune source Knob / Follow / MIDI with velocity to the strikers; verify MIDI delivery in the FX binary during the host test. |

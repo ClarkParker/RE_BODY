@@ -1,16 +1,18 @@
 // RE-BODY main processor (Amorph FX: audio in, bodies, audio out, no MIDI).
 //
-// P1 skeleton: all 73 parameters and 10 telemetry endpoints exist with their final ids and
-// ranges, the three lines carry their final-size state, and the signal path conditions the input
-// as BODY does (NaN guard, DC block, clamp, bypass fade). The wet path is silent for now, so the
-// output is dry * (1 - mix); the DSP of the bodies arrives from P2 on.
+// P2: Line A is complete (BODY's engines on physically modelled bodies, concept 20 sections 2-7, 12), B and C run
+// the same code and are Enable Off by default. All 73 parameters and 10 telemetry endpoints keep their final ids.
 //
 // Signal path per sample (concept 20 section 2):
 //   in -> NaN guard, DC block, clamp, bypass fade                         (BODY:587-590)
-//      -> per enabled line: onset detector, stubs                          (P2+: engines, grid, slots)
-//      -> sum of lines                                                     (P2+: Low Cut, protector, knee)
+//      -> per line (Listen = All in P2): onset detector, feeds, engines, grid and slots, loudness stage,
+//         Level, Pan, Enable                                              (50_line.cmajor, BODY:591-856)
+//      -> sum of lines -> Width -> Low Cut -> wet DC block -> shared protector + knee   (BODY:857-889)
 //      -> Mix, linear as BODY on purpose                                   (BODY:890)
 //   meters and telemetry every max(1, int(sr / 30)) samples               (BODY:893)
+//
+// Control rate: every line runs its tick every 32 samples (BODY:579), the three lines staggered by 11 samples
+// so the control work of the lines does not land on one sample. Handlers only set targets (BODY:120-124).
 //
 // Cmajor #94 check: the three lines are `Line[3] lines`. If a compiler version rejects a struct
 // array that contains arrays, replace it by three members lineA, lineB, lineC and call the same
@@ -206,58 +208,72 @@ processor RE_BODY [[ main ]]
 
     rebody::line::Line[3] lines;
     rebody::line::Protector protector;
+    rebody::analysis::BandMeters bandMeters;
+    rebody::analysis::BandCoefficients bandCoeffs;
 
     // Input conditioning, mix and bypass smoothing (BODY:16-30).
     float mixNow, bypassNow;
     float controlTickSlew, morphTickSlew, fastSlew, dcRadius;
     float<2> previousInput, dcState;
-    rebody::analysis::OnsetCoefficients onsetCoeffs;
+    float sampleRate;
+    float lowCutNow;
     bool started;
     int counter;
 
     // Meters and telemetry (BODY:26-27, :893).
     float inputMeter, wetMeter, leftMeter, rightMeter, meterRelease;
-    float[8] bandEnergy;                  // summed wet energy in 8 octave bands, P5
     int vizCounter, vizPeriod;
 
-    // Step the 23 block parameters of every line towards the host values. Called once per control
-    // tick (32 samples, BODY:579); `snap` jumps straight to the targets (first sample). Discrete
-    // parameters (step >= 1: Enable, Listen, Excite, Hold) switch immediately.
-    void controlTick (bool snap)
+    // Step the 23 block parameters of one line towards the host values and run its control tick (32 samples,
+    // BODY:579); `snap` jumps straight to the targets (first sample). Discrete parameters (step >= 1: Enable,
+    // Listen, Excite, Hold) switch immediately. Tune and Decay are taken as they are: the shared register slews
+    // them (BODY:223-251), smoothing twice would double the lag.
+    void controlLine (int k, bool snap)
     {
-        for (int k = 0; k < rebody::numLines; k += 1)
+        for (int s = 0; s < rebody::params::lineSlots; s += 1)
         {
-            for (int s = 0; s < rebody::params::lineSlots; s += 1)
+            int index = rebody::params::lineParam.at (k * rebody::params::lineSlots + s);
+            float target = paramTarget.at (index);
+            float now = lines.at (k).control.at (s);
+
+            if (snap || rebody::params::stepValue.at (index) >= 1.0f
+                 || s == rebody::params::slotTune || s == rebody::params::slotDecay)
             {
-                int index = rebody::params::lineParam.at (k * rebody::params::lineSlots + s);
-                float target = paramTarget.at (index);
-                float now = lines.at (k).control.at (s);
+                now = target;
+            }
+            else
+            {
+                float previous = now;
+                now += (s == rebody::params::slotMorph ? morphTickSlew : controlTickSlew) * (target - now);
 
-                if (snap || rebody::params::stepValue.at (index) >= 1.0f)
-                {
+                if (now == previous || abs (now - target) < 0.000001f)
                     now = target;
-                }
-                else
-                {
-                    float previous = now;
-                    now += (s == rebody::params::slotMorph ? morphTickSlew : controlTickSlew) * (target - now);
-
-                    if (now == previous || abs (now - target) < 0.000001f)
-                        now = target;
-                }
-
-                lines.at (k).control.at (s) = now;
             }
 
-            lines.at (k).enabled = lines.at (k).control.at (rebody::params::slotEnable) >= 0.5f;
-            lines.at (k).holdState = lines.at (k).control.at (rebody::params::slotHold);
-            rebody::line::updateMorphWeights (lines.at (k));
+            lines.at (k).control.at (s) = now;
         }
+
+        rebody::line::tick (lines.at (k), snap);
+    }
+
+    // Global controls at the tick: Width (mid/side on the wet sum) and Low Cut.
+    void controlGlobal (bool snap)
+    {
+        float lowCutTarget = paramTarget.at (rebody::params::globalLowCut);
+        float previous = lowCutNow;
+        lowCutNow = snap ? lowCutTarget : lowCutNow + controlTickSlew * (lowCutTarget - lowCutNow);
+
+        if (lowCutNow == previous || abs (lowCutNow - lowCutTarget) < 0.000001f)
+            lowCutNow = lowCutTarget;
+
+        rebody::line::setLowCut (protector, lowCutNow, sampleRate);
+        rebody::line::setWidth (protector, paramTarget.at (rebody::params::globalWidth), snap);
     }
 
     void main()
     {
         float sr = float (processor.frequency);
+        sampleRate = sr;
 
         // Sample-rate derived coefficients (BODY:509-518).
         controlTickSlew = rebody::analysis::tickSlewCoefficient (0.055f, sr, rebody::controlPeriod);
@@ -265,13 +281,13 @@ processor RE_BODY [[ main ]]
         fastSlew = rebody::analysis::slewCoefficient (0.012f, sr);
         dcRadius = rebody::analysis::dcBlockRadius (20.0f, sr);
         meterRelease = rebody::analysis::releaseMultiplier (0.11f, sr);
-        onsetCoeffs = rebody::analysis::onsetCoefficients (sr);
         vizPeriod = max (1, int (sr / float (rebody::vizRateHz)));
+        rebody::analysis::bandCoefficients (bandCoeffs, sr);
 
         for (int k = 0; k < rebody::numLines; k += 1)
-            rebody::line::initLine (lines.at (k), k);
+            rebody::line::initLine (lines.at (k), k, sr);
 
-        rebody::line::initProtector (protector);
+        rebody::line::initProtector (protector, sr);
 
         // BEGIN TABLES LOAD (set by tools/build_dsp.py from the emission form of src/dsp/10_tables.cmajor)
         // tables: namespace form, constants are read as rebody::tables::<name>
@@ -282,14 +298,22 @@ processor RE_BODY [[ main ]]
             if (! started)
             {
                 // Host values set before the first sample are honoured: snap to them.
-                controlTick (true);
+                for (int k = 0; k < rebody::numLines; k += 1)
+                    controlLine (k, true);
+
+                controlGlobal (true);
                 mixNow = clamp (paramTarget.at (rebody::params::globalMix) * 0.01f, 0.0f, 1.0f);
                 bypassNow = paramTarget.at (rebody::params::globalBypass) >= 0.5f ? 1.0f : 0.0f;
                 started = true;
             }
 
+            // Staggered control ticks: line k at sample 11 k of every 32.
             if (counter == 0)
-                controlTick (false);
+                controlGlobal (false);
+
+            for (int k = 0; k < rebody::numLines; k += 1)
+                if (counter == 11 * k)
+                    controlLine (k, false);
 
             counter = (counter + 1) % rebody::controlPeriod;
 
@@ -320,26 +344,36 @@ processor RE_BODY [[ main ]]
                 x.at (ch) = clamp (x.at (ch), -4.0f, 4.0f);
 
             x *= 1.0f - bypassNow;
-            float level = max (abs (x[0]), abs (x[1]));
+            float level = max (abs (x.at (0)), abs (x.at (1)));
 
-            // Lines: each enabled line listens to the conditioned input for now (P2+: Listen,
-            // Sensitivity, Chain) and runs its own onset detector (T9).
-            float<2> wet = float<2> (0.0f);
+            // Lines: each listens to its component of the conditioned input (P2: All) and runs the whole chain.
+            bool inputActive = max (abs (dry.at (0)), abs (dry.at (1))) > 0.00001f && bypassNow < 0.5f;
+            float<2> wetSum = float<2> (0.0f);
 
             for (int k = 0; k < rebody::numLines; k += 1)
             {
-                if (lines.at (k).enabled)
+                if (lines.at (k).dormant && ! lines.at (k).enabled)
                 {
-                    rebody::analysis::onsetStep (lines.at (k).onset, onsetCoeffs, level);
-                    wet += rebody::line::stubProcess (lines.at (k), x);
-                    rebody::line::accumulate (lines.at (k));
+                    rebody::line::idleSample (lines.at (k));
                 }
                 else
                 {
-                    rebody::analysis::onsetReset (lines.at (k).onset);
-                    lines.at (k).wet = float<2> (0.0f);
+                    int listen = int (lines.at (k).control.at (rebody::params::slotListen) + 0.5f);
+                    wetSum += rebody::line::process (lines.at (k), rebody::analysis::listenComponent (listen, x), inputActive);
                 }
+
+                rebody::line::accumulate (lines.at (k));
             }
+
+            // Sum of lines: Width, Low Cut, wet DC block, shared protector + knee (BODY:857-889).
+            wetSum = rebody::line::widthStep (protector, wetSum);
+            wetSum = rebody::line::lowCutStep (protector, wetSum);
+            wetSum = rebody::line::dcBlockStep (protector, wetSum);
+            float<2> wet = rebody::line::protectStep (protector, wetSum, dry);
+
+            if (protector.quietReset)
+                for (int k = 0; k < rebody::numLines; k += 1)
+                    rebody::line::resetBalance (lines.at (k));
 
             // Mix is linear as BODY on purpose; bypass fades the wet path out and Mix with it (BODY:890).
             float amount = mixNow * (1.0f - bypassNow);
@@ -351,13 +385,15 @@ processor RE_BODY [[ main ]]
             out <- result;
 
             inputMeter = max (level, inputMeter * meterRelease);
-            leftMeter = max (abs (wet[0]), leftMeter * meterRelease);
-            rightMeter = max (abs (wet[1]), rightMeter * meterRelease);
+            leftMeter = max (abs (wet.at (0)), leftMeter * meterRelease);
+            rightMeter = max (abs (wet.at (1)), rightMeter * meterRelease);
             wetMeter = max (leftMeter, rightMeter);
 
             if (inputMeter < 0.000000001f) inputMeter = 0.0f;
             if (leftMeter < 0.000000001f) leftMeter = 0.0f;
             if (rightMeter < 0.000000001f) rightMeter = 0.0f;
+
+            rebody::analysis::bandStep (bandMeters, bandCoeffs, 0.5f * (wet.at (0) + wet.at (1)));
 
             vizCounter += 1;
 
@@ -368,15 +404,11 @@ processor RE_BODY [[ main ]]
                 // Shared onset: strongest line onset since the last frame (peak hold).
                 float onsetMax = max (lines.at (0).onsetHold, max (lines.at (1).onsetHold, lines.at (2).onsetHold));
 
-                float<8> bands = float<8> (0.0f);
-
-                for (int band = 0; band < 8; band += 1)
-                    bands.at (band) = bandEnergy.at (band);
-
                 bodyViz <- float<4> (inputMeter, wetMeter, leftMeter, rightMeter);
-                bodyBands <- bands;
+                bodyBands <- rebody::analysis::bandLevels (bandMeters);
                 bodyOnset <- onsetMax;
-                analysisViz <- float<6> (0.0f);
+                // P2: transient, sustain, low, mid and high report the input energy until the P4b split exists.
+                analysisViz <- float<6> (inputMeter, inputMeter, inputMeter, inputMeter, inputMeter, 0.0f);
                 lineStateA <- rebody::line::takeState (lines.at (0));
                 lineStateB <- rebody::line::takeState (lines.at (1));
                 lineStateC <- rebody::line::takeState (lines.at (2));

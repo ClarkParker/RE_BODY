@@ -138,4 +138,165 @@ namespace rebody::analysis
         s.novelty = 0.0f;
         s.onset = 0.0f;
     }
+
+    // ---- P2 additions: shared helpers for the line engines and the telemetry meters ------------------------
+
+    // Phase delay in samples of the one-pole low-pass y += a (x - y) at angular frequency omega (BODY:236).
+    // Used to tune the loops: delay = sr / hz - phase delay of every filter inside the loop. The divisor
+    // 1 - (1 - a) cos(w) is at least a > 0.
+    float filterPhaseDelay (float coefficient, float omega)
+    {
+        float w = max (omega, 0.0001f);
+        float keep = 1.0f - clamp (coefficient, 0.0f, 1.0f);
+        return float (atan (keep * float (sin (w)) / max (1.0f - keep * float (cos (w)), 0.000001f))) / w;
+    }
+
+    // Phase delay in samples of the first-order allpass y = d x + s, s' = x - d y (piano dispersion,
+    // BODY:352-358): 2 atan(((1 - d) / (1 + d)) tan(w / 2)) / w. d = 0 is a pure one-sample delay (= 1.0).
+    float allpassPhaseDelay (float d, float omega)
+    {
+        float w = max (omega, 0.0001f);
+        float c = clamp (d, -0.95f, 0.95f);
+        float ratio = (1.0f - c) / (1.0f + c);
+        return 2.0f * float (atan (ratio * float (tan (0.5f * w)))) / w;
+    }
+
+    // Smoothstep 0..1 (BODY:131, :242, :712 easing of the hybrid segment).
+    float smoothstep01 (float t)
+    {
+        float u = clamp (t, 0.0f, 1.0f);
+        return u * u * (3.0f - 2.0f * u);
+    }
+
+    // One control-rate slew step with exact convergence (BODY:226-250 idiom): the value lands on the
+    // target instead of approaching it for ever.
+    float slewTo (float value, float target, float slew)
+    {
+        float next = value + slew * (target - value);
+
+        if (next == value || abs (next - target) < 0.000001f)
+            next = target;
+
+        return next;
+    }
+
+    // xorshift32 noise (BODY:624-625); a zero state would stick, so it is re-seeded.
+    int xorshift (int state)
+    {
+        int s = state;
+
+        if (s == 0)
+            s = 1234567;
+
+        s ^= s << 13;
+        s ^= s >> 17;
+        s ^= s << 5;
+        return s;
+    }
+
+    // Noise -1..1 from a xorshift state.
+    float noiseOf (int state)
+    {
+        return float (state & 0x7fffffff) / 1073741824.0f - 1.0f;
+    }
+
+    // Listened component of the conditioned input for one line (concept 13). P2 carries Listen = All
+    // only; Transient/Sustain/Low/Mid/High (P4b split) and Chain (previous line) return the input.
+    float<2> listenComponent (int mode, float<2> x)
+    {
+        return x;
+    }
+
+    // Linear ramp of one value across a control tick (BODY idiom: target set at the tick, linear steps
+    // per sample, snap at the next tick). `now` is what the sample loop reads after rampNext().
+    struct Ramp
+    {
+        float now;
+        float target;
+        float step;
+    }
+
+    // Set a new target at the tick. `snap` jumps straight there (first tick); otherwise the previous
+    // ramp is finished first and the new one runs over `ticks` samples.
+    void rampSet (Ramp& r, float target, bool snap, int ticks)
+    {
+        if (snap)
+        {
+            r.now = target;
+            r.target = target;
+            r.step = 0.0f;
+        }
+        else
+        {
+            r.now = r.target;
+            r.target = target;
+            r.step = (target - r.now) / float (max (ticks, 1));
+        }
+    }
+
+    // Finish the running ramp without a new target (value held, step 0).
+    void rampFinish (Ramp& r)
+    {
+        r.now = r.target;
+        r.step = 0.0f;
+    }
+
+    float rampNext (Ramp& r)
+    {
+        r.now += r.step;
+        return r.now;
+    }
+
+    // Eight octave band meters on the wet sum (bodyBands, b60 .. b7680): seven one-pole low-passes at the
+    // band edges 60 x 2^(k + 1/2) and the differences between neighbours; band 0 is the first low-pass,
+    // band 7 is the rest above the last edge. Each band keeps a smoothed power (110 ms).
+    struct BandMeters
+    {
+        float[7] lowpass;
+        float[8] power;
+    }
+
+    struct BandCoefficients
+    {
+        float[7] edge;
+        float powerSlew;
+    }
+
+    void bandCoefficients (BandCoefficients& c, float sr)
+    {
+        for (int k = 0; k < 7; k += 1)
+            c.edge.at (k) = onePoleCoefficient (60.0f * float (pow (2.0f, float (k) + 0.5f)), sr);
+
+        c.powerSlew = slewCoefficient (0.11f, sr);
+    }
+
+    void bandStep (BandMeters& m, BandCoefficients& c, float sample)
+    {
+        float previous = 0.0f;
+
+        for (int k = 0; k < 7; k += 1)
+        {
+            m.lowpass.at (k) += c.edge.at (k) * (sample - m.lowpass.at (k));
+            float band = m.lowpass.at (k) - previous;
+            m.power.at (k) += c.powerSlew * (band * band - m.power.at (k));
+            previous = m.lowpass.at (k);
+        }
+
+        float top = sample - previous;
+        m.power.at (7) += c.powerSlew * (top * top - m.power.at (7));
+    }
+
+    // Band amplitudes (RMS) for the telemetry frame; tiny values are flushed to zero.
+    float<8> bandLevels (BandMeters& m)
+    {
+        float<8> v = float<8> (0.0f);
+
+        for (int k = 0; k < 8; k += 1)
+        {
+            float p = m.power.at (k);
+            v.at (k) = p > 1.0e-18f ? float (sqrt (p)) : 0.0f;
+        }
+
+        return v;
+    }
 }

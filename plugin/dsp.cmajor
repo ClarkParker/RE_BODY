@@ -1175,6 +1175,167 @@ namespace rebody::analysis
         s.novelty = 0.0f;
         s.onset = 0.0f;
     }
+
+    // ---- P2 additions: shared helpers for the line engines and the telemetry meters ------------------------
+
+    // Phase delay in samples of the one-pole low-pass y += a (x - y) at angular frequency omega (BODY:236).
+    // Used to tune the loops: delay = sr / hz - phase delay of every filter inside the loop. The divisor
+    // 1 - (1 - a) cos(w) is at least a > 0.
+    float filterPhaseDelay (float coefficient, float omega)
+    {
+        float w = max (omega, 0.0001f);
+        float keep = 1.0f - clamp (coefficient, 0.0f, 1.0f);
+        return float (atan (keep * float (sin (w)) / max (1.0f - keep * float (cos (w)), 0.000001f))) / w;
+    }
+
+    // Phase delay in samples of the first-order allpass y = d x + s, s' = x - d y (piano dispersion,
+    // BODY:352-358): 2 atan(((1 - d) / (1 + d)) tan(w / 2)) / w. d = 0 is a pure one-sample delay (= 1.0).
+    float allpassPhaseDelay (float d, float omega)
+    {
+        float w = max (omega, 0.0001f);
+        float c = clamp (d, -0.95f, 0.95f);
+        float ratio = (1.0f - c) / (1.0f + c);
+        return 2.0f * float (atan (ratio * float (tan (0.5f * w)))) / w;
+    }
+
+    // Smoothstep 0..1 (BODY:131, :242, :712 easing of the hybrid segment).
+    float smoothstep01 (float t)
+    {
+        float u = clamp (t, 0.0f, 1.0f);
+        return u * u * (3.0f - 2.0f * u);
+    }
+
+    // One control-rate slew step with exact convergence (BODY:226-250 idiom): the value lands on the
+    // target instead of approaching it for ever.
+    float slewTo (float value, float target, float slew)
+    {
+        float next = value + slew * (target - value);
+
+        if (next == value || abs (next - target) < 0.000001f)
+            next = target;
+
+        return next;
+    }
+
+    // xorshift32 noise (BODY:624-625); a zero state would stick, so it is re-seeded.
+    int xorshift (int state)
+    {
+        int s = state;
+
+        if (s == 0)
+            s = 1234567;
+
+        s ^= s << 13;
+        s ^= s >> 17;
+        s ^= s << 5;
+        return s;
+    }
+
+    // Noise -1..1 from a xorshift state.
+    float noiseOf (int state)
+    {
+        return float (state & 0x7fffffff) / 1073741824.0f - 1.0f;
+    }
+
+    // Listened component of the conditioned input for one line (concept 13). P2 carries Listen = All
+    // only; Transient/Sustain/Low/Mid/High (P4b split) and Chain (previous line) return the input.
+    float<2> listenComponent (int mode, float<2> x)
+    {
+        return x;
+    }
+
+    // Linear ramp of one value across a control tick (BODY idiom: target set at the tick, linear steps
+    // per sample, snap at the next tick). `now` is what the sample loop reads after rampNext().
+    struct Ramp
+    {
+        float now;
+        float target;
+        float step;
+    }
+
+    // Set a new target at the tick. `snap` jumps straight there (first tick); otherwise the previous
+    // ramp is finished first and the new one runs over `ticks` samples.
+    void rampSet (Ramp& r, float target, bool snap, int ticks)
+    {
+        if (snap)
+        {
+            r.now = target;
+            r.target = target;
+            r.step = 0.0f;
+        }
+        else
+        {
+            r.now = r.target;
+            r.target = target;
+            r.step = (target - r.now) / float (max (ticks, 1));
+        }
+    }
+
+    // Finish the running ramp without a new target (value held, step 0).
+    void rampFinish (Ramp& r)
+    {
+        r.now = r.target;
+        r.step = 0.0f;
+    }
+
+    float rampNext (Ramp& r)
+    {
+        r.now += r.step;
+        return r.now;
+    }
+
+    // Eight octave band meters on the wet sum (bodyBands, b60 .. b7680): seven one-pole low-passes at the
+    // band edges 60 x 2^(k + 1/2) and the differences between neighbours; band 0 is the first low-pass,
+    // band 7 is the rest above the last edge. Each band keeps a smoothed power (110 ms).
+    struct BandMeters
+    {
+        float[7] lowpass;
+        float[8] power;
+    }
+
+    struct BandCoefficients
+    {
+        float[7] edge;
+        float powerSlew;
+    }
+
+    void bandCoefficients (BandCoefficients& c, float sr)
+    {
+        for (int k = 0; k < 7; k += 1)
+            c.edge.at (k) = onePoleCoefficient (60.0f * float (pow (2.0f, float (k) + 0.5f)), sr);
+
+        c.powerSlew = slewCoefficient (0.11f, sr);
+    }
+
+    void bandStep (BandMeters& m, BandCoefficients& c, float sample)
+    {
+        float previous = 0.0f;
+
+        for (int k = 0; k < 7; k += 1)
+        {
+            m.lowpass.at (k) += c.edge.at (k) * (sample - m.lowpass.at (k));
+            float band = m.lowpass.at (k) - previous;
+            m.power.at (k) += c.powerSlew * (band * band - m.power.at (k));
+            previous = m.lowpass.at (k);
+        }
+
+        float top = sample - previous;
+        m.power.at (7) += c.powerSlew * (top * top - m.power.at (7));
+    }
+
+    // Band amplitudes (RMS) for the telemetry frame; tiny values are flushed to zero.
+    float<8> bandLevels (BandMeters& m)
+    {
+        float<8> v = float<8> (0.0f);
+
+        for (int k = 0; k < 8; k += 1)
+        {
+            float p = m.power.at (k);
+            v.at (k) = p > 1.0e-18f ? float (sqrt (p)) : 0.0f;
+        }
+
+        return v;
+    }
 }
 
 // ===== 30_strikers.cmajor =====
@@ -2080,78 +2241,162 @@ namespace rebody::modal
 }
 
 // ===== 50_line.cmajor =====
-// RE-BODY line state (concept sections 2, 12, 16). A LINE is one complete BODY-style chain:
-// listened signal, its own onset detector (T9), strikers, per-body feeds with sqrt-weight
-// crossfade, the four line engines, grid and slots, the loudness stage and tail holding. Three
-// identical lines run in parallel as `Line[3]` inside the single processor (P1 checks that the
-// compiler accepts that struct array, Cmajor #94; fallback = three members, see 90_main).
+// RE-BODY line (concept sections 2, 6, 7, 12, 13, 14; docs/dev/05_LINE_A.md). A LINE is one complete BODY-style
+// chain: listened signal, its own onset detector (T9), per-body feeds with sqrt-weight crossfade, shared register
+// and decay with tail holding, the four line engines (clarinet cylinder, sax cone loop, one shared string, piano
+// string pair), the modal bodies (shared 96-pole grid + per-body slots, 40_modal) and BODY's loudness stage. Three
+// identical lines run in parallel as `Line[3]` inside the single processor; Line A is the complete one in P2, B and
+// C run the same code and are Enable Off by default.
 //
-// Memory per line (floats): bore 8192 + sax 8192 + shared string 8192 + pick comb 4096 + piano
-// pair 32768 = 61 440 in delay lines, plus about 6 k of modal and control state. Three lines are
-// about 184 k floats, above the 131 072-float stall guideline of core-dsp, hence the T4 measurement
-// recorded in docs/dev/01_TABLE_EMISSION.md.
+// Control rate: every 32 samples `tick()` recomputes targets from the smoothed block parameters (BODY:579); the
+// sample loop steps every changing value linearly towards its target (rebody::analysis::Ramp) and snaps at the next
+// tick. Bodies and engines with weight 0 keep their last voicing and ring out (tail holding, BODY:226-266); they are
+// skipped when silent (modal isSilent, loops: 120 dB below their own peak for 0.5 s).
 //
-// Struct fields are declarations only (no initialisers); initLine() sets the non-zero defaults.
-// P1 fills the state with stubs: the engines only advance their write heads, the line output is
-// silence. The field names follow BODY's state (BODY:40-118) so P2 can port engine by engine.
+// Anchor order 0..10 (spec.json): Bass Drum, Snare, Timpani, Piano, Guitar, Ukulele, Fiddle, Clarinet, Oboe, Sax,
+// Obosaxolele. BODY:n = line n of reference/body_original/dsp.cmajor.
 
 namespace rebody::line
 {
-    // Clarinet: closed cylinder, negative reflection each half period = odd modes (BODY:54-61).
+    const int bodyBass = 0;
+    const int bodySnare = 1;
+    const int bodyTimpani = 2;
+    const int bodyPiano = 3;
+    const int bodyGuitar = 4;
+    const int bodyUke = 5;
+    const int bodyFiddle = 6;
+    const int bodyClarinet = 7;
+    const int bodyOboe = 8;
+    const int bodySax = 9;
+    const int bodyHybrid = 10;
+
+    // Indices into rebody::tables::hybridConst (22 section 11, BODY:712-843).
+    const int hcReedDryAtten = 0;       // 0.62 BODY:731
+    const int hcBridgeToReed = 1;       // 0.95 BODY:731
+    const int hcBellDryAtten = 2;       // 0.90 BODY:798
+    const int hcReedToBell = 3;         // 0.60 BODY:799
+    const int hcOboeRoleGain = 4;       // 1.80 BODY:838
+    const int hcUkePluck = 5;           // -15.6 BODY:840
+    const int hcUkeWood = 6;            // 1.48 BODY:840
+    const int hcUkePicked = 7;          // 3.2  BODY:840
+    const int hcSaxWarm = 8;            // 2.2  BODY:842
+    const int hcSaxPickup = 9;          // -3.3 BODY:842
+    const int hcSaxBreath = 10;         // -1.1 BODY:842
+    const int hcGestureAtten = 11;      // 0.7  BODY:800
+    const int hcFeedTrim = 12;          // 0.5  BODY:170
+    const int hcOboeEnergyCut = 13;     // 0.85 BODY:427
+
+    const float ln1000 = 6.907755f;
+    const float tiny = 1.0e-12f;        // BODY's per-sample flush threshold (BODY:611)
+    const float saxBreathGain = 1.10f;  // breath term next to the 3.3 pickup term (BODY:834)
+
+    // Engine gating: a loop is skipped when its envelope stays 120 dB below its own peak for 0.5 s (concept 7).
+    struct Gate
+    {
+        float level;        // envelope of the loop write value, 100 ms release
+        float peak;         // largest envelope since the engine last woke up
+        int quiet;          // control ticks spent below the threshold
+        bool idle;          // engine skipped; buffers are clear
+        bool clear;         // set for one tick when the engine goes idle: the caller clears its buffers
+    }
+
+    void gateObserve (Gate& g, float amplitude, float release)
+    {
+        g.level = max (amplitude, g.level * release);
+        g.peak = max (g.peak, g.level);
+    }
+
+    // Control-rate gate. `wanted` = a body that needs the engine has weight > 0 (and the line is enabled). When
+    // the engine has been quiet long enough it goes idle and `clear` asks the caller to clear its buffers.
+    void gateTick (Gate& g, bool wanted, int quietTicks)
+    {
+        g.clear = false;
+
+        if (wanted)
+        {
+            g.idle = false;
+            g.quiet = 0;
+        }
+        else if (! g.idle)
+        {
+            if (g.level < max (1.0e-6f * g.peak, tiny))
+                g.quiet += 1;
+            else
+                g.quiet = 0;
+
+            if (g.quiet >= quietTicks)
+            {
+                g.idle = true;
+                g.clear = true;
+                g.level = 0.0f;
+                g.peak = 0.0f;
+                g.quiet = 0;
+            }
+        }
+    }
+
+    // Clarinet: closed cylinder, negative reflection each half period = odd modes (BODY:54-61, :335-347,
+    // :444-455, :636-656). The loop low-pass is the table value (BODY default 1.75 kHz), the radiation filter
+    // sits outside the loop on the pickup (T6).
     struct BoreEngine
     {
         float<2>[4096] buffer;
         int write;
-        float delay, delayTarget, delayStep;       // loop delay in samples (pitch)
-        float gain, gainTarget, gainStep;          // loop gain (decay)
-        float drive, driveTarget, driveStep;       // reed drive
-        float<2> lowpass;                          // in-loop low-pass state (1.75 kHz default, T6)
-        float<2> radiation;                        // radiation filter outside the loop (1.4 kHz, T6)
+        rebody::analysis::Ramp delay, gain, drive, radiationDelay;
+        float lowpassCoef;
+        float<2> lowpass;                          // in-loop low-pass state
+        float<2> radiation;                        // radiation filter state, outside the loop
         float<2> reedLowpass, reedEnvelope, reedPeak;
+        Gate gate;
     }
 
-    // Sax: positive full-period bore with continuous asymmetric reed (BODY:86-96).
+    // Sax: positive full-period bore with continuous asymmetric reed and breath (BODY:86-96, :382-390, :477-504,
+    // :530-538, :768-826). Pickup comb at beta of the delay, radiation filter outside the loop (T6).
     struct SaxEngine
     {
         float<2>[4096] buffer;
         int write;
-        float delay, delayTarget, delayStep;
-        float gain, gainTarget, gainStep;
-        float drive, driveTarget, driveStep;
-        float<2> lowpass;                          // in-loop low-pass state (6.6 kHz default, T6)
-        float<2> radiation;                        // radiation filter outside the loop (1.0 kHz, T6)
+        rebody::analysis::Ramp delay, gain, drive;
+        float lowpassCoef;
+        float<2> lowpass;
+        float<2> radiation;
         float<2> reedPrevious, reedDC;
-        float<2> breathEnvelope, breathLow, breathHigh, formantLow, formantHigh;
+        float<2> breathEnvelope, breathLow, breathHigh, formantLow, formantHigh, warm;
         int[2] noiseState;
+        float<2> breath;                           // last breath sample (direct air layer)
+        Gate gate;
     }
 
-    // One shared string for Guitar, Ukulele and Fiddle: same physical object retuned by the shared
-    // register (BODY:74-83), with the pick/position comb (BODY:376, :689-690).
+    // One shared string for Guitar, Ukulele and Fiddle: one physical object retuned by the shared register
+    // (BODY:74-83, :368-380, :470-475, :492-497, :526-529, :680-710). Parameters are the weight-blend of the
+    // active string bodies' table rows. The contact has BODY's pick comb at beta of the period. The hidden wood
+    // tap (BODY:543-549) only feeds the Obosaxolele coupling.
     struct StringEngine
     {
         float<2>[4096] buffer;
         int write;
-        float delay, delayTarget, delayStep;
-        float gain, gainTarget, gainStep;
-        float drive, driveTarget, driveStep;
-        float<2> lowpass, contact, previous;
-        float<2> dispersionState;
+        rebody::analysis::Ramp delay, gain, drive, pickDelay, dispersion;
+        float lowpassCoef;
+        float<2> lowpass, contact, previous, dispersionState;
         float<2>[2048] pickBuffer;
         int pickWrite;
-        float pickDelay, pickDelayTarget, pickDelayStep;
+        float<2> woodLow, woodHigh;
+        float<2>[2] woodRe, woodIm;
+        Gate gate;
     }
 
-    // Piano: two detuned, dispersive strings, positive reflection supports all harmonics (BODY:63-71).
+    // Piano: two detuned, dispersive strings, positive reflection supports all harmonics (BODY:63-71, :349-366,
+    // :457-468, :484-490, :524-525, :658-677). Hammer contact feeds the loop input.
     struct PianoEngine
     {
         float<2>[8192] string0;
         float<2>[8192] string1;
         int write;
-        float[2] delay, delayTarget, delayStep;
-        float[2] gain, gainTarget, gainStep;
-        float[2] drive, driveTarget, driveStep;
+        rebody::analysis::Ramp[2] delay, gain, drive, dispersion;
+        float lowpassCoef;
         float<2>[2] lowpass, dispersionState;
         float<2> hammerLowpass, hammerPrevious;
+        Gate gate;
     }
 
     struct Line
@@ -2166,31 +2411,86 @@ namespace rebody::line
         StringEngine stringEngine;
         PianoEngine piano;
 
-        // Onset detector (T9) and strikers (N11).
+        // Onset detector (T9) and strikers (N11, inert until P4b).
         rebody::analysis::OnsetState onset;
+        rebody::analysis::OnsetCoefficients onsetCoeffs;
         rebody::strikers::StrikerState striker;
+
+        // Sample-rate dependent constants (set once in initLine).
+        float sr, controlSlew, dcRadius, fastSlew, meterRelease, gateRelease;
+        float balancePowerSlew, balanceDownSlew, balanceUpSlew;
+        int quietTicks;
+        float boreReedCoef, boreAttack, boreRelease, boreLevelRelease, boreRadiationCoef;
+        float hammerCoef, stringContactCoef, woodLowCoef, woodHighCoef;
+        float saxBreathAttack, saxBreathRelease, saxBreathLowCoef, saxBreathHighCoef;
+        float saxFormantLowCoef, saxFormantHighCoef, saxWarmCoef, saxRadiationCoef;
+        float gestureRise, gestureFall;
+        float[2] woodR, woodI, woodDrive;
 
         // Smoothed block parameters in physical units, in slot order (rebody::params::slot*).
         float[23] control;
         bool enabled;
+        bool started;                              // the first tick of the line has run
+        bool dormant;                              // disabled and fully drained: the line costs nothing
+        float enableNow;
+        rebody::analysis::Ramp sens, levelGain, panL, panR;
 
-        // Morph: per-anchor weights, sqrt-weight feeds (BODY:147-172), anchor order 0..10.
+        // Morph: per-anchor weights (BODY:126-146 generalised), sqrt-weight feeds (BODY:147-172), anchor order.
+        float morph;
+        int gridA, gridB;                          // grid gain vectors blended A -> B ...
+        float gridT;                               // ... by this fraction
         float[11] weight;
-        float[11] feed;
+        rebody::analysis::Ramp[11] feed;
+        float[11] feedNow;
+        rebody::analysis::Ramp hybridRamp;         // smoothstep of the hybrid segment 9 -> 10
+        rebody::analysis::Ramp pitchedWeightRamp;
+        rebody::analysis::Ramp stringFeed;         // power sum of the three string feeds
+        rebody::analysis::Ramp[3] stringShare;     // sqrt share of Guitar, Ukulele, Fiddle in the string
+        rebody::analysis::Ramp stringCal;          // calibration blend of the shared string
+        rebody::analysis::Ramp gridCalDrum, gridCalPitched;
         int dominant;                              // anchor with the largest weight
-        float pitchedWeight;                       // summed weight of the pitched bodies (all but Bass Drum, Snare)
+        float pitchedWeight;                       // summed weight of the pitched bodies (Timpani .. Sax)
 
-        // Register, decay and contact state shared by the active bodies; withdrawn bodies keep
-        // their last values while their tails drain (BODY:226-266).
+        // Register, decay and contact state shared by the active bodies; withdrawn bodies keep their last
+        // values while their tails drain (BODY:226-266).
         float[11] logRoot, logSeconds, sustain, sizeNow;
         float rootHz, t60, sustainEff;
+        float oboHybrid, ukeHybrid, saxHybrid;     // held role amounts of the hybrid (BODY:253-266)
+        float rattleSustain;
+        float stringSustain;
 
-        // Follow, Hold and the listened signal.
-        float followHz, holdState, listenEnergy;
-        float<2> listened;
+        // Bass drum / timpani contact low-pass (BODY:326, :598), snare rattle (BODY:327-329, :615-634).
+        rebody::analysis::Ramp[2] contactLp;
+        float<2>[2] contact;
+        rebody::analysis::Ramp snareLow, snareHigh, snareRelease;
+        float<2> snareEnvelope, snareNoiseLow, snareNoiseHigh, snarePrevious;
+        int[2] noiseState;
+
+        // Oboe reed contact (BODY:396-398, :729-741) and the hybrid coupling (BODY:712-734).
+        float oboFormantCoef;
+        float<2> oboReedPrevious, oboReedDC, oboReedLow;
+        float<2> oboRaw;                           // oboe slots of the previous sample (bell excitation)
+        float hybridGesture;
+
+        // Table-derived constants per body: calibration of the modal term and of the line-engine term.
+        float[11] modalCal, engineCal;
+        bool[11] slotted;
+
+        // Modal control: what the slots and the grid were last set to (skip unchanged calls), who runs.
+        bool gridReady;
+        float keyLaw0, keyLaw1, keyDecayScale, keyMaterial, keySize, keyGridT;
+        int keyGridA, keyGridB;
+        bool[11] keyValid;
+        float[11] keyRoot, keySeconds, keyMaterialBody, keySizeBody, keyPosition;
+        bool[11] bodyRun;
+        bool gridLive;
 
         // Loudness stage: pitched balance AGC with the line's own pitchedWeight (BODY:844-855).
         float balanceInputPower, balanceOutputPower, balanceGain, balanceTarget;
+        bool balanceActiveFlag;
+
+        // Follow, Hold and the listened signal (inert until P3/P4b except listenEnergy).
+        float followHz, holdState, listenEnergy;
 
         // Line output: after the loudness stage and before Level (Chain source), then after Level and Pan.
         float<2> bodyOut;
@@ -2198,11 +2498,10 @@ namespace rebody::line
 
         // Telemetry accumulators, peak-held between 30 Hz frames and reset by takeState().
         float wetPeakL, wetPeakR, onsetHold;
-        float[16] modeEnergy;
     }
 
-    // State that belongs to the sum of the lines (not to one line): the global Low Cut, the final DC
-    // block of the wet sum and the shared protector + knee referenced to the input peak (BODY:857-889).
+    // State that belongs to the sum of the lines (not to one line): the global Low Cut, the final DC block of
+    // the wet sum and the shared protector + knee referenced to the input peak (BODY:857-889).
     struct Protector
     {
         float protect;
@@ -2210,113 +2509,1623 @@ namespace rebody::line
         float protectGain;
         float inputPeakReference;
         int referenceQuietSamples;
-        float<2> lowCutIn1, lowCutIn2, lowCutOut1, lowCutOut2;   // Low Cut, 12 dB/oct biquad
-        float<2> dcPrevious, dcState;                              // DC block of the wet sum
+        bool quietReset;                                          // pulse: the lines reset their balance AGC
+        float64[2] lowCutX1, lowCutX2, lowCutY1, lowCutY2;        // Low Cut, 12 dB/oct biquad, per channel
+        float64 lowCutB0, lowCutB1, lowCutA1, lowCutA2;
+        bool lowCutOn;
+        float64[2] dcX1, dcY1;                                    // DC block of the wet sum
+        float64 dcR;
+        float widthNow, widthTarget, widthStep;                   // mid/side width (Width 50 = BODY's image)
+        float protectRelease, protectAttackSlew, protectReleaseSlew;
+        int protectHoldSamples, referenceQuietLimit;
     }
 
-    void initProtector (Protector& p)
+    // ---- recipe helpers --------------------------------------------------------------------------------------
+
+    // Root frequency of a body for a Tune position 0..1: drums use BODY's continuous size law (BODY:177-178),
+    // pitched bodies the note law C2..C5 (BODY:179-180) with the per-body range of the tables (Timpani C4 clamp).
+    float anchorRoot (int body, float size)
     {
-        p.protect = 0.0f;
-        p.protectHold = 0;
-        p.protectGain = 1.0f;
-        p.inputPeakReference = 0.0f;
-        p.referenceQuietSamples = 0;
+        int b = clamp (body, 0, rebody::numBodies - 1);
+        float s = clamp (size, 0.0f, 1.0f);
+
+        if (rebody::tables::rootLaw.at (b) == 0)
+            return rebody::tables::rootBaseHz.at (b) * float (pow (2.0f, rebody::tables::rootSizeOct.at (b) * (1.0f - s)));
+
+        int note = min (rebody::tables::tuneMaxNote.at (b), rebody::tables::tuneMinNote.at (b) + int (floor (s * 36.0f + 0.5f)));
+        return 440.0f * float (pow (2.0f, float (note - 69) / 12.0f));
     }
 
-    // Non-zero defaults; everything else starts at zero. `seed` differs per line so Breath noise
-    // is decorrelated between lines.
-    void initLine (Line& l, int seed)
+    // Nominal seconds of the body at a Decay position 0..1: base * ratio^decay (BODY:183-192, 22 section 0).
+    float anchorSeconds (int body, float decay)
     {
+        int b = clamp (body, 0, rebody::numBodies - 1);
+        return rebody::tables::decayBase.at (b) * float (pow (rebody::tables::decayRatio.at (b), clamp (decay, 0.0f, 1.0f)));
+    }
+
+    // Modal-body term of BODY's calibration bracket. Modal-only bodies use the table value; bodies behind a
+    // loop use it when the recipe has one (piano 0.8, ukulele 0.72), else unity (clarinet, sax: their brass and
+    // bell resonances were part of the pickup in BODY).
+    float bodyTerm (int body)
+    {
+        int b = clamp (body, 0, rebody::numBodies - 1);
+        float g = rebody::tables::bodyGain.at (b);
+
+        if (rebody::tables::lineKind.at (b) == 0)
+            return g;
+
+        return g > 0.0f ? g : 1.0f;
+    }
+
+    bool hasSlots (int body)
+    {
+        return rebody::modal::featureCount (body) + rebody::modal::followCount (body) > 0;
+    }
+
+    // Amplitude of a loop write value for the gate (both channels).
+    float amplitudeOf (float<2> v)
+    {
+        return max (abs (v[0]), abs (v[1]));
+    }
+
+    // One-pole coefficient from a table cutoff; 0 Hz means "none" (coefficient 1 = pass-through).
+    float tableCoefficient (float hz, float sr)
+    {
+        return hz > 0.0f ? rebody::analysis::onePoleCoefficient (hz, sr) : 1.0f;
+    }
+
+    // ---- init ------------------------------------------------------------------------------------------------
+
+    // Non-zero defaults; everything else starts at zero. `seed` differs per line so noise is decorrelated.
+    void initLine (Line& l, int seed, float sampleRate)
+    {
+        float sr = max (sampleRate, 1000.0f);
+
         rebody::modal::resetGrid (l.grid);
         rebody::modal::resetSlots (l.slots);
         rebody::analysis::onsetReset (l.onset);
         rebody::strikers::reset (l.striker);
         l.striker.noiseState = 17431 + 7919 * seed;
-        l.sax.noiseState.at (0) = 281391 + 7919 * seed;
-        l.sax.noiseState.at (1) = 891137 + 7919 * seed;
-        l.balanceGain = 1.0f;
-        l.balanceTarget = 1.0f;
-        l.weight.at (0) = 1.0f;
-        l.feed.at (0) = 1.0f;
-        l.dominant = 0;
-    }
 
-    // Anchor weights from the Morph position 0..10: linear between the two neighbouring anchors,
-    // sqrt-weight feeds as BODY (BODY:126-172). P1 placeholder: the hybrid segment 9 -> 10 is a plain
-    // interpolation here; P4 replaces it with the re-coupled Obosaxolele and tail holding.
-    void updateMorphWeights (Line& l)
-    {
-        float morph = clamp (l.control.at (rebody::params::slotMorph), 0.0f, float (rebody::numBodies - 1));
-        int left = min (rebody::numBodies - 2, int (floor (morph)));
-        float fraction = morph - float (left);
+        l.sr = sr;
+        l.controlSlew = rebody::analysis::tickSlewCoefficient (0.055f, sr, rebody::controlPeriod);
+        l.dcRadius = rebody::analysis::dcBlockRadius (20.0f, sr);
+        l.fastSlew = rebody::analysis::slewCoefficient (0.012f, sr);
+        l.meterRelease = rebody::analysis::releaseMultiplier (0.11f, sr);
+        l.gateRelease = rebody::analysis::releaseMultiplier (0.1f, sr);
+        l.onsetCoeffs = rebody::analysis::onsetCoefficients (sr);
+        l.balancePowerSlew = rebody::analysis::slewCoefficient (0.18f, sr);
+        l.balanceDownSlew = rebody::analysis::slewCoefficient (0.25f, sr);
+        l.balanceUpSlew = rebody::analysis::slewCoefficient (0.90f, sr);
+        l.quietTicks = max (1, int (0.5f * sr / float (rebody::controlPeriod)));
+
+        // Per-engine contact and loop filters (BODY:509-540).
+        l.boreReedCoef = rebody::analysis::onePoleCoefficient (2500.0f, sr);
+        l.boreAttack = rebody::analysis::slewCoefficient (0.008f, sr);
+        l.boreRelease = rebody::analysis::slewCoefficient (0.045f, sr);
+        l.boreLevelRelease = rebody::analysis::releaseMultiplier (0.018f, sr);
+        l.boreRadiationCoef = tableCoefficient (rebody::tables::radiationHz.at (bodyClarinet), sr);
+        l.hammerCoef = rebody::analysis::onePoleCoefficient (8200.0f, sr);
+        l.stringContactCoef = rebody::analysis::onePoleCoefficient (5600.0f, sr);
+        l.woodLowCoef = rebody::analysis::onePoleCoefficient (1700.0f, sr);
+        l.woodHighCoef = rebody::analysis::onePoleCoefficient (330.0f, sr);
+        l.saxBreathAttack = rebody::analysis::slewCoefficient (0.005f, sr);
+        l.saxBreathRelease = rebody::analysis::releaseMultiplier (0.045f, sr);
+        l.saxBreathLowCoef = rebody::analysis::onePoleCoefficient (4200.0f, sr);
+        l.saxBreathHighCoef = rebody::analysis::onePoleCoefficient (450.0f, sr);
+        l.saxFormantLowCoef = rebody::analysis::onePoleCoefficient (2600.0f, sr);
+        l.saxFormantHighCoef = rebody::analysis::onePoleCoefficient (650.0f, sr);
+        l.saxWarmCoef = rebody::analysis::onePoleCoefficient (900.0f, sr);
+        l.saxRadiationCoef = tableCoefficient (rebody::tables::radiationHz.at (bodySax), sr);
+        l.gestureRise = rebody::analysis::slewCoefficient (0.006f, sr);
+        l.gestureFall = rebody::analysis::slewCoefficient (0.180f, sr);
+
+        // Hidden wood pair of the ukulele (BODY:543-549): only feeds the Obosaxolele coupling.
+        for (int band = 0; band < 2; band += 1)
+        {
+            float woodHz = band == 0 ? 310.0f : 690.0f;
+            float woodSeconds = band == 0 ? 0.043f : 0.025f;
+            float radius = float (exp (-ln1000 / (sr * woodSeconds)));
+            float angle = float (twoPi) * woodHz / sr;
+            l.woodR.at (band) = radius * float (cos (angle));
+            l.woodI.at (band) = radius * float (sin (angle));
+            l.woodDrive.at (band) = (band == 0 ? 0.30f : 0.15f) * 2.0f * (1.0f - radius);
+        }
 
         for (int body = 0; body < rebody::numBodies; body += 1)
         {
-            l.weight.at (body) = 0.0f;
-            l.feed.at (body) = 0.0f;
+            l.modalCal.at (body) = rebody::tables::outGain.at (body) * bodyTerm (body);
+            l.engineCal.at (body) = rebody::tables::outGain.at (body) * rebody::tables::engineGain.at (body);
+            l.slotted.at (body) = hasSlots (body);
         }
 
-        l.weight.at (left) = 1.0f - fraction;
-        l.weight.at (left + 1) = fraction;
-        l.feed.at (left) = float (sqrt (1.0f - fraction));
-        l.feed.at (left + 1) = float (sqrt (fraction));
-        l.dominant = fraction < 0.5f ? left : left + 1;
+        l.noiseState.at (0) = 17431 + 7919 * seed;
+        l.noiseState.at (1) = 739391 + 7919 * seed;
+        l.sax.noiseState.at (0) = 281391 + 7919 * seed;
+        l.sax.noiseState.at (1) = 891137 + 7919 * seed;
 
-        float pitched = 0.0f;
-        for (int body = 2; body < rebody::numBodies; body += 1)
-            pitched += l.weight.at (body);
-        l.pitchedWeight = pitched;
+        // Every engine starts idle and wakes when its body gets weight.
+        l.clarinet.gate.idle = true;
+        l.sax.gate.idle = true;
+        l.stringEngine.gate.idle = true;
+        l.piano.gate.idle = true;
+
+        l.balanceGain = 1.0f;
+        l.balanceTarget = 1.0f;
+        l.rattleSustain = 0.08f;
+        l.dormant = true;
+        l.weight.at (0) = 1.0f;
+        l.dominant = 0;
     }
 
-    // P1 stub of one line sample: advance the engine write heads with the listened signal (so the
-    // full-size state is live) and produce no sound. Returns the line's wet contribution (silence).
-    float<2> stubProcess (Line& l, float<2> listenedSignal)
+    void initProtector (Protector& p, float sampleRate)
     {
-        l.listened = listenedSignal;
+        float sr = max (sampleRate, 1000.0f);
+        p.protect = 0.0f;
+        p.protectHold = 0;
+        p.protectGain = 1.0f;
+        p.inputPeakReference = 0.0f;
+        p.referenceQuietSamples = 0;
+        p.quietReset = false;
+        p.lowCutOn = false;
+        p.dcR = exp (-6.283185307179586 * 5.0 / float64 (sr));
+        p.widthNow = 1.0f;
+        p.widthTarget = 1.0f;
+        p.widthStep = 0.0f;
+        p.protectRelease = rebody::analysis::releaseMultiplier (0.12f, sr);
+        p.protectAttackSlew = rebody::analysis::slewCoefficient (0.001f, sr);
+        p.protectReleaseSlew = rebody::analysis::slewCoefficient (0.150f, sr);
+        p.protectHoldSamples = max (1, int (sr * 0.025f));
+        p.referenceQuietLimit = max (1, int (sr * 0.5f));
+    }
 
-        l.clarinet.buffer.at (l.clarinet.write) = listenedSignal;
+    // ---- morph -----------------------------------------------------------------------------------------------
+
+    // Anchor weights from the Morph position 0..10 (BODY:126-172 generalised): linear between the two
+    // neighbouring anchors along the series 0..9 (series order = anchor order), sqrt-weight feeds. The last
+    // segment 9 -> 10 is BODY's hybrid: weights ease from pure Sax into equal thirds of Oboe, Sax and Ukulele
+    // (oboe p, sax 1 - 2p, uke p, p = t / 3); anchor 10 carries the hybrid amount t for the slot cluster and the
+    // telemetry. The grid gain vectors blend A -> B by the fraction, which in the hybrid segment is the same
+    // weighting because the Obosaxolele grid row is the sum of its constituents at one third each.
+    void updateMorphWeights (Line& l, bool snap)
+    {
+        float morph = clamp (l.control.at (rebody::params::slotMorph), 0.0f, float (rebody::numBodies - 1));
+        l.morph = morph;
+
+        for (int body = 0; body < rebody::numBodies; body += 1)
+            l.weight.at (body) = 0.0f;
+
+        if (morph <= 9.0f)
+        {
+            int left = min (8, int (floor (morph)));
+            float fraction = morph - float (left);
+            l.weight.at (left) = 1.0f - fraction;
+            l.weight.at (left + 1) = fraction;
+        }
+        else
+        {
+            float t = morph - 9.0f;
+            float p = t / 3.0f;
+            l.weight.at (bodyUke) = p;
+            l.weight.at (bodyOboe) = p;
+            l.weight.at (bodySax) = 1.0f - 2.0f * p;
+            l.weight.at (bodyHybrid) = t;
+        }
+
+        int gridLeft = min (9, int (floor (morph)));
+        l.gridA = gridLeft;
+        l.gridB = gridLeft + 1;
+        l.gridT = morph - float (gridLeft);
+
+        float best = -1.0f;
+
+        for (int body = 0; body < rebody::numBodies; body += 1)
+        {
+            if (l.weight.at (body) > best)
+            {
+                best = l.weight.at (body);
+                l.dominant = body;
+            }
+        }
+
+        float pitched = 0.0f;
+
+        for (int body = bodyTimpani; body <= bodySax; body += 1)
+            pitched += l.weight.at (body);
+
+        l.pitchedWeight = pitched;
+
+        // Feeds (BODY:147-172): sqrt of the weight; from Oboe onward the same input excites correlated reed
+        // bodies, so the combined injection stays constant; the hybrid restores the excitation lost when
+        // independent source paths become a coupled body (applied before storage, so tails keep their gain).
+        float[11] target;
+        float total = 0.0f;
+
+        for (int body = 0; body < bodyHybrid; body += 1)
+        {
+            target.at (body) = float (sqrt (l.weight.at (body)));
+            total += target.at (body);
+        }
+
+        if (morph > 8.0f)
+        {
+            float normalise = 1.0f / max (1.0f, total);
+
+            for (int body = 0; body < bodyHybrid; body += 1)
+                target.at (body) *= normalise;
+        }
+
+        if (morph > 9.0f)
+        {
+            float calibration = 1.0f + rebody::tables::hybridConst.at (hcFeedTrim) * rebody::analysis::smoothstep01 (morph - 9.0f);
+            target.at (bodyUke) *= calibration;
+            target.at (bodyOboe) *= calibration;
+            target.at (bodySax) *= calibration;
+        }
+
+        for (int body = 0; body < rebody::numBodies; body += 1)
+            rebody::analysis::rampSet (l.feed.at (body), target.at (body), snap, rebody::controlPeriod);
+
+        rebody::analysis::rampSet (l.hybridRamp, rebody::analysis::smoothstep01 (morph - 9.0f), snap, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.pitchedWeightRamp, pitched, snap, rebody::controlPeriod);
+    }
+
+    // ---- shared register, decay and contact (BODY:203-272 generalised to 11 bodies) -------------------------
+
+    void updateBodyControls (Line& l, bool initial)
+    {
+        float tune = clamp (l.control.at (rebody::params::slotTune) * 0.01f, 0.0f, 1.0f);
+        float decay = clamp (l.control.at (rebody::params::slotDecay) * 0.01f, 0.0f, 1.0f);
+        float total = 0.0f;
+        float sharedRoot = 0.0f;
+        float sharedTime = 0.0f;
+        float sharedSustain = 0.0f;
+
+        for (int body = 0; body < rebody::numBodies; body += 1)
+        {
+            float weight = l.weight.at (body);
+            total += weight;
+
+            if (weight > 0.0f)
+            {
+                sharedRoot += weight * float (log (anchorRoot (body, tune)));
+                sharedTime += weight * float (log (anchorSeconds (body, decay)));
+                sharedSustain += weight * rebody::tables::sustain.at (body);
+            }
+        }
+
+        if (total > 0.0f)
+        {
+            sharedRoot /= total;
+            sharedTime /= total;
+            sharedSustain /= total;
+        }
+
+        float slew = initial ? 1.0f : l.controlSlew;
+
+        for (int body = 0; body < rebody::numBodies; body += 1)
+        {
+            if (initial)
+            {
+                l.logRoot.at (body) = float (log (anchorRoot (body, tune)));
+                l.logSeconds.at (body) = float (log (anchorSeconds (body, decay)));
+                l.sustain.at (body) = rebody::tables::sustain.at (body);
+                l.sizeNow.at (body) = tune;
+            }
+
+            // Active bodies follow the shared pitch and damping; withdrawn ones keep their last settings
+            // while their tails drain.
+            if (l.weight.at (body) > 0.0f)
+            {
+                float contactTarget = body < bodyTimpani
+                                    ? sharedSustain
+                                    : 0.90f * rebody::tables::sustain.at (body) + 0.10f * sharedSustain;
+
+                l.logRoot.at (body) = rebody::analysis::slewTo (l.logRoot.at (body), sharedRoot, slew);
+                l.logSeconds.at (body) = rebody::analysis::slewTo (l.logSeconds.at (body), sharedTime, slew);
+                l.sustain.at (body) = rebody::analysis::slewTo (l.sustain.at (body), contactTarget, slew);
+                l.sizeNow.at (body) = rebody::analysis::slewTo (l.sizeNow.at (body), tune, slew);
+            }
+        }
+
+        // Held hybrid roles: each follows its ingredient, then holds while that tail drains (BODY:253-266).
+        float joined = rebody::analysis::smoothstep01 (l.morph - 9.0f);
+
+        if (initial || l.weight.at (bodyOboe) > 0.0f)
+            l.oboHybrid = rebody::analysis::slewTo (l.oboHybrid, joined, slew);
+
+        if (initial || l.weight.at (bodyUke) > 0.0f)
+            l.ukeHybrid = rebody::analysis::slewTo (l.ukeHybrid, joined, slew);
+
+        if (initial || l.weight.at (bodySax) > 0.0f)
+            l.saxHybrid = rebody::analysis::slewTo (l.saxHybrid, joined, slew);
+
+        // Snare rattle follows the shared contact (BODY:267-271).
+        if (l.weight.at (bodySnare) > 0.0f)
+        {
+            float target = 0.08f + 0.92f * clamp ((sharedSustain - 0.035f) / 0.965f, 0.0f, 1.0f);
+            l.rattleSustain = rebody::analysis::slewTo (l.rattleSustain, target, initial ? 1.0f : l.controlSlew);
+        }
+
+        // Contact sustain of the shared string: weight blend of the string bodies.
+        float sumS = l.weight.at (bodyGuitar) + l.weight.at (bodyUke) + l.weight.at (bodyFiddle);
+
+        if (sumS > 0.0f)
+        {
+            float blended = 0.0f;
+
+            for (int body = bodyGuitar; body <= bodyFiddle; body += 1)
+                blended += l.weight.at (body) * l.sustain.at (body);
+
+            l.stringSustain = blended / sumS;
+        }
+
+        // Telemetry summary: the dominant body's register.
+        int d = l.dominant;
+        l.rootHz = float (exp (l.logRoot.at (d)));
+        l.sustainEff = l.sustain.at (d);
+    }
+
+    // ---- delay-line reads (linear interpolation as BODY:444-448; Lagrange-3 for Follow glides is P4b) ---------
+    // The read happens before the write of the same sample, so a delay d reads the value written d samples ago.
+    // Delays are clamped to 2 .. size - 3 by the callers.
+
+    float<2> read2048 (const float<2>[2048]& buffer, int write, float delay)
+    {
+        float offset = float (write) - delay;
+
+        if (offset < 0.0f)
+            offset += 2048.0f;
+
+        int first = clamp (int (offset), 0, 2047);
+        float fraction = offset - float (first);
+        return buffer.at (first) * (1.0f - fraction) + buffer.at ((first + 1) % 2048) * fraction;
+    }
+
+    float<2> read4096 (const float<2>[4096]& buffer, int write, float delay)
+    {
+        float offset = float (write) - delay;
+
+        if (offset < 0.0f)
+            offset += 4096.0f;
+
+        int first = clamp (int (offset), 0, 4095);
+        float fraction = offset - float (first);
+        return buffer.at (first) * (1.0f - fraction) + buffer.at ((first + 1) % 4096) * fraction;
+    }
+
+    float<2> read8192 (const float<2>[8192]& buffer, int write, float delay)
+    {
+        float offset = float (write) - delay;
+
+        if (offset < 0.0f)
+            offset += 8192.0f;
+
+        int first = clamp (int (offset), 0, 8191);
+        float fraction = offset - float (first);
+        return buffer.at (first) * (1.0f - fraction) + buffer.at ((first + 1) % 8192) * fraction;
+    }
+
+    // ---- engine retuning at control rate (BODY:335-390, :444-455) ---------------------------------------------
+
+    // Clarinet: delay = half period minus the phase delay of the in-loop low-pass (BODY:338), loop gain from the
+    // decay seconds (BODY:339), reed drive (BODY:340), radiation tap beta of a period behind the loop read
+    // (BODY:345, beta 0.5 = half a period).
+    void retuneBore (Line& l, bool snap)
+    {
+        float sr = l.sr;
+        float hz = max (float (exp (l.logRoot.at (bodyClarinet))), 20.0f);
+        float seconds = max (float (exp (l.logSeconds.at (bodyClarinet))), 0.001f);
+        float coef = tableCoefficient (rebody::tables::loopLowpassHz.at (bodyClarinet), sr);
+        float omega = float (twoPi) * hz / sr;
+        float delay = clamp (sr / (2.0f * hz) - rebody::analysis::filterPhaseDelay (coef, omega), 2.0f, 4093.0f);
+        float gain = float (exp (-ln1000 / (2.0f * hz * seconds)));
+        float drive = 1.35f * float (sqrt (max (0.0f, 1.0f - gain * gain)));
+        float radiation = clamp (delay + rebody::tables::beta.at (bodyClarinet) * sr / hz, 2.0f, 4093.0f);
+
+        l.clarinet.lowpassCoef = coef;
+        rebody::analysis::rampSet (l.clarinet.delay, delay, snap, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.clarinet.gain, gain, snap, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.clarinet.drive, drive, snap, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.clarinet.radiationDelay, radiation, snap, rebody::controlPeriod);
+    }
+
+    void finishBore (Line& l)
+    {
+        rebody::analysis::rampFinish (l.clarinet.delay);
+        rebody::analysis::rampFinish (l.clarinet.gain);
+        rebody::analysis::rampFinish (l.clarinet.drive);
+        rebody::analysis::rampFinish (l.clarinet.radiationDelay);
+    }
+
+    // Sax: full-period loop (BODY:382-390).
+    void retuneSax (Line& l, bool snap)
+    {
+        float sr = l.sr;
+        float hz = max (float (exp (l.logRoot.at (bodySax))), 20.0f);
+        float seconds = max (float (exp (l.logSeconds.at (bodySax))), 0.001f);
+        float coef = tableCoefficient (rebody::tables::loopLowpassHz.at (bodySax), sr);
+        float omega = float (twoPi) * hz / sr;
+        float delay = clamp (sr / hz - rebody::analysis::filterPhaseDelay (coef, omega), 2.0f, 4093.0f);
+        float gain = float (exp (-ln1000 / (hz * seconds)));
+        float drive = 1.15f * float (sqrt (max (0.0f, 1.0f - gain * gain)));
+
+        l.sax.lowpassCoef = coef;
+        rebody::analysis::rampSet (l.sax.delay, delay, snap, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.sax.gain, gain, snap, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.sax.drive, drive, snap, rebody::controlPeriod);
+    }
+
+    void finishSax (Line& l)
+    {
+        rebody::analysis::rampFinish (l.sax.delay);
+        rebody::analysis::rampFinish (l.sax.gain);
+        rebody::analysis::rampFinish (l.sax.drive);
+    }
+
+    // Shared string: the table rows of the active string bodies are blended by weight (log for the loop
+    // low-pass), the register and decay are the shared ones (BODY:368-380). The dispersion allpass is always in
+    // the loop and its phase delay (one sample at d = 0) is part of the tuning.
+    void retuneString (Line& l, bool snap)
+    {
+        float sr = l.sr;
+        float sumS = l.weight.at (bodyGuitar) + l.weight.at (bodyUke) + l.weight.at (bodyFiddle);
+
+        if (sumS <= 0.0f)
+        {
+            rebody::analysis::rampFinish (l.stringEngine.delay);
+            rebody::analysis::rampFinish (l.stringEngine.gain);
+            rebody::analysis::rampFinish (l.stringEngine.drive);
+            rebody::analysis::rampFinish (l.stringEngine.pickDelay);
+            rebody::analysis::rampFinish (l.stringEngine.dispersion);
+            return;
+        }
+
+        float logLowpass = 0.0f;
+        float beta = 0.0f;
+        float dispersion = 0.0f;
+        float logHz = 0.0f;
+        float logSeconds = 0.0f;
+
+        for (int body = bodyGuitar; body <= bodyFiddle; body += 1)
+        {
+            float w = l.weight.at (body) / sumS;
+            logLowpass += w * float (log (max (rebody::tables::loopLowpassHz.at (body), 200.0f)));
+            beta += w * rebody::tables::beta.at (body);
+            dispersion += w * rebody::tables::dispersion.at (body);
+            logHz += w * l.logRoot.at (body);
+            logSeconds += w * l.logSeconds.at (body);
+        }
+
+        float hz = max (float (exp (logHz)), 20.0f);
+        float seconds = max (float (exp (logSeconds)), 0.001f);
+        float coef = rebody::analysis::onePoleCoefficient (float (exp (logLowpass)), sr);
+        float disp = clamp (dispersion, -0.95f, 0.95f);
+        float omega = float (twoPi) * hz / sr;
+        float delay = clamp (sr / hz - rebody::analysis::filterPhaseDelay (coef, omega)
+                              - rebody::analysis::allpassPhaseDelay (disp, omega), 2.0f, 4093.0f);
+        float gain = float (exp (-ln1000 / (hz * seconds)));
+        float drive = float (sqrt (max (0.0f, 1.0f - gain * gain)));
+        float pick = clamp (beta * sr / hz, 2.0f, 2045.0f);
+
+        l.stringEngine.lowpassCoef = coef;
+        rebody::analysis::rampSet (l.stringEngine.delay, delay, snap, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.stringEngine.gain, gain, snap, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.stringEngine.drive, drive, snap, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.stringEngine.pickDelay, pick, snap, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.stringEngine.dispersion, disp, snap, rebody::controlPeriod);
+    }
+
+    // Piano: two strings detuned +-9 ct around the register (BODY:349-366), table dispersion per string.
+    void retunePiano (Line& l, bool snap)
+    {
+        float sr = l.sr;
+        float centre = max (float (exp (l.logRoot.at (bodyPiano))), 20.0f);
+        float seconds = max (float (exp (l.logSeconds.at (bodyPiano))), 0.001f);
+        float coef = tableCoefficient (rebody::tables::loopLowpassHz.at (bodyPiano), sr);
+        l.piano.lowpassCoef = coef;
+
+        for (int voice = 0; voice < 2; voice += 1)
+        {
+            float hz = centre * float (pow (2.0f, (voice == 0 ? -0.09f : 0.09f) / 12.0f));
+            float omega = float (twoPi) * hz / sr;
+            float d = clamp (voice == 0 ? rebody::tables::dispersion.at (bodyPiano) : rebody::tables::dispersionB.at (bodyPiano),
+                             -0.95f, 0.95f);
+            float delay = clamp (sr / hz - rebody::analysis::filterPhaseDelay (coef, omega)
+                                  - rebody::analysis::allpassPhaseDelay (d, omega), 2.0f, 8189.0f);
+            float gain = float (exp (-ln1000 / (hz * seconds)));
+            float drive = float (sqrt (max (0.0f, 1.0f - gain * gain)));
+
+            rebody::analysis::rampSet (l.piano.delay.at (voice), delay, snap, rebody::controlPeriod);
+            rebody::analysis::rampSet (l.piano.gain.at (voice), gain, snap, rebody::controlPeriod);
+            rebody::analysis::rampSet (l.piano.drive.at (voice), drive, snap, rebody::controlPeriod);
+            rebody::analysis::rampSet (l.piano.dispersion.at (voice), d, snap, rebody::controlPeriod);
+        }
+    }
+
+    void finishPiano (Line& l)
+    {
+        for (int voice = 0; voice < 2; voice += 1)
+        {
+            rebody::analysis::rampFinish (l.piano.delay.at (voice));
+            rebody::analysis::rampFinish (l.piano.gain.at (voice));
+            rebody::analysis::rampFinish (l.piano.drive.at (voice));
+            rebody::analysis::rampFinish (l.piano.dispersion.at (voice));
+        }
+    }
+
+    // ---- clearing an engine that went idle ---------------------------------------------------------------------
+
+    void clearBore (BoreEngine& e)
+    {
+        for (int i = 0; i < 4096; i += 1)
+            e.buffer.at (i) = float<2> (0.0f);
+
+        e.lowpass = float<2> (0.0f);
+        e.radiation = float<2> (0.0f);
+        e.reedLowpass = float<2> (0.0f);
+        e.reedEnvelope = float<2> (0.0f);
+        e.reedPeak = float<2> (0.0f);
+    }
+
+    void clearSax (SaxEngine& e)
+    {
+        for (int i = 0; i < 4096; i += 1)
+            e.buffer.at (i) = float<2> (0.0f);
+
+        e.lowpass = float<2> (0.0f);
+        e.radiation = float<2> (0.0f);
+        e.reedPrevious = float<2> (0.0f);
+        e.reedDC = float<2> (0.0f);
+        e.breathEnvelope = float<2> (0.0f);
+        e.breathLow = float<2> (0.0f);
+        e.breathHigh = float<2> (0.0f);
+        e.formantLow = float<2> (0.0f);
+        e.formantHigh = float<2> (0.0f);
+        e.warm = float<2> (0.0f);
+        e.breath = float<2> (0.0f);
+    }
+
+    void clearString (StringEngine& e)
+    {
+        for (int i = 0; i < 4096; i += 1)
+            e.buffer.at (i) = float<2> (0.0f);
+
+        for (int i = 0; i < 2048; i += 1)
+            e.pickBuffer.at (i) = float<2> (0.0f);
+
+        e.lowpass = float<2> (0.0f);
+        e.contact = float<2> (0.0f);
+        e.previous = float<2> (0.0f);
+        e.dispersionState = float<2> (0.0f);
+        e.woodLow = float<2> (0.0f);
+        e.woodHigh = float<2> (0.0f);
+
+        for (int band = 0; band < 2; band += 1)
+        {
+            e.woodRe.at (band) = float<2> (0.0f);
+            e.woodIm.at (band) = float<2> (0.0f);
+        }
+    }
+
+    void clearPiano (PianoEngine& e)
+    {
+        for (int i = 0; i < 8192; i += 1)
+        {
+            e.string0.at (i) = float<2> (0.0f);
+            e.string1.at (i) = float<2> (0.0f);
+        }
+
+        for (int voice = 0; voice < 2; voice += 1)
+        {
+            e.lowpass.at (voice) = float<2> (0.0f);
+            e.dispersionState.at (voice) = float<2> (0.0f);
+        }
+
+        e.hammerLowpass = float<2> (0.0f);
+        e.hammerPrevious = float<2> (0.0f);
+    }
+
+    // ---- per-sample engine steps -------------------------------------------------------------------------------
+
+    // Clarinet (BODY:636-656): reed contact with envelope-normalised soft clip into a negative-reflection
+    // cylinder. Returns the pickup: the radiation comb (half a period behind, BODY:652) through the radiation
+    // filter outside the loop (T6).
+    float<2> stepClarinet (Line& l, float<2> x, float feed, float nov)
+    {
+        float delay = rebody::analysis::rampNext (l.clarinet.delay);
+        float gain = rebody::analysis::rampNext (l.clarinet.gain);
+        float drive = rebody::analysis::rampNext (l.clarinet.drive);
+        float radiationDelay = rebody::analysis::rampNext (l.clarinet.radiationDelay);
+        float sustain = l.sustain.at (bodyClarinet);
+
+        float<2> bore = read4096 (l.clarinet.buffer, l.clarinet.write, delay);
+        l.clarinet.lowpass += l.clarinet.lowpassCoef * (bore - l.clarinet.lowpass);
+        float<2> next = float<2> (0.0f);
+
+        for (int ch = 0; ch < 2; ch += 1)
+        {
+            float reed = x.at (ch) * feed * (sustain + (1.0f - sustain) * nov);
+            float reedLevel = abs (reed);
+            float envelope = l.clarinet.reedEnvelope.at (ch);
+            envelope += (reedLevel > envelope ? l.boreAttack : l.boreRelease) * (reedLevel - envelope);
+            float peak = max (reedLevel, l.clarinet.reedPeak.at (ch) * l.boreLevelRelease);
+            float low = l.clarinet.reedLowpass.at (ch);
+            low += l.boreReedCoef * (reed - low);
+
+            if (reedLevel == 0.0f && abs (low) + envelope < tiny)
+            {
+                low = 0.0f;
+                envelope = 0.0f;
+                peak = 0.0f;
+            }
+
+            l.clarinet.reedEnvelope.at (ch) = envelope;
+            l.clarinet.reedPeak.at (ch) = peak;
+            l.clarinet.reedLowpass.at (ch) = low;
+
+            reed = low * (0.65f + 0.35f * clamp (envelope / max (0.0000001f, peak), 0.0f, 1.0f));
+            reed = reed / (1.0f + 0.90f * abs (reed));
+            float reflection = l.clarinet.lowpass.at (ch);
+            reflection = reflection / (1.0f + 0.014f * abs (reflection));
+            float n = drive * reed - gain * reflection;
+
+            if (abs (n) < tiny)
+                n = 0.0f;
+
+            next.at (ch) = n;
+        }
+
+        float<2> comb = (bore - 0.80f * read4096 (l.clarinet.buffer, l.clarinet.write, radiationDelay)) / 1.80f;
+        l.clarinet.radiation += l.boreRadiationCoef * (comb - l.clarinet.radiation);
+        l.clarinet.buffer.at (l.clarinet.write) = next;
         l.clarinet.write = (l.clarinet.write + 1) % rebody::boreBufferSize;
+        gateObserve (l.clarinet.gate, amplitudeOf (next), l.gateRelease);
+        return l.clarinet.radiation;
+    }
 
-        l.sax.buffer.at (l.sax.write) = listenedSignal;
+    // Sax (BODY:768-826): asymmetric reed with breath noise into a positive full-period bore. The pickup is the
+    // beta-comb of the loop through the radiation filter outside the loop (T6) plus BODY's formant emphasis
+    // (BODY:807-810); BODY's brass pair (BODY:543-554) lives in the slots of body 9 now. In the hybrid segment
+    // the bell takes the oboe slots (BODY:798-800), the same injection point.
+    float<2> stepSax (Line& l, float<2> x, float feed, float nov, float hybrid)
+    {
+        float delay = rebody::analysis::rampNext (l.sax.delay);
+        float gain = rebody::analysis::rampNext (l.sax.gain);
+        float drive = rebody::analysis::rampNext (l.sax.drive);
+        float sustain = l.sustain.at (bodySax);
+        float bellCalibration = rebody::tables::outGain.at (bodyOboe) * rebody::tables::bodyGain.at (bodyOboe);
+
+        float<2> tap = read4096 (l.sax.buffer, l.sax.write, delay);
+        l.sax.lowpass += l.sax.lowpassCoef * (tap - l.sax.lowpass);
+        float<2> next = float<2> (0.0f);
+        float<2> breath = float<2> (0.0f);
+
+        for (int ch = 0; ch < 2; ch += 1)
+        {
+            float reed = x.at (ch) * feed * (sustain + (1.0f - sustain) * nov);
+            float reedLevel = abs (reed);
+            float envelope = l.sax.breathEnvelope.at (ch);
+            envelope = max (envelope * l.saxBreathRelease, envelope + l.saxBreathAttack * (reedLevel - envelope));
+
+            if (envelope < 1.0e-9f)
+                envelope = 0.0f;
+
+            l.sax.breathEnvelope.at (ch) = envelope;
+            int state = rebody::analysis::xorshift (l.sax.noiseState.at (ch));
+            l.sax.noiseState.at (ch) = state;
+            float noise = rebody::analysis::noiseOf (state) * envelope;
+            float low = l.sax.breathLow.at (ch);
+            float high = l.sax.breathHigh.at (ch);
+            low += l.saxBreathLowCoef * (noise - low);
+            high += l.saxBreathHighCoef * (noise - high);
+
+            if (envelope == 0.0f && abs (low) + abs (high) < tiny)
+            {
+                low = 0.0f;
+                high = 0.0f;
+            }
+
+            l.sax.breathLow.at (ch) = low;
+            l.sax.breathHigh.at (ch) = high;
+            breath.at (ch) = 0.25f * (low - high);
+
+            // Normalise the source drive to its local envelope, then restore it (BODY:787-790).
+            float sourceEnvelope = max (0.0000001f, envelope);
+            reed = clamp (reed / sourceEnvelope, -4.0f, 4.0f) * 0.65f;
+            reed = 1.55f * sourceEnvelope * (reed / (1.0f + 0.60f * abs (reed)) + 0.12f * reed * reed / (1.0f + reed * reed));
+            float highpass = reed - l.sax.reedPrevious.at (ch) + l.dcRadius * l.sax.reedDC.at (ch);
+            l.sax.reedPrevious.at (ch) = reed;
+            l.sax.reedDC.at (ch) = abs (highpass) < tiny ? 0.0f : highpass;
+
+            float reflection = l.sax.lowpass.at (ch);
+            reflection = reflection / (1.0f + 0.020f * abs (reflection));
+            float bell = highpass + 0.10f * breath.at (ch);
+
+            if (hybrid > 0.0f)
+                bell = bell * (1.0f - rebody::tables::hybridConst.at (hcBellDryAtten) * hybrid)
+                     + rebody::tables::hybridConst.at (hcReedToBell) * hybrid
+                       * (1.0f - rebody::tables::hybridConst.at (hcGestureAtten) * l.hybridGesture)
+                       * (bellCalibration * l.oboRaw.at (ch));
+
+            float n = drive * bell + gain * reflection;
+
+            if (abs (n) < tiny)
+                n = 0.0f;
+
+            next.at (ch) = n;
+        }
+
+        float pickupDelay = max (1.0f, rebody::tables::beta.at (bodySax) * delay);
+        float<2> pickup = tap - 0.72f * read4096 (l.sax.buffer, l.sax.write, pickupDelay);
+        l.sax.radiation += l.saxRadiationCoef * (pickup - l.sax.radiation);
+        pickup = l.sax.radiation;
+        l.sax.formantLow += l.saxFormantLowCoef * (pickup - l.sax.formantLow);
+        l.sax.formantHigh += l.saxFormantHighCoef * (pickup - l.sax.formantHigh);
+
+        for (int ch = 0; ch < 2; ch += 1)
+            if (abs (pickup.at (ch)) + abs (l.sax.formantLow.at (ch)) + abs (l.sax.formantHigh.at (ch)) < tiny)
+            {
+                l.sax.formantLow.at (ch) = 0.0f;
+                l.sax.formantHigh.at (ch) = 0.0f;
+            }
+
+        pickup += 0.85f * (l.sax.formantLow - l.sax.formantHigh);
+        l.sax.buffer.at (l.sax.write) = next;
         l.sax.write = (l.sax.write + 1) % rebody::saxBufferSize;
 
-        l.stringEngine.buffer.at (l.stringEngine.write) = listenedSignal;
-        l.stringEngine.write = (l.stringEngine.write + 1) % rebody::stringBufferSize;
-        l.stringEngine.pickBuffer.at (l.stringEngine.pickWrite) = listenedSignal;
+        // Warm radiation outside the loop: the stored bore builds behind the contact and drains normally.
+        l.sax.warm += l.saxWarmCoef * (pickup - l.sax.warm);
+
+        for (int ch = 0; ch < 2; ch += 1)
+            if (abs (pickup.at (ch)) + abs (l.sax.warm.at (ch)) < tiny)
+                l.sax.warm.at (ch) = 0.0f;
+
+        l.sax.breath = breath;
+        gateObserve (l.sax.gate, amplitudeOf (next), l.gateRelease);
+        return pickup;
+    }
+
+    // Shared string engine (BODY:680-710). Returns the stored-string tap `pluck`; `picked` is the pick-comb
+    // contact and `woodSum` the hidden wood tap (both only used by the hybrid coupling).
+    float<2> stepString (Line& l, float<2> x, float feed, float ukeNovelty, float<2>& picked, float<2>& woodSum)
+    {
+        float delay = rebody::analysis::rampNext (l.stringEngine.delay);
+        float gain = rebody::analysis::rampNext (l.stringEngine.gain);
+        float drive = rebody::analysis::rampNext (l.stringEngine.drive);
+        float pickDelay = rebody::analysis::rampNext (l.stringEngine.pickDelay);
+        float d = rebody::analysis::rampNext (l.stringEngine.dispersion);
+        float sustain = l.stringSustain;
+
+        // Contact: pluck edge with BODY's pad-safe novelty, low-passed, then the position comb.
+        float<2> source = x * feed;
+        float<2> edge = (source - 0.60f * l.stringEngine.previous) * (sustain + (1.0f - sustain) * ukeNovelty);
+        l.stringEngine.previous = source;
+        l.stringEngine.contact += l.stringContactCoef * (edge - l.stringEngine.contact);
+        float<2> delayedPick = read2048 (l.stringEngine.pickBuffer, l.stringEngine.pickWrite, pickDelay);
+        l.stringEngine.pickBuffer.at (l.stringEngine.pickWrite) = l.stringEngine.contact;
         l.stringEngine.pickWrite = (l.stringEngine.pickWrite + 1) % rebody::pickBufferSize;
+        picked = l.stringEngine.contact - 0.92f * delayedPick;
 
-        l.piano.string0.at (l.piano.write) = listenedSignal;
-        l.piano.string1.at (l.piano.write) = listenedSignal;
+        l.stringEngine.woodLow += l.woodLowCoef * (l.stringEngine.contact - l.stringEngine.woodLow);
+        l.stringEngine.woodHigh += l.woodHighCoef * (l.stringEngine.contact - l.stringEngine.woodHigh);
+
+        for (int ch = 0; ch < 2; ch += 1)
+            if (abs (l.stringEngine.contact.at (ch)) + abs (l.stringEngine.woodLow.at (ch)) + abs (l.stringEngine.woodHigh.at (ch)) < tiny)
+            {
+                l.stringEngine.contact.at (ch) = 0.0f;
+                l.stringEngine.woodLow.at (ch) = 0.0f;
+                l.stringEngine.woodHigh.at (ch) = 0.0f;
+            }
+
+        float<2> wood = float<2> (0.0f);
+
+        for (int band = 0; band < 2; band += 1)
+        {
+            float<2> re = l.stringEngine.woodRe.at (band);
+            float<2> im = l.stringEngine.woodIm.at (band);
+            float<2> nextRe = l.woodR.at (band) * re - l.woodI.at (band) * im + l.woodDrive.at (band) * l.stringEngine.contact;
+            float<2> nextIm = l.woodI.at (band) * re + l.woodR.at (band) * im;
+
+            for (int ch = 0; ch < 2; ch += 1)
+                if (abs (nextRe.at (ch)) + abs (nextIm.at (ch)) < tiny)
+                {
+                    nextRe.at (ch) = 0.0f;
+                    nextIm.at (ch) = 0.0f;
+                }
+
+            l.stringEngine.woodRe.at (band) = nextRe;
+            l.stringEngine.woodIm.at (band) = nextIm;
+            wood += nextRe;
+        }
+
+        woodSum = l.stringEngine.woodLow - l.stringEngine.woodHigh + wood;
+
+        // Loop: stored string, low-pass, dispersion allpass, soft reflection.
+        float<2> pluck = read4096 (l.stringEngine.buffer, l.stringEngine.write, delay);
+        l.stringEngine.lowpass += l.stringEngine.lowpassCoef * (pluck - l.stringEngine.lowpass);
+        float<2> dispersed = d * l.stringEngine.lowpass + l.stringEngine.dispersionState;
+        l.stringEngine.dispersionState = l.stringEngine.lowpass - d * dispersed;
+        float<2> next = float<2> (0.0f);
+
+        for (int ch = 0; ch < 2; ch += 1)
+        {
+            float reflection = dispersed.at (ch);
+            reflection = reflection / (1.0f + 0.003f * abs (reflection));
+            float n = drive * picked.at (ch) + gain * reflection;
+
+            if (abs (n) < tiny)
+                n = 0.0f;
+
+            next.at (ch) = n;
+        }
+
+        l.stringEngine.buffer.at (l.stringEngine.write) = next;
+        l.stringEngine.write = (l.stringEngine.write + 1) % rebody::stringBufferSize;
+        gateObserve (l.stringEngine.gate, amplitudeOf (next), l.gateRelease);
+        return pluck;
+    }
+
+    // Piano (BODY:658-677): hammer contact into two detuned dispersive strings; the pickup rejects part of the
+    // fundamental and exposes overtones (BODY:675, tap at beta of the delay).
+    float<2> stepPiano (Line& l, float<2> x, float feed, float nov)
+    {
+        float sustain = l.sustain.at (bodyPiano);
+        float<2> source = x * feed;
+        float<2> edge = (source - 0.28f * l.piano.hammerPrevious) * (sustain + (1.0f - sustain) * nov * nov);
+        l.piano.hammerPrevious = source;
+        l.piano.hammerLowpass += l.hammerCoef * (edge - l.piano.hammerLowpass);
+
+        float<2> pickup = float<2> (0.0f);
+        float<2> next0 = float<2> (0.0f);
+        float<2> next1 = float<2> (0.0f);
+
+        for (int voice = 0; voice < 2; voice += 1)
+        {
+            float delay = rebody::analysis::rampNext (l.piano.delay.at (voice));
+            float gain = rebody::analysis::rampNext (l.piano.gain.at (voice));
+            float drive = rebody::analysis::rampNext (l.piano.drive.at (voice));
+            float d = rebody::analysis::rampNext (l.piano.dispersion.at (voice));
+            float<2> tap = voice == 0 ? read8192 (l.piano.string0, l.piano.write, delay)
+                                      : read8192 (l.piano.string1, l.piano.write, delay);
+            float<2> pickupTap = voice == 0 ? read8192 (l.piano.string0, l.piano.write, max (1.0f, rebody::tables::beta.at (bodyPiano) * delay))
+                                            : read8192 (l.piano.string1, l.piano.write, max (1.0f, rebody::tables::beta.at (bodyPiano) * delay));
+            l.piano.lowpass.at (voice) += l.piano.lowpassCoef * (tap - l.piano.lowpass.at (voice));
+            float<2> dispersed = d * l.piano.lowpass.at (voice) + l.piano.dispersionState.at (voice);
+            l.piano.dispersionState.at (voice) = l.piano.lowpass.at (voice) - d * dispersed;
+            float<2> next = float<2> (0.0f);
+
+            for (int ch = 0; ch < 2; ch += 1)
+            {
+                float feedback = dispersed.at (ch);
+                feedback = feedback / (1.0f + 0.002f * abs (feedback));
+                float n = drive * l.piano.hammerLowpass.at (ch) + gain * feedback;
+
+                if (abs (n) < tiny)
+                    n = 0.0f;
+
+                next.at (ch) = n;
+            }
+
+            if (voice == 0)
+                next0 = next;
+            else
+                next1 = next;
+
+            pickup += (tap - 0.58f * pickupTap) * 0.5f;
+        }
+
+        l.piano.string0.at (l.piano.write) = next0;
+        l.piano.string1.at (l.piano.write) = next1;
         l.piano.write = (l.piano.write + 1) % rebody::pianoBufferSize;
+        gateObserve (l.piano.gate, max (amplitudeOf (next0), amplitudeOf (next1)), l.gateRelease);
+        return pickup;
+    }
 
-        l.bodyOut = float<2> (0.0f);
-        l.wet = float<2> (0.0f);
-        return l.wet;
+    // ---- control tick ----------------------------------------------------------------------------------------
+
+    // Engines: gate, wake up (snap to the first targets), retune while a body needs the engine, and finish the
+    // ramps of withdrawn engines that keep ringing (tail holding).
+    void updateEngines (Line& l, bool initial)
+    {
+        bool on = l.enabled;
+        int quiet = l.quietTicks;
+
+        bool wantBore = on && l.weight.at (bodyClarinet) > 0.0f;
+        bool wasIdle = l.clarinet.gate.idle;
+        gateTick (l.clarinet.gate, wantBore, quiet);
+
+        if (l.clarinet.gate.clear)
+            clearBore (l.clarinet);
+
+        if (wantBore)
+            retuneBore (l, initial || wasIdle);
+        else
+            finishBore (l);
+
+        bool wantSax = on && l.weight.at (bodySax) > 0.0f;
+        wasIdle = l.sax.gate.idle;
+        gateTick (l.sax.gate, wantSax, quiet);
+
+        if (l.sax.gate.clear)
+            clearSax (l.sax);
+
+        if (wantSax)
+            retuneSax (l, initial || wasIdle);
+        else
+            finishSax (l);
+
+        bool wantString = on && (l.weight.at (bodyGuitar) + l.weight.at (bodyUke) + l.weight.at (bodyFiddle)) > 0.0f;
+        wasIdle = l.stringEngine.gate.idle;
+        gateTick (l.stringEngine.gate, wantString, quiet);
+
+        if (l.stringEngine.gate.clear)
+            clearString (l.stringEngine);
+
+        retuneString (l, initial || wasIdle);
+
+        bool wantPiano = on && l.weight.at (bodyPiano) > 0.0f;
+        wasIdle = l.piano.gate.idle;
+        gateTick (l.piano.gate, wantPiano, quiet);
+
+        if (l.piano.gate.clear)
+            clearPiano (l.piano);
+
+        if (wantPiano)
+            retunePiano (l, initial || wasIdle);
+        else
+            finishPiano (l);
+    }
+
+    // Grid level normalisation (20 section 7). Each grid pole normalises its own impulse energy, but poles of
+    // one bump overlap (the bandwidth of a short T60 spans several 1/12-octave steps) and their responses add
+    // coherently, or cancel for alternating signs. The factor restores the energy of the independent poles:
+    // sqrt(sum of the self terms / sum of all terms), cross terms of the real parts in closed form (BODY:288-296)
+    // for neighbours up to `gridBand` poles apart (float64, control rate, only when the law or vector changed).
+    const int gridBand = 8;
+
+    float gridNormalisation (Line& l, const float[96]& gainL, const float[96]& gainR)
+    {
+        float64[96] poleRe;
+        float64[96] poleIm;
+        float64[96] unitDrive;
+
+        for (int lane = 0; lane < rebody::modal::gridLanes; lane += 1)
+        {
+            for (int e = 0; e < 8; e += 1)
+            {
+                int i = lane * 8 + e;
+                poleRe.at (i) = float64 (l.grid.cTarget.at (lane).at (e));
+                poleIm.at (i) = float64 (l.grid.sTarget.at (lane).at (e));
+                unitDrive.at (i) = float64 (l.grid.lawDrive.at (lane).at (e));
+            }
+        }
+
+        float64 selfEnergy = 0.0;
+        float64 totalEnergy = 0.0;
+
+        for (int i = 0; i < rebody::gridPoles; i += 1)
+        {
+            if (unitDrive.at (i) > 0.0)
+            {
+                float64 dLi = unitDrive.at (i) * float64 (gainL.at (i));
+                float64 dRi = unitDrive.at (i) * float64 (gainR.at (i));
+                int last = min (rebody::gridPoles - 1, i + gridBand);
+
+                for (int j = i; j <= last; j += 1)
+                {
+                    if (unitDrive.at (j) > 0.0)
+                    {
+                        float64 weight = (j == i ? 1.0 : 2.0)
+                                       * rebody::modal::pairCorrelation (poleRe.at (i), poleIm.at (i), poleRe.at (j), poleIm.at (j));
+                        float64 term = 0.5 * weight * (dLi * unitDrive.at (j) * float64 (gainL.at (j))
+                                                       + dRi * unitDrive.at (j) * float64 (gainR.at (j)));
+                        totalEnergy += term;
+
+                        if (j == i)
+                            selfEnergy += term;
+                    }
+                }
+            }
+        }
+
+        if (selfEnergy < 1.0e-20 || totalEnergy < 1.0e-20)
+            return 1.0f;
+
+        return clamp (float (sqrt (selfEnergy / totalEnergy)), 0.02f, 8.0f);
+    }
+
+    // Modal bodies: grid law and gain vectors for the active bodies, slot voicings (only bodies with weight; the
+    // others keep their last voicing and ring out), flush, and who runs next tick. Unchanged inputs skip the
+    // calls, so a settled line costs nothing here.
+    void updateModal (Line& l, bool initial)
+    {
+        float sr = l.sr;
+        float material = clamp (l.control.at (rebody::params::slotMaterial), 0.0f, 100.0f);
+        float size = clamp (l.control.at (rebody::params::slotSize) * 0.01f, -1.0f, 1.0f);
+
+        // Grid law of the active bodies (20 section 4) and the weight-log-blend of their Decay factors.
+        float<2> law = rebody::modal::lawBlend (l.weight);
+        float logScale = 0.0f;
+        float total = 0.0f;
+
+        for (int body = 0; body < rebody::numBodies; body += 1)
+        {
+            float w = l.weight.at (body);
+
+            if (w > 0.0f)
+            {
+                float scale = rebody::modal::decayScaleForSeconds (body, float (exp (l.logSeconds.at (body))));
+                logScale += w * float (log (max (scale, 0.001f)));
+                total += w;
+            }
+        }
+
+        float decayScale = total > 0.0f ? float (exp (logScale / total)) : 1.0f;
+
+        bool changed = ! l.gridReady
+                        || law.at (0) != l.keyLaw0 || law.at (1) != l.keyLaw1 || decayScale != l.keyDecayScale
+                        || material != l.keyMaterial || size != l.keySize
+                        || l.gridA != l.keyGridA || l.gridB != l.keyGridB || l.gridT != l.keyGridT;
+
+        if (changed)
+        {
+            rebody::modal::setLaw (l.grid, sr, law.at (0), law.at (1), decayScale, material, size, false);
+            float[96] gainL;
+            float[96] gainR;
+            rebody::modal::gainVectorBlend (l.gridA, l.gridB, l.gridT, gainL, gainR);
+            float norm = gridNormalisation (l, gainL, gainR);
+
+            for (int k = 0; k < rebody::gridPoles; k += 1)
+            {
+                gainL.at (k) *= norm;
+                gainR.at (k) *= norm;
+            }
+
+            rebody::modal::setGains (l.grid, gainL, gainR);
+            l.keyLaw0 = law.at (0);
+            l.keyLaw1 = law.at (1);
+            l.keyDecayScale = decayScale;
+            l.keyMaterial = material;
+            l.keySize = size;
+            l.keyGridA = l.gridA;
+            l.keyGridB = l.gridB;
+            l.keyGridT = l.gridT;
+            l.gridReady = true;
+        }
+
+        float onset = l.onset.onset;
+
+        for (int body = 0; body < rebody::numBodies; body += 1)
+        {
+            if (hasSlots (body))
+            {
+                bool fed = l.enabled && l.weight.at (body) > 0.0f;
+
+                if (fed)
+                {
+                    // Source attacks briefly tighten the membrane (BODY:308); the glide fades with the feed.
+                    float glide = float (pow (2.0f, rebody::tables::onsetGlideOct.at (body) * onset * l.feed.at (body).target));
+                    bool following = rebody::modal::followCount (body) > 0;
+                    // Bodies without Tune-following modes get a constant root, so their cached
+                    // normalisation is not recomputed when the shared register moves.
+                    float root = following ? float (exp (l.logRoot.at (body))) * glide : 0.0f;
+                    float seconds = float (exp (l.logSeconds.at (body)));
+                    // The oboe cluster hands over to the Obosaxolele cluster (body 10) by an equal-power crossfade.
+                    float position = body == bodyOboe ? float (sqrt (max (0.0f, 1.0f - l.oboHybrid))) : 1.0f;
+
+                    if (! l.keyValid.at (body) || root != l.keyRoot.at (body) || seconds != l.keySeconds.at (body)
+                         || material != l.keyMaterialBody.at (body) || size != l.keySizeBody.at (body)
+                         || position != l.keyPosition.at (body))
+                    {
+                        float[18] positionGain;
+
+                        for (int k = 0; k < rebody::slotStride; k += 1)
+                            positionGain.at (k) = (body == bodyOboe && k >= rebody::featureStride) ? position : 1.0f;
+
+                        rebody::modal::setBody (l.slots, body, sr, root, seconds, material, size, positionGain, false);
+                        l.keyValid.at (body) = true;
+                        l.keyRoot.at (body) = root;
+                        l.keySeconds.at (body) = seconds;
+                        l.keyMaterialBody.at (body) = material;
+                        l.keySizeBody.at (body) = size;
+                        l.keyPosition.at (body) = position;
+                    }
+                }
+
+                l.bodyRun.at (body) = fed || ! rebody::modal::isSilent (l.slots, body);
+            }
+        }
+
+        rebody::modal::flush (l.grid);
+        rebody::modal::flush (l.slots);
+        l.gridLive = ! rebody::modal::isSilent (l.grid);
+    }
+
+    // Output stage: calibration blends (BODY:831-856), string shares, drum filters, Level, Pan, Sensitivity, the
+    // oboe contact filter and the AGC target (BODY:851), plus the telemetry summary.
+    void updateOutputStage (Line& l, bool initial)
+    {
+        float sr = l.sr;
+
+        // Grid calibration: weight blend of the bodies' output terms, split into the drum part (Bass Drum,
+        // Snare) and the pitched part that goes through the balance AGC.
+        float drumCal = 0.0f;
+        float pitchedCal = 0.0f;
+
+        for (int body = 0; body <= bodySax; body += 1)
+        {
+            float cal = l.weight.at (body) * rebody::tables::outGain.at (body) * bodyTerm (body);
+
+            if (body < bodyTimpani)
+                drumCal += cal;
+            else
+                pitchedCal += cal;
+        }
+
+        rebody::analysis::rampSet (l.gridCalDrum, drumCal, initial, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.gridCalPitched, pitchedCal, initial, rebody::controlPeriod);
+
+        // Shared string: sqrt share per string body, combined feed, calibration blend.
+        float sumS = l.weight.at (bodyGuitar) + l.weight.at (bodyUke) + l.weight.at (bodyFiddle);
+        float stringCal = 0.0f;
+
+        for (int i = 0; i < 3; i += 1)
+        {
+            int body = bodyGuitar + i;
+            float share = sumS > 0.0f ? float (sqrt (l.weight.at (body) / sumS)) : 0.0f;
+            rebody::analysis::rampSet (l.stringShare.at (i), share, initial, rebody::controlPeriod);
+
+            if (sumS > 0.0f)
+                stringCal += l.weight.at (body) / sumS * rebody::tables::outGain.at (body) * rebody::tables::engineGain.at (body);
+        }
+
+        float feed4 = l.feed.at (bodyGuitar).target;
+        float feed5 = l.feed.at (bodyUke).target;
+        float feed6 = l.feed.at (bodyFiddle).target;
+        rebody::analysis::rampSet (l.stringFeed, float (sqrt (feed4 * feed4 + feed5 * feed5 + feed6 * feed6)), initial, rebody::controlPeriod);
+
+        if (sumS > 0.0f)
+            rebody::analysis::rampSet (l.stringCal, stringCal, initial, rebody::controlPeriod);
+        else
+            rebody::analysis::rampFinish (l.stringCal);
+
+        // Bass drum and timpani contact low-pass 3 f0 + 170 Hz (BODY:326), with the onset glide.
+        float onset = l.onset.onset;
+
+        for (int i = 0; i < 2; i += 1)
+        {
+            int body = i * 2;
+
+            if (l.weight.at (body) > 0.0f || initial)
+            {
+                float hz = float (exp (l.logRoot.at (body))) * float (pow (2.0f, rebody::tables::onsetGlideOct.at (body) * onset * l.feed.at (body).target));
+                rebody::analysis::rampSet (l.contactLp.at (i), rebody::analysis::onePoleCoefficient (3.0f * hz + 170.0f, sr), initial, rebody::controlPeriod);
+            }
+            else
+                rebody::analysis::rampFinish (l.contactLp.at (i));
+        }
+
+        // Snare rattle bands and release follow the snare's size and decay (BODY:327-329).
+        float snareSize = l.sizeNow.at (bodySnare);
+        float snareDecay = max (float (exp (l.logSeconds.at (bodySnare))), 0.001f);
+        rebody::analysis::rampSet (l.snareLow, rebody::analysis::onePoleCoefficient (6900.0f - 2100.0f * (1.0f - snareSize), sr), initial, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.snareHigh, rebody::analysis::onePoleCoefficient (1400.0f - 450.0f * (1.0f - snareSize), sr), initial, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.snareRelease, float (exp (-ln1000 / (sr * snareDecay * 0.78f))), initial, rebody::controlPeriod);
+
+        // Oboe reed contact: nasal at rest, opening into the lower pairs with the hybrid (BODY:396-398).
+        float oboHz = float (exp (l.logRoot.at (bodyOboe)));
+        float contactRatio = 2.1f;
+
+        if (l.oboHybrid > 0.0f)
+            contactRatio += l.oboHybrid * (0.65f + 1.0f * l.hybridGesture - contactRatio);
+
+        l.oboFormantCoef = rebody::analysis::onePoleCoefficient (min (4200.0f, contactRatio * oboHz), sr);
+
+        // Level (dB, -60 = off), Sensitivity, Pan (unity at 0, the opposite channel attenuated).
+        float levelDb = l.control.at (rebody::params::slotLevel);
+        rebody::analysis::rampSet (l.levelGain, levelDb <= -59.9f ? 0.0f : rebody::analysis::dbToGain (levelDb), initial, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.sens, rebody::analysis::sensitivityGain (l.control.at (rebody::params::slotSensitivity)), initial, rebody::controlPeriod);
+        float pan = clamp (l.control.at (rebody::params::slotPan) * 0.01f, -1.0f, 1.0f);
+        rebody::analysis::rampSet (l.panL, pan > 0.0f ? 1.0f - pan : 1.0f, initial, rebody::controlPeriod);
+        rebody::analysis::rampSet (l.panR, pan < 0.0f ? 1.0f + pan : 1.0f, initial, rebody::controlPeriod);
+
+        // Balance AGC target, once per tick while the line is excited (BODY:850-851).
+        if (l.balanceActiveFlag && l.balanceInputPower > 1.0e-10f && l.balanceOutputPower > 1.0e-12f)
+            l.balanceTarget = clamp (float (sqrt (0.15848932f * l.balanceInputPower / max (1.0e-12f, l.balanceOutputPower))), 0.125f, 4.0f);
+
+        // Telemetry summary: T60 at the root of the dominant body from the damping law.
+        int d = l.dominant;
+        float scale = rebody::modal::decayScaleForSeconds (d, float (exp (l.logSeconds.at (d))));
+        l.t60 = rebody::modal::t60For (l.rootHz, rebody::tables::alphaG.at (d), rebody::tables::alphaR.at (d), scale,
+                                       clamp (l.control.at (rebody::params::slotMaterial), 0.0f, 100.0f));
+    }
+
+    // Forget the balance AGC (BODY:872: after half a second of inaudible ringout).
+    void resetBalance (Line& l)
+    {
+        l.balanceGain = 1.0f;
+        l.balanceTarget = 1.0f;
+        l.balanceInputPower = 0.0f;
+        l.balanceOutputPower = 0.0f;
+    }
+
+    bool snareQuiet (Line& l)
+    {
+        return l.snareEnvelope.at (0) == 0.0f && l.snareEnvelope.at (1) == 0.0f
+                && abs (l.snareNoiseLow.at (0)) + abs (l.snareNoiseHigh.at (0)) + abs (l.snareNoiseLow.at (1)) + abs (l.snareNoiseHigh.at (1)) < tiny;
+    }
+
+    // Control tick of one line, every 32 samples (BODY:579). The block parameters in `control` are already
+    // smoothed; everything below turns them into targets for the sample loop.
+    void tick (Line& l, bool initial)
+    {
+        l.enabled = l.control.at (rebody::params::slotEnable) >= 0.5f;
+        l.holdState = l.control.at (rebody::params::slotHold);
+
+        // A disabled, drained line costs nothing.
+        if (l.dormant && ! l.enabled)
+            return;
+
+        // The first tick of a line (also when B or C are enabled later) snaps to its targets.
+        bool first = initial || ! l.started;
+        l.started = true;
+
+        updateMorphWeights (l, first);
+        updateBodyControls (l, first);
+        updateEngines (l, first);
+        updateModal (l, first);
+        updateOutputStage (l, first);
+
+        // Disabling fades the contribution; the engines are gated only after their tails have drained.
+        bool quiet = ! l.gridLive
+                      && l.clarinet.gate.idle && l.sax.gate.idle && l.stringEngine.gate.idle && l.piano.gate.idle
+                      && snareQuiet (l);
+
+        for (int body = 0; body < rebody::numBodies; body += 1)
+            if (hasSlots (body) && l.bodyRun.at (body))
+                quiet = false;
+
+        if (! l.enabled && l.enableNow <= 0.0f && quiet)
+        {
+            l.dormant = true;
+            resetBalance (l);
+        }
+        else
+            l.dormant = false;
+    }
+
+    // ---- per-sample line processing ---------------------------------------------------------------------------
+
+    // Step the slot bank of one body when it runs (fed now, or still ringing: tail holding); a body that is idle
+    // and not fed this sample costs nothing.
+    float<2> stepBodySlots (Line& l, int body, float<2> excitation)
+    {
+        if (! l.bodyRun.at (body))
+        {
+            if (excitation.at (0) == 0.0f && excitation.at (1) == 0.0f)
+                return float<2> (0.0f);
+
+            l.bodyRun.at (body) = true;
+        }
+
+        return rebody::modal::step (l.slots, body, excitation);
+    }
+
+    // One sample of one line. `lineIn` is the conditioned input component this line listens to (Listen), before
+    // Sensitivity; `inputActive` says the dry input is above -100 dB and Bypass is off (BODY:850). Returns the
+    // line's contribution to the sum (after Level, Pan and Enable); `l.bodyOut` holds it before those.
+    float<2> process (Line& l, float<2> lineIn, bool inputActive)
+    {
+        float<2> source = l.enabled ? lineIn : float<2> (0.0f);
+        float<2> x = source * rebody::analysis::rampNext (l.sens);
+        float level = amplitudeOf (x);
+
+        // Own novelty detector on the listened signal (T9, BODY:591-594).
+        rebody::analysis::onsetStep (l.onset, l.onsetCoeffs, level);
+        float nov = l.onset.novelty;
+        l.listenEnergy = max (level, l.listenEnergy * l.meterRelease);
+
+        if (l.listenEnergy < 0.000000001f)
+            l.listenEnergy = 0.0f;
+
+        // Everything that changes across a tick moves linearly (BODY idiom).
+        for (int body = 0; body < rebody::numBodies; body += 1)
+            l.feedNow.at (body) = rebody::analysis::rampNext (l.feed.at (body));
+
+        float hyb = rebody::analysis::rampNext (l.hybridRamp);
+        float pitchedWeight = rebody::analysis::rampNext (l.pitchedWeightRamp);
+        float gridCalDrum = rebody::analysis::rampNext (l.gridCalDrum);
+        float gridCalPitched = rebody::analysis::rampNext (l.gridCalPitched);
+        float stringFeed = rebody::analysis::rampNext (l.stringFeed);
+        float stringCal = rebody::analysis::rampNext (l.stringCal);
+        float snareLowCoef = rebody::analysis::rampNext (l.snareLow);
+        float snareHighCoef = rebody::analysis::rampNext (l.snareHigh);
+        float snareReleaseNow = rebody::analysis::rampNext (l.snareRelease);
+        float[3] share;
+
+        for (int i = 0; i < 3; i += 1)
+            share.at (i) = rebody::analysis::rampNext (l.stringShare.at (i));
+
+        // Modal excitation per body (already fed): contact signals for the modal-only bodies, the calibrated
+        // pickup of the loop for bodies behind a line engine (commuted synthesis, one-way coupling).
+        float<2>[11] exc;
+        float<2> drumOut = float<2> (0.0f);
+        float<2> pitched = float<2> (0.0f);
+
+        // Bass drum and timpani: the contact goes through a low-pass at 3 f0 + 170 Hz (BODY:598).
+        for (int i = 0; i < 2; i += 1)
+        {
+            int body = i * 2;
+            float lp = rebody::analysis::rampNext (l.contactLp.at (i));
+            float f = l.feedNow.at (body);
+            float<2> c = l.contact.at (i);
+
+            if (f > 0.0f || abs (c.at (0)) + abs (c.at (1)) > 0.0f)
+            {
+                float s = l.sustain.at (body);
+                c += lp * (x * (f * (s + (1.0f - s) * nov)) - c);
+
+                if (abs (c.at (0)) + abs (c.at (1)) < tiny)
+                    c = float<2> (0.0f);
+
+                l.contact.at (i) = c;
+                exc.at (body) = c;
+            }
+        }
+
+        // Snare: raw contact into the shell modes, plus the noise rattle (BODY:600, :615-634). No idle noise.
+        float<2> snareInput = x * l.feedNow.at (bodySnare);
+        float<2> rattle = float<2> (0.0f);
+
+        if (l.feedNow.at (bodySnare) > 0.0f || ! snareQuiet (l) || abs (l.snarePrevious.at (0)) + abs (l.snarePrevious.at (1)) > 0.0f)
+        {
+            float s = l.sustain.at (bodySnare);
+            exc.at (bodySnare) = snareInput * (s + (1.0f - s) * nov);
+
+            for (int ch = 0; ch < 2; ch += 1)
+            {
+                float edge = abs (snareInput.at (ch) - 0.55f * l.snarePrevious.at (ch));
+                float envelopeDrive = edge * (l.rattleSustain + (1.0f - l.rattleSustain) * nov);
+
+                if (envelopeDrive < 0.000015f)
+                    envelopeDrive = 0.0f;
+
+                float envelope = max (envelopeDrive, l.snareEnvelope.at (ch) * snareReleaseNow);
+
+                if (envelope < 1.0e-9f)
+                    envelope = 0.0f;
+
+                l.snareEnvelope.at (ch) = envelope;
+                int state = rebody::analysis::xorshift (l.noiseState.at (ch));
+                l.noiseState.at (ch) = state;
+                float excited = rebody::analysis::noiseOf (state) * envelope;
+                float low = l.snareNoiseLow.at (ch);
+                float high = l.snareNoiseHigh.at (ch);
+                low += snareLowCoef * (excited - low);
+                high += snareHighCoef * (excited - high);
+
+                if (envelope == 0.0f && abs (low) + abs (high) < tiny)
+                {
+                    low = 0.0f;
+                    high = 0.0f;
+                }
+
+                l.snareNoiseLow.at (ch) = low;
+                l.snareNoiseHigh.at (ch) = high;
+                rattle.at (ch) = low - high;
+            }
+
+            l.snarePrevious = snareInput;
+            drumOut += l.engineCal.at (bodySnare) * rattle;
+        }
+
+        // Piano string pair (modal soundboard excited by the pickup).
+        if (! l.piano.gate.idle)
+        {
+            float<2> pickup = stepPiano (l, x, l.feedNow.at (bodyPiano), nov);
+            exc.at (bodyPiano) = pickup * rebody::tables::engineGain.at (bodyPiano);
+            pitched += l.engineCal.at (bodyPiano) * pickup;
+        }
+
+        // Shared string (Guitar, Ukulele, Fiddle) with BODY's pad-safe pluck contrast (BODY:685-687).
+        float contrast = clamp ((l.onset.peak - 1.8f * l.onset.slowPeak) / max (0.0000001f, 0.5f * l.onset.peak), 0.0f, 1.0f);
+        float ukeNovelty = nov * contrast * contrast * (3.0f - 2.0f * contrast);
+        float<2> pluck = float<2> (0.0f);
+        float<2> picked = float<2> (0.0f);
+        float<2> woodSum = float<2> (0.0f);
+
+        if (! l.stringEngine.gate.idle)
+        {
+            pluck = stepString (l, x, stringFeed, ukeNovelty, picked, woodSum);
+            pitched += stringCal * pluck;
+
+            for (int i = 0; i < 3; i += 1)
+                exc.at (bodyGuitar + i) = pluck * (rebody::tables::engineGain.at (bodyGuitar + i) * share.at (i));
+        }
+
+        // Hybrid gesture: the pad-safe pluck detector is the only trigger (BODY:717-722).
+        float contactStrength = 0.20f + 0.80f * clamp (8.0f * l.onset.peak, 0.0f, 1.0f);
+        float gestureTarget = hyb * clamp (5.0f * ukeNovelty, 0.0f, 1.0f) * contactStrength;
+        l.hybridGesture += (gestureTarget > l.hybridGesture ? l.gestureRise : l.gestureFall) * (gestureTarget - l.hybridGesture);
+
+        if (l.hybridGesture < 0.000001f && gestureTarget == 0.0f)
+            l.hybridGesture = 0.0f;
+
+        // Oboe: reed contact (DC-blocked, minus a formant low-pass), fed from the uke bridge in the hybrid
+        // (BODY:723-741). Cluster and formants run as slots of body 8; the Obosaxolele cluster is body 10.
+        float<2> hybridBridge = rebody::tables::outGain.at (bodyUke) *
+                               (0.82f * (3.0f * picked + 0.90f * woodSum)
+                                + 0.18f * (rebody::tables::engineGain.at (bodyUke) * pluck + 0.72f * woodSum));
+        float<2> reedContact = float<2> (0.0f);
+        float oboSustain = l.sustain.at (bodyOboe);
+        float oboFeed = l.feedNow.at (bodyOboe);
+
+        for (int ch = 0; ch < 2; ch += 1)
+        {
+            float reed = x.at (ch) * oboFeed * (oboSustain + (1.0f - oboSustain) * nov);
+
+            if (hyb > 0.0f)
+                reed = reed * (1.0f - rebody::tables::hybridConst.at (hcReedDryAtten) * hyb)
+                       + rebody::tables::hybridConst.at (hcBridgeToReed) * hyb * hybridBridge.at (ch);
+
+            float highpass = reed - l.oboReedPrevious.at (ch) + l.dcRadius * l.oboReedDC.at (ch);
+            l.oboReedPrevious.at (ch) = reed;
+            l.oboReedDC.at (ch) = abs (highpass) < tiny ? 0.0f : highpass;
+            float low = l.oboReedLow.at (ch) + l.oboFormantCoef * (highpass - l.oboReedLow.at (ch));
+
+            if (abs (highpass) + abs (low) < tiny)
+                low = 0.0f;
+
+            l.oboReedLow.at (ch) = low;
+            reedContact.at (ch) = highpass - low;
+        }
+
+        // The hybrid's reshaped cluster costs less source energy (BODY:427); it takes over from the oboe cluster.
+        float reduce = 1.0f - rebody::tables::hybridConst.at (hcOboeEnergyCut) * l.oboHybrid;
+        exc.at (bodyOboe) = reedContact * reduce;
+
+        if (l.weight.at (bodyHybrid) > 0.0f)
+            exc.at (bodyHybrid) = reedContact * (reduce * float (sqrt (max (0.0f, l.oboHybrid))));
+
+        float<2> oboRaw = stepBodySlots (l, bodyOboe, exc.at (bodyOboe));
+
+        if (l.slotted.at (bodyHybrid))
+            oboRaw += stepBodySlots (l, bodyHybrid, exc.at (bodyHybrid));
+
+        l.oboRaw = oboRaw;
+        pitched += (1.0f + rebody::tables::hybridConst.at (hcOboeRoleGain) * l.oboHybrid) * l.modalCal.at (bodyOboe) * oboRaw;
+
+        // Sax: asymmetric reed + breath into the positive bore; the hybrid bell takes the oboe slots.
+        float<2> saxPickup = float<2> (0.0f);
+
+        if (! l.sax.gate.idle)
+        {
+            saxPickup = stepSax (l, x, l.feedNow.at (bodySax), nov, hyb);
+            exc.at (bodySax) = saxPickup * rebody::tables::engineGain.at (bodySax);
+            pitched += l.engineCal.at (bodySax) * saxPickup
+                       + rebody::tables::outGain.at (bodySax) * saxBreathGain * l.sax.breath;
+        }
+
+        // Clarinet: the pickup after the radiation filter excites the grid (no slots).
+        if (! l.clarinet.gate.idle)
+        {
+            float<2> pickup = stepClarinet (l, x, l.feedNow.at (bodyClarinet), nov);
+            exc.at (bodyClarinet) = pickup * rebody::tables::engineGain.at (bodyClarinet);
+            pitched += l.engineCal.at (bodyClarinet) * pickup;
+        }
+
+        // Held roles of the Obosaxolele: one plucked reed box (BODY:836-843); each follows its ingredient.
+        if (l.ukeHybrid > 0.0f)
+            pitched += l.ukeHybrid * rebody::tables::outGain.at (bodyUke)
+                       * (rebody::tables::hybridConst.at (hcUkePluck) * pluck + rebody::tables::hybridConst.at (hcUkeWood) * woodSum
+                          + rebody::tables::hybridConst.at (hcUkePicked) * picked);
+
+        if (l.saxHybrid > 0.0f)
+            pitched += l.saxHybrid * rebody::tables::outGain.at (bodySax)
+                       * (rebody::tables::hybridConst.at (hcSaxWarm) * l.sax.warm + rebody::tables::hybridConst.at (hcSaxPickup) * saxPickup
+                          + rebody::tables::hybridConst.at (hcSaxBreath) * l.sax.breath);
+
+        // Remaining slot banks (all bodies but the oboe pair, which ran above, and the clarinet, which has none).
+        for (int body = 0; body <= bodySax; body += 1)
+        {
+            if (l.slotted.at (body) && body != bodyOboe)
+            {
+                float<2> s = stepBodySlots (l, body, exc.at (body));
+
+                if (body < bodyTimpani)
+                    drumOut += l.modalCal.at (body) * s;
+                else
+                    pitched += l.modalCal.at (body) * s;
+            }
+        }
+
+        // The shared grid: every body's modal excitation, gain vector blended by the morph.
+        float<2> gridExcitation = float<2> (0.0f);
+
+        for (int body = 0; body < rebody::numBodies; body += 1)
+            gridExcitation += exc.at (body);
+
+        if (l.gridLive || gridExcitation.at (0) != 0.0f || gridExcitation.at (1) != 0.0f)
+        {
+            l.gridLive = true;
+            float<2> gridOut = rebody::modal::step (l.grid, gridExcitation);
+            drumOut += gridCalDrum * gridOut;
+            pitched += gridCalPitched * gridOut;
+        }
+
+        // Loudness: BODY's balance AGC on the pitched part with this line's pitchedWeight (BODY:844-855).
+        l.balanceInputPower += l.balancePowerSlew * (0.5f * (source.at (0) * source.at (0) + source.at (1) * source.at (1)) * pitchedWeight - l.balanceInputPower);
+        l.balanceOutputPower += l.balancePowerSlew * (0.5f * (pitched.at (0) * pitched.at (0) + pitched.at (1) * pitched.at (1)) - l.balanceOutputPower);
+
+        if (l.balanceInputPower < 1.0e-20f)
+            l.balanceInputPower = 0.0f;
+
+        if (l.balanceOutputPower < 1.0e-20f)
+            l.balanceOutputPower = 0.0f;
+
+        l.balanceActiveFlag = inputActive && pitchedWeight > 0.01f;
+
+        if (l.balanceActiveFlag)
+            l.balanceGain += (l.balanceTarget < l.balanceGain ? l.balanceDownSlew : l.balanceUpSlew) * (l.balanceTarget - l.balanceGain);
+
+        float<2> body = drumOut + pitched * l.balanceGain;
+
+        // Chain source (after the loudness stage), then Level, Pan, Enable.
+        for (int ch = 0; ch < 2; ch += 1)
+        {
+            float v = body.at (ch);
+            body.at (ch) = (isnan (v) || isinf (v)) ? 0.0f : clamp (v, -16.0f, 16.0f);
+        }
+
+        l.bodyOut = body;
+        float enableTarget = l.enabled ? 1.0f : 0.0f;
+        float previousEnable = l.enableNow;
+        l.enableNow += l.fastSlew * (enableTarget - l.enableNow);
+
+        if (l.enableNow == previousEnable || abs (l.enableNow - enableTarget) < 0.000001f)
+            l.enableNow = enableTarget;
+
+        float gain = rebody::analysis::rampNext (l.levelGain) * l.enableNow;
+        float<2> result = body * gain * float<2> (rebody::analysis::rampNext (l.panL), rebody::analysis::rampNext (l.panR));
+        l.wet = result;
+        return result;
     }
 
     // Peak-hold the telemetry accumulators (cheap, every sample).
     void accumulate (Line& l)
     {
-        l.wetPeakL = max (l.wetPeakL, abs (l.wet[0]));
-        l.wetPeakR = max (l.wetPeakR, abs (l.wet[1]));
+        l.wetPeakL = max (l.wetPeakL, abs (l.wet.at (0)));
+        l.wetPeakR = max (l.wetPeakR, abs (l.wet.at (1)));
         l.onsetHold = max (l.onsetHold, l.onset.onset);
     }
 
-    // The lineStateA/B/C frame (spec.json outputs): wet, onset, listenEnergy, followHz, hold, rootHz,
-    // t60, sustainEff, dominantBody, engine0..engine10 (anchor weights), 4 spare. Reads the
+    // A line that does not run this sample (disabled and drained).
+    void idleSample (Line& l)
+    {
+        l.wet = float<2> (0.0f);
+        l.bodyOut = float<2> (0.0f);
+        l.listenEnergy = 0.0f;
+        rebody::analysis::onsetReset (l.onset);
+    }
+
+    // ---- telemetry ---------------------------------------------------------------------------------------------
+
+    // The lineStateA/B/C frame (spec.json outputs): wet, onset, listenEnergy, followHz, hold, rootHz, t60,
+    // sustainEff, dominantBody, engine0..engine10 (per-anchor weights, the morph weight bars), 4 spare. Reads the
     // peak-hold accumulators and resets them.
     float<24> takeState (Line& l)
     {
         float<24> v = float<24> (0.0f);
-        v[0] = max (l.wetPeakL, l.wetPeakR);
-        v[1] = l.onsetHold;
-        v[2] = l.listenEnergy;
-        v[3] = l.followHz;
-        v[4] = l.holdState;
-        v[5] = l.rootHz;
-        v[6] = l.t60;
-        v[7] = l.sustainEff;
-        v[8] = float (l.dominant);
+        v.at (0) = max (l.wetPeakL, l.wetPeakR);
+        v.at (1) = l.onsetHold;
+        v.at (2) = l.listenEnergy;
+        v.at (3) = l.followHz;
+        v.at (4) = l.holdState;
+        v.at (5) = l.rootHz;
+        v.at (6) = l.t60;
+        v.at (7) = l.sustainEff;
+        v.at (8) = float (l.dominant);
 
         for (int body = 0; body < rebody::numBodies; body += 1)
             v.at (9 + body) = l.weight.at (body);
@@ -2327,33 +4136,201 @@ namespace rebody::line
         return v;
     }
 
-    // The lineModesA/B/C frame: energy of the first 16 slot modes of the dominant body in fixed
-    // recipe index order. P1 reports the (zero) accumulator.
+    // The lineModesA/B/C frame: energy of the first 16 slot modes of the dominant body in fixed recipe index
+    // order (k 0-7 feature slot k, k 8-15 following slot k - 8, the padded layout of bodies.json `modes`).
     float<16> modesState (Line& l)
     {
         float<16> v = float<16> (0.0f);
 
-        for (int k = 0; k < 16; k += 1)
-            v.at (k) = l.modeEnergy.at (k);
+        if (l.slotted.at (l.dominant))
+        {
+            for (int k = 0; k < 16; k += 1)
+            {
+                float e = rebody::modal::slotEnergy (l.slots, l.dominant, k);
+                v.at (k) = e > 1.0e-18f ? e : 0.0f;
+            }
+        }
 
         return v;
+    }
+
+    // ---- the sum of the lines: width, Low Cut, wet DC block, protector (BODY:857-889) -------------------------
+
+    // Width 0..100 (50 = BODY's image): mid/side gain of the side signal, 0 = mono, 2 at 100. P2 acts on the
+    // wet sum; the in-body split of 20 section 5 arrives with the physics knobs.
+    float widthGain (float widthPercent)
+    {
+        float w = clamp (widthPercent, 0.0f, 100.0f);
+        return w < 50.0f ? w / 50.0f : 1.0f + (w - 50.0f) / 50.0f;
+    }
+
+    void setWidth (Protector& p, float widthPercent, bool snap)
+    {
+        float target = widthGain (widthPercent);
+        p.widthNow = snap ? target : p.widthTarget;
+        p.widthTarget = target;
+        p.widthStep = snap ? 0.0f : (target - p.widthNow) / float (rebody::controlPeriod);
+    }
+
+    float<2> widthStep (Protector& p, float<2> wet)
+    {
+        p.widthNow += p.widthStep;
+
+        if (p.widthNow == 1.0f && p.widthTarget == 1.0f)
+            return wet;
+
+        float mid = 0.5f * (wet.at (0) + wet.at (1));
+        float side = 0.5f * (wet.at (0) - wet.at (1)) * p.widthNow;
+        return float<2> (mid + side, mid - side);
+    }
+
+    // Low Cut: 12 dB/oct Butterworth high-pass on the wet sum, ahead of the protector so the ceiling holds.
+    // 20 Hz = off. float64 state and coefficients: the poles sit close to 1 at low cutoffs.
+    void setLowCut (Protector& p, float hz, float sampleRate)
+    {
+        float sr = max (sampleRate, 1000.0f);
+
+        if (hz <= 20.5f)
+        {
+            p.lowCutOn = false;
+            return;
+        }
+
+        float64 w0 = 6.283185307179586 * float64 (min (hz, 0.45f * sr)) / float64 (sr);
+        float64 cw = cos (w0);
+        float64 alpha = sin (w0) / (2.0 * 0.7071067811865476);
+        float64 a0 = 1.0 + alpha;
+        p.lowCutB0 = 0.5 * (1.0 + cw) / a0;
+        p.lowCutB1 = -(1.0 + cw) / a0;
+        p.lowCutA1 = -2.0 * cw / a0;
+        p.lowCutA2 = (1.0 - alpha) / a0;
+        p.lowCutOn = true;
+    }
+
+    float<2> lowCutStep (Protector& p, float<2> wet)
+    {
+        float<2> result = wet;
+
+        for (int ch = 0; ch < 2; ch += 1)
+        {
+            float64 xs = float64 (wet.at (ch));
+
+            if (p.lowCutOn)
+            {
+                float64 y = p.lowCutB0 * (xs + p.lowCutX2.at (ch)) + p.lowCutB1 * p.lowCutX1.at (ch)
+                            - p.lowCutA1 * p.lowCutY1.at (ch) - p.lowCutA2 * p.lowCutY2.at (ch);
+                p.lowCutX2.at (ch) = p.lowCutX1.at (ch);
+                p.lowCutX1.at (ch) = xs;
+                p.lowCutY2.at (ch) = p.lowCutY1.at (ch);
+                p.lowCutY1.at (ch) = y;
+                result.at (ch) = float (y);
+            }
+            else
+            {
+                // Off: keep the state at the DC steady state of the current input (no click when it is turned on).
+                p.lowCutX1.at (ch) = xs;
+                p.lowCutX2.at (ch) = xs;
+                p.lowCutY1.at (ch) = 0.0;
+                p.lowCutY2.at (ch) = 0.0;
+            }
+        }
+
+        return result;
+    }
+
+    // DC block of the wet sum, 5 Hz (P03 2c): loops with asymmetric reeds must not leak DC into the output.
+    float<2> dcBlockStep (Protector& p, float<2> wet)
+    {
+        float<2> result = wet;
+
+        for (int ch = 0; ch < 2; ch += 1)
+        {
+            float64 xs = float64 (wet.at (ch));
+            float64 y = xs - p.dcX1.at (ch) + p.dcR * p.dcY1.at (ch);
+            p.dcX1.at (ch) = xs;
+            p.dcY1.at (ch) = abs (y) < 1.0e-20 ? 0.0 : y;
+            result.at (ch) = float (y);
+        }
+
+        return result;
+    }
+
+    // Shared protector + knee against the peak of the input that excited this phrase (BODY:857-889): the peak
+    // reference holds through silence and is re-armed only after half a second of inaudible ringout. `dry` is
+    // the guarded input. When the reference is dropped `quietReset` pulses and the lines forget their AGC.
+    float<2> protectStep (Protector& p, float<2> wetSum, float<2> dry)
+    {
+        float<2> wet = wetSum;
+        float wetPeak = max (abs (wet.at (0)), abs (wet.at (1)));
+        float dryPeak = max (abs (dry.at (0)), abs (dry.at (1)));
+        p.inputPeakReference = max (p.inputPeakReference, dryPeak);
+        p.quietReset = false;
+
+        if (dryPeak == 0.0f && wetPeak <= p.inputPeakReference * 0.0000001f)
+        {
+            if (p.referenceQuietSamples < p.referenceQuietLimit)
+                p.referenceQuietSamples += 1;
+
+            if (p.referenceQuietSamples >= p.referenceQuietLimit)
+            {
+                p.inputPeakReference = 0.0f;
+                p.protect = 0.0f;
+                p.protectHold = 0;
+                p.protectGain = 1.0f;
+                p.quietReset = true;
+            }
+        }
+        else
+            p.referenceQuietSamples = 0;
+
+        if (wetPeak >= p.protect)
+        {
+            p.protect = wetPeak;
+            p.protectHold = p.protectHoldSamples;
+        }
+        else if (p.protectHold > 0)
+            p.protectHold -= 1;
+        else
+            p.protect = max (wetPeak, p.protect * p.protectRelease);
+
+        float ceiling = p.inputPeakReference;
+        float protectTarget = ceiling > 0.0f ? min (1.0f, 0.98f * ceiling / max (0.98f * ceiling, p.protect)) : 1.0f;
+        p.protectGain += (protectTarget < p.protectGain ? p.protectAttackSlew : p.protectReleaseSlew) * (protectTarget - p.protectGain);
+        wet *= p.protectGain;
+
+        // C1-continuous emergency knee: catches fast first peaks while the smooth gain reacts.
+        float protectedPeak = max (abs (wet.at (0)), abs (wet.at (1)));
+
+        if (ceiling == 0.0f)
+            wet = float<2> (0.0f);
+        else if (protectedPeak > 0.99f * ceiling)
+        {
+            float width = 0.01f * ceiling;
+            float excess = protectedPeak - 0.99f * ceiling;
+            float boundedPeak = 0.99f * ceiling + width * (excess / (width + excess));
+            wet *= boundedPeak / protectedPeak;
+        }
+
+        return wet;
     }
 }
 
 // ===== 90_main.cmajor =====
 // RE-BODY main processor (Amorph FX: audio in, bodies, audio out, no MIDI).
 //
-// P1 skeleton: all 73 parameters and 10 telemetry endpoints exist with their final ids and
-// ranges, the three lines carry their final-size state, and the signal path conditions the input
-// as BODY does (NaN guard, DC block, clamp, bypass fade). The wet path is silent for now, so the
-// output is dry * (1 - mix); the DSP of the bodies arrives from P2 on.
+// P2: Line A is complete (BODY's engines on physically modelled bodies, concept 20 sections 2-7, 12), B and C run
+// the same code and are Enable Off by default. All 73 parameters and 10 telemetry endpoints keep their final ids.
 //
 // Signal path per sample (concept 20 section 2):
 //   in -> NaN guard, DC block, clamp, bypass fade                         (BODY:587-590)
-//      -> per enabled line: onset detector, stubs                          (P2+: engines, grid, slots)
-//      -> sum of lines                                                     (P2+: Low Cut, protector, knee)
+//      -> per line (Listen = All in P2): onset detector, feeds, engines, grid and slots, loudness stage,
+//         Level, Pan, Enable                                              (50_line.cmajor, BODY:591-856)
+//      -> sum of lines -> Width -> Low Cut -> wet DC block -> shared protector + knee   (BODY:857-889)
 //      -> Mix, linear as BODY on purpose                                   (BODY:890)
 //   meters and telemetry every max(1, int(sr / 30)) samples               (BODY:893)
+//
+// Control rate: every line runs its tick every 32 samples (BODY:579), the three lines staggered by 11 samples
+// so the control work of the lines does not land on one sample. Handlers only set targets (BODY:120-124).
 //
 // Cmajor #94 check: the three lines are `Line[3] lines`. If a compiler version rejects a struct
 // array that contains arrays, replace it by three members lineA, lineB, lineC and call the same
@@ -2549,58 +4526,72 @@ processor RE_BODY [[ main ]]
 
     rebody::line::Line[3] lines;
     rebody::line::Protector protector;
+    rebody::analysis::BandMeters bandMeters;
+    rebody::analysis::BandCoefficients bandCoeffs;
 
     // Input conditioning, mix and bypass smoothing (BODY:16-30).
     float mixNow, bypassNow;
     float controlTickSlew, morphTickSlew, fastSlew, dcRadius;
     float<2> previousInput, dcState;
-    rebody::analysis::OnsetCoefficients onsetCoeffs;
+    float sampleRate;
+    float lowCutNow;
     bool started;
     int counter;
 
     // Meters and telemetry (BODY:26-27, :893).
     float inputMeter, wetMeter, leftMeter, rightMeter, meterRelease;
-    float[8] bandEnergy;                  // summed wet energy in 8 octave bands, P5
     int vizCounter, vizPeriod;
 
-    // Step the 23 block parameters of every line towards the host values. Called once per control
-    // tick (32 samples, BODY:579); `snap` jumps straight to the targets (first sample). Discrete
-    // parameters (step >= 1: Enable, Listen, Excite, Hold) switch immediately.
-    void controlTick (bool snap)
+    // Step the 23 block parameters of one line towards the host values and run its control tick (32 samples,
+    // BODY:579); `snap` jumps straight to the targets (first sample). Discrete parameters (step >= 1: Enable,
+    // Listen, Excite, Hold) switch immediately. Tune and Decay are taken as they are: the shared register slews
+    // them (BODY:223-251), smoothing twice would double the lag.
+    void controlLine (int k, bool snap)
     {
-        for (int k = 0; k < rebody::numLines; k += 1)
+        for (int s = 0; s < rebody::params::lineSlots; s += 1)
         {
-            for (int s = 0; s < rebody::params::lineSlots; s += 1)
+            int index = rebody::params::lineParam.at (k * rebody::params::lineSlots + s);
+            float target = paramTarget.at (index);
+            float now = lines.at (k).control.at (s);
+
+            if (snap || rebody::params::stepValue.at (index) >= 1.0f
+                 || s == rebody::params::slotTune || s == rebody::params::slotDecay)
             {
-                int index = rebody::params::lineParam.at (k * rebody::params::lineSlots + s);
-                float target = paramTarget.at (index);
-                float now = lines.at (k).control.at (s);
+                now = target;
+            }
+            else
+            {
+                float previous = now;
+                now += (s == rebody::params::slotMorph ? morphTickSlew : controlTickSlew) * (target - now);
 
-                if (snap || rebody::params::stepValue.at (index) >= 1.0f)
-                {
+                if (now == previous || abs (now - target) < 0.000001f)
                     now = target;
-                }
-                else
-                {
-                    float previous = now;
-                    now += (s == rebody::params::slotMorph ? morphTickSlew : controlTickSlew) * (target - now);
-
-                    if (now == previous || abs (now - target) < 0.000001f)
-                        now = target;
-                }
-
-                lines.at (k).control.at (s) = now;
             }
 
-            lines.at (k).enabled = lines.at (k).control.at (rebody::params::slotEnable) >= 0.5f;
-            lines.at (k).holdState = lines.at (k).control.at (rebody::params::slotHold);
-            rebody::line::updateMorphWeights (lines.at (k));
+            lines.at (k).control.at (s) = now;
         }
+
+        rebody::line::tick (lines.at (k), snap);
+    }
+
+    // Global controls at the tick: Width (mid/side on the wet sum) and Low Cut.
+    void controlGlobal (bool snap)
+    {
+        float lowCutTarget = paramTarget.at (rebody::params::globalLowCut);
+        float previous = lowCutNow;
+        lowCutNow = snap ? lowCutTarget : lowCutNow + controlTickSlew * (lowCutTarget - lowCutNow);
+
+        if (lowCutNow == previous || abs (lowCutNow - lowCutTarget) < 0.000001f)
+            lowCutNow = lowCutTarget;
+
+        rebody::line::setLowCut (protector, lowCutNow, sampleRate);
+        rebody::line::setWidth (protector, paramTarget.at (rebody::params::globalWidth), snap);
     }
 
     void main()
     {
         float sr = float (processor.frequency);
+        sampleRate = sr;
 
         // Sample-rate derived coefficients (BODY:509-518).
         controlTickSlew = rebody::analysis::tickSlewCoefficient (0.055f, sr, rebody::controlPeriod);
@@ -2608,13 +4599,13 @@ processor RE_BODY [[ main ]]
         fastSlew = rebody::analysis::slewCoefficient (0.012f, sr);
         dcRadius = rebody::analysis::dcBlockRadius (20.0f, sr);
         meterRelease = rebody::analysis::releaseMultiplier (0.11f, sr);
-        onsetCoeffs = rebody::analysis::onsetCoefficients (sr);
         vizPeriod = max (1, int (sr / float (rebody::vizRateHz)));
+        rebody::analysis::bandCoefficients (bandCoeffs, sr);
 
         for (int k = 0; k < rebody::numLines; k += 1)
-            rebody::line::initLine (lines.at (k), k);
+            rebody::line::initLine (lines.at (k), k, sr);
 
-        rebody::line::initProtector (protector);
+        rebody::line::initProtector (protector, sr);
 
         // BEGIN TABLES LOAD (set by tools/build_dsp.py from the emission form of src/dsp/10_tables.cmajor)
         // tables: namespace form, constants are read as rebody::tables::<name>
@@ -2625,14 +4616,22 @@ processor RE_BODY [[ main ]]
             if (! started)
             {
                 // Host values set before the first sample are honoured: snap to them.
-                controlTick (true);
+                for (int k = 0; k < rebody::numLines; k += 1)
+                    controlLine (k, true);
+
+                controlGlobal (true);
                 mixNow = clamp (paramTarget.at (rebody::params::globalMix) * 0.01f, 0.0f, 1.0f);
                 bypassNow = paramTarget.at (rebody::params::globalBypass) >= 0.5f ? 1.0f : 0.0f;
                 started = true;
             }
 
+            // Staggered control ticks: line k at sample 11 k of every 32.
             if (counter == 0)
-                controlTick (false);
+                controlGlobal (false);
+
+            for (int k = 0; k < rebody::numLines; k += 1)
+                if (counter == 11 * k)
+                    controlLine (k, false);
 
             counter = (counter + 1) % rebody::controlPeriod;
 
@@ -2663,26 +4662,36 @@ processor RE_BODY [[ main ]]
                 x.at (ch) = clamp (x.at (ch), -4.0f, 4.0f);
 
             x *= 1.0f - bypassNow;
-            float level = max (abs (x[0]), abs (x[1]));
+            float level = max (abs (x.at (0)), abs (x.at (1)));
 
-            // Lines: each enabled line listens to the conditioned input for now (P2+: Listen,
-            // Sensitivity, Chain) and runs its own onset detector (T9).
-            float<2> wet = float<2> (0.0f);
+            // Lines: each listens to its component of the conditioned input (P2: All) and runs the whole chain.
+            bool inputActive = max (abs (dry.at (0)), abs (dry.at (1))) > 0.00001f && bypassNow < 0.5f;
+            float<2> wetSum = float<2> (0.0f);
 
             for (int k = 0; k < rebody::numLines; k += 1)
             {
-                if (lines.at (k).enabled)
+                if (lines.at (k).dormant && ! lines.at (k).enabled)
                 {
-                    rebody::analysis::onsetStep (lines.at (k).onset, onsetCoeffs, level);
-                    wet += rebody::line::stubProcess (lines.at (k), x);
-                    rebody::line::accumulate (lines.at (k));
+                    rebody::line::idleSample (lines.at (k));
                 }
                 else
                 {
-                    rebody::analysis::onsetReset (lines.at (k).onset);
-                    lines.at (k).wet = float<2> (0.0f);
+                    int listen = int (lines.at (k).control.at (rebody::params::slotListen) + 0.5f);
+                    wetSum += rebody::line::process (lines.at (k), rebody::analysis::listenComponent (listen, x), inputActive);
                 }
+
+                rebody::line::accumulate (lines.at (k));
             }
+
+            // Sum of lines: Width, Low Cut, wet DC block, shared protector + knee (BODY:857-889).
+            wetSum = rebody::line::widthStep (protector, wetSum);
+            wetSum = rebody::line::lowCutStep (protector, wetSum);
+            wetSum = rebody::line::dcBlockStep (protector, wetSum);
+            float<2> wet = rebody::line::protectStep (protector, wetSum, dry);
+
+            if (protector.quietReset)
+                for (int k = 0; k < rebody::numLines; k += 1)
+                    rebody::line::resetBalance (lines.at (k));
 
             // Mix is linear as BODY on purpose; bypass fades the wet path out and Mix with it (BODY:890).
             float amount = mixNow * (1.0f - bypassNow);
@@ -2694,13 +4703,15 @@ processor RE_BODY [[ main ]]
             out <- result;
 
             inputMeter = max (level, inputMeter * meterRelease);
-            leftMeter = max (abs (wet[0]), leftMeter * meterRelease);
-            rightMeter = max (abs (wet[1]), rightMeter * meterRelease);
+            leftMeter = max (abs (wet.at (0)), leftMeter * meterRelease);
+            rightMeter = max (abs (wet.at (1)), rightMeter * meterRelease);
             wetMeter = max (leftMeter, rightMeter);
 
             if (inputMeter < 0.000000001f) inputMeter = 0.0f;
             if (leftMeter < 0.000000001f) leftMeter = 0.0f;
             if (rightMeter < 0.000000001f) rightMeter = 0.0f;
+
+            rebody::analysis::bandStep (bandMeters, bandCoeffs, 0.5f * (wet.at (0) + wet.at (1)));
 
             vizCounter += 1;
 
@@ -2711,15 +4722,11 @@ processor RE_BODY [[ main ]]
                 // Shared onset: strongest line onset since the last frame (peak hold).
                 float onsetMax = max (lines.at (0).onsetHold, max (lines.at (1).onsetHold, lines.at (2).onsetHold));
 
-                float<8> bands = float<8> (0.0f);
-
-                for (int band = 0; band < 8; band += 1)
-                    bands.at (band) = bandEnergy.at (band);
-
                 bodyViz <- float<4> (inputMeter, wetMeter, leftMeter, rightMeter);
-                bodyBands <- bands;
+                bodyBands <- rebody::analysis::bandLevels (bandMeters);
                 bodyOnset <- onsetMax;
-                analysisViz <- float<6> (0.0f);
+                // P2: transient, sustain, low, mid and high report the input energy until the P4b split exists.
+                analysisViz <- float<6> (inputMeter, inputMeter, inputMeter, inputMeter, inputMeter, 0.0f);
                 lineStateA <- rebody::line::takeState (lines.at (0));
                 lineStateB <- rebody::line::takeState (lines.at (1));
                 lineStateC <- rebody::line::takeState (lines.at (2));
