@@ -4,7 +4,7 @@
   "identifier": "RE_BODY",
   "id": "com.clearpeak.rebody",
   "manufacturer": "CLΞΛRPΞΛK",
-  "version": "0.1.0",
+  "version": "0.9.0",
   "category": "effect",
   "isInstrument": false,
   "description": "Imaginary instrument bodies excited by incoming audio. Based on BODY by Artists in DSP; rebuilt on physically modelled bodies with three independent lines.",
@@ -13,7 +13,7 @@
    "width": 960,
    "height": 600,
    "resizable": true,
-   "note": "design chassis 16:10, zoom 0.5..2.0 via kit 07_SCALING, min width 640; owner answer to Q1 pending confirmation of 960x600"
+   "note": "design chassis 16:10, zoom 0.5..2.0 via kit 07_SCALING, min width 640 (D35, confirmed D40)"
   }
  },
  "anchors": [

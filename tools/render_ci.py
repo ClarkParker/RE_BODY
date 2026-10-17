@@ -1249,9 +1249,42 @@ def check_three_line_protector(args) -> dict:
     return out
 
 
+HOLD_FIT_FROM_S = 1.0        # hold-stability: the fit starts this long after the excitation (the pink) ends
+HOLD_FIT_WINDOW_S = 10.0     # level = RMS over windows of this length (short windows show the beating of close modes)
+HOLD_MIN_T60_S = 30.0        # gate: T60 from the slope of the fit
+HOLD_MAX_RESIDUAL_DB = 0.5   # gate: largest deviation of the levels from the fitted line
+
+
+def hold_fit(y: np.ndarray, sr: int, tail_start: int, from_s: float = HOLD_FIT_FROM_S,
+             win_s: float = HOLD_FIT_WINDOW_S) -> dict:
+    """D45: straight-line fit of the held tail. Level (RMS over both channels, dB) in consecutive
+    windows of `win_s` seconds, the first one starting `from_s` after `tail_start`; a line
+    level = a + slope * t (t = window centre in seconds from `tail_start`) is fitted through them.
+    Returns slope (dB/s), t60 = -60 / slope (inf when the slope is not negative), residual = the
+    largest absolute deviation of a window level from the line (dB) and the levels. A pure exponential
+    decay is exactly a line under the window average, so the window only decides how much of the
+    beating of close modes is averaged out (Bass Drum, 96 kHz, Material 100: 1 s windows 2.0 dB,
+    sliding 10 s windows 0.51 dB, consecutive 10 s windows 0.25 dB; none of it is drift)."""
+    win = max(1, int(round(win_s * sr)))
+    first = tail_start + int(round(from_s * sr))
+    n = max((len(y) - first) // win, 0)
+    lv = np.asarray([db(math.sqrt(float((y[first + i * win:first + (i + 1) * win] ** 2).mean()))) for i in range(n)])
+    out = {"windows": n, "levels": [float(v) for v in lv], "slope": None, "t60": None, "residual": None}
+    if n < 3:
+        return out
+    t = (first - tail_start) / sr + (np.arange(n) + 0.5) * win_s
+    slope, icpt = np.polyfit(t, lv, 1)
+    out.update(slope=float(slope), t60=float("inf") if slope >= -1e-9 else float(-60.0 / slope),
+               residual=float(np.abs(lv - (icpt + slope * t)).max()))
+    return out
+
+
 def check_hold_stability(args) -> dict:
-    """A Hold init 1; 2 s pink, then silence up to `seconds` (default 62 s). Level in 10 s windows
-    after the pink: drift < 0.5 dB per 10 s, modal T60 (level fit) >= 30 s, abs(DC) < 0.01."""
+    """A Hold init 1; 2 s pink, then silence up to `seconds` (default 62 s). D45: a straight line is
+    fitted to the level in dB against time of the held tail (consecutive 10 s RMS windows from 1 s
+    after the pink ends; `--fit-window` changes the window). Gates: T60 from the slope >= 30 s, residual (largest deviation from the line) <= 0.5 dB,
+    slope <= 0 (no growth), abs(DC) < 0.01 (10 s windows), finite output. The held-spectrum
+    comparison per mode is not part of this check (`lines.cmajtest` and the P4b scratch script)."""
     sr = args.rate
     total = int(args.seconds * sr)
     pink = make_stimulus("pink", sr)
@@ -1270,34 +1303,42 @@ def check_hold_stability(args) -> dict:
         renders = list(ex.map(one, combos))
     results = []
     for (anchor, mat), y in zip(combos, renders):
-        levels, dcs = [], []
+        coarse, dcs = [], []
         for i in range((total - start) // win):
             seg = y[start + i * win:start + (i + 1) * win]
-            levels.append(db(math.sqrt(float((seg ** 2).mean()))))
+            coarse.append(db(math.sqrt(float((seg ** 2).mean()))))
             dcs.append(float(np.abs(seg.mean(axis=0)).max()))
-        row = {"anchor": anchor, "material": mat, "levels_db": [round(v, 2) for v in levels],
+        fit = hold_fit(y, sr, start, win_s=args.fit_window)
+        row = {"anchor": anchor, "material": mat, "levels_db": [round(v, 2) for v in coarse],
                "dc_max": float(f"{max(dcs):.3g}") if dcs else None, "finite": bool(np.isfinite(y).all())}
-        if not levels or levels[0] < SILENT_DB:
+        if not fit["levels"] or fit["levels"][0] < SILENT_DB:
             row.update(status="wet silent", ok=False)
         else:
-            drift = max(abs(levels[i + 1] - levels[i]) for i in range(len(levels) - 1)) if len(levels) > 1 else 0.0
-            slope = float(np.polyfit(np.arange(len(levels)) * 10.0, levels, 1)[0]) if len(levels) > 1 else 0.0
-            t60 = float("inf") if slope >= -1e-9 else -60.0 / slope
             problems = []
-            if drift >= 0.5:
-                problems.append(f"drift {drift:.2f} dB per 10 s >= 0.5")
-            if t60 < 30.0:
-                problems.append(f"modal T60 {t60:.1f} s < 30")
+            if fit["slope"] is None:
+                problems.append(f"tail too short for the fit ({fit['windows']} windows)")
+            else:
+                if fit["slope"] > 1e-9:
+                    problems.append(f"level grows: slope {fit['slope']:+.4f} dB/s > 0")
+                if fit["t60"] < HOLD_MIN_T60_S:
+                    problems.append(f"modal T60 {fit['t60']:.1f} s < {HOLD_MIN_T60_S:g}")
+                if fit["residual"] > HOLD_MAX_RESIDUAL_DB:
+                    problems.append(f"residual {fit['residual']:.2f} dB > {HOLD_MAX_RESIDUAL_DB:g}")
             if row["dc_max"] is not None and row["dc_max"] >= DC_LIMIT:
                 problems.append(f"DC {row['dc_max']:.3g} >= 0.01")
             if not row["finite"]:
                 problems.append("non-finite output")
-            row.update(drift_db_per_10s=round(drift, 3), t60_s=None if math.isinf(t60) else round(t60, 1),
+            row.update(fit_windows=fit["windows"],
+                       slope_db_per_s=None if fit["slope"] is None else round(fit["slope"], 4),
+                       t60_s=None if fit["t60"] is None or math.isinf(fit["t60"]) else round(fit["t60"], 1),
+                       residual_db=None if fit["residual"] is None else round(fit["residual"], 3),
                        status="fail" if problems else "pass", ok=not problems, problems=problems)
         results.append(row)
     status = ("wet silent" if all(r["status"] == "wet silent" for r in results)
               else "fail" if any(not r["ok"] for r in results) else "pass")
     return {"name": "hold-stability", "rate": sr, "seconds": args.seconds, "status": status,
+            "rule": "D45: straight-line fit, T60 >= 30 s, residual <= 0.5 dB, slope <= 0, abs(DC) < 0.01",
+            "fit_from_s": HOLD_FIT_FROM_S, "fit_window_s": args.fit_window,
             "ok": status == "pass", "rows": results}
 
 
@@ -1383,7 +1424,7 @@ def cmd_check(args) -> int:
                 print(f"    {k}: {r[k]}")
         for row in r.get("rows", []):
             print(f"    anchor {row['anchor']} material {row['material']}: {row['status']}"
-                  f" levels {row['levels_db']} drift {row.get('drift_db_per_10s')} T60 {row.get('t60_s')} DC {row['dc_max']}"
+                  f" slope {row.get('slope_db_per_s')} dB/s T60 {row.get('t60_s')} s residual {row.get('residual_db')} dB DC {row['dc_max']}"
                   + "".join(f"\n        {p}" for p in row.get("problems", [])))
         if st == "fail" or (st == "wet silent" and not args.allow_silent):
             bad += 1
@@ -1479,6 +1520,25 @@ def cmd_selftest(_args) -> int:
                                                            r["impulse"].update(peak=-120.0),
                                                            r["sine"].update(rms_active=-120.0))) == "FAIL")
     check("wet silent allowed -> SKIP", compare_entry(o, {"pink": {"rms_active": -120.0}}, True)[0] == "SKIP")
+    # hold-stability fit (D45): a clean T60 45 s tail passes, growth and a 1 dB kink are caught
+    sr = 8000
+    tt = np.arange(int(62 * sr)) / sr
+    def tail(level_db_of_t):
+        return np.stack([10 ** (level_db_of_t(tt) / 20) * np.sqrt(2) * np.sin(2 * np.pi * 220.0 * tt)] * 2, 1)
+    f_ok = hold_fit(tail(lambda t: -20.0 - 60.0 * t / 45.0), sr, 0)
+    check("hold fit T60 45 s clean tail", abs(f_ok["t60"] / 45.0 - 1) < 0.02 and f_ok["residual"] < 0.1,
+          f"T60 {f_ok['t60']:.1f} s residual {f_ok['residual']:.3f} dB")
+    f_grow = hold_fit(tail(lambda t: -40.0 + 0.05 * t), sr, 0)
+    check("hold fit growth has slope > 0", f_grow["slope"] > 0 and math.isinf(f_grow["t60"]),
+          f"slope {f_grow['slope']:+.3f} dB/s")
+    f_fast = hold_fit(tail(lambda t: -20.0 - 60.0 * t / 20.0), sr, 0)
+    check("hold fit T60 20 s is below the 30 s gate", f_fast["t60"] < HOLD_MIN_T60_S, f"T60 {f_fast['t60']:.1f} s")
+    f_step = hold_fit(tail(lambda t: -20.0 - 60.0 * t / 45.0 + np.where(t > 20.0, 2.0, 0.0)), sr, 0)
+    check("hold fit 2 dB level step exceeds the 0.5 dB residual", f_step["residual"] > HOLD_MAX_RESIDUAL_DB,
+          f"residual {f_step['residual']:.2f} dB")
+    f_beat = hold_fit(tail(lambda t: -20.0 - 60.0 * t / 45.0 + 1.0 * np.sin(2 * np.pi * t / 3.7)), sr, 0)
+    check("hold fit +-1 dB beat of 3.7 s is averaged out by the 10 s window", f_beat["residual"] < HOLD_MAX_RESIDUAL_DB,
+          f"residual {f_beat['residual']:.2f} dB")
     # WAV round trip
     p = WORK / "selftest.wav"
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -1548,6 +1608,8 @@ def build_parser() -> argparse.ArgumentParser:
     k.add_argument("--anchors", default="0,2,8", help="hold-stability anchors")
     k.add_argument("--materials", default="0,50,100", help="hold-stability Material values")
     k.add_argument("--seconds", type=float, default=62.0, help="hold-stability render length")
+    k.add_argument("--fit-window", type=float, default=HOLD_FIT_WINDOW_S,
+                   help="hold-stability: RMS window of the straight-line fit, seconds (D45, default 10)")
     k.add_argument("--debug-patch", help="split-complementary debug patch manifest")
     k.set_defaults(fn=cmd_check)
 
