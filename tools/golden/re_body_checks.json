@@ -1,0 +1,28 @@
+{
+ "three-line-protector": {
+  "name": "three-line-protector",
+  "rate": 48000,
+  "anchor_A": 7,
+  "input_peak_db": -7.54,
+  "renders": {"A":{"peak":-200.0,"rms":-200.0,"lufs":null},"B":{"peak":-200.0,"rms":-200.0,"lufs":null},"C":{"peak":-200.0,"rms":-200.0,"lufs":null},"ABC":{"peak":-200.0,"rms":-200.0,"lufs":null}},
+  "status": "wet silent",
+  "ok": false,
+  "generated": "2026-10-17T08:01Z"
+ },
+ "hold-stability": {
+  "name": "hold-stability",
+  "rate": 48000,
+  "seconds": 62.0,
+  "status": "wet silent",
+  "ok": false,
+  "rows": [{"anchor":0,"material":0,"levels_db":[-200.0,-200.0,-200.0,-200.0,-200.0,-200.0],"dc_max":0.0,"finite":true,"status":"wet silent","ok":false},{"anchor":0,"material":50,"levels_db":[-200.0,-200.0,-200.0,-200.0,-200.0,-200.0],"dc_max":0.0,"finite":true,"status":"wet silent","ok":false},{"anchor":0,"material":100,"levels_db":[-200.0,-200.0,-200.0,-200.0,-200.0,-200.0],"dc_max":0.0,"finite":true,"status":"wet silent","ok":false},{"anchor":2,"material":0,"levels_db":[-200.0,-200.0,-200.0,-200.0,-200.0,-200.0],"dc_max":0.0,"finite":true,"status":"wet silent","ok":false},{"anchor":2,"material":50,"levels_db":[-200.0,-200.0,-200.0,-200.0,-200.0,-200.0],"dc_max":0.0,"finite":true,"status":"wet silent","ok":false},{"anchor":2,"material":100,"levels_db":[-200.0,-200.0,-200.0,-200.0,-200.0,-200.0],"dc_max":0.0,"finite":true,"status":"wet silent","ok":false},{"anchor":8,"material":0,"levels_db":[-200.0,-200.0,-200.0,-200.0,-200.0,-200.0],"dc_max":0.0,"finite":true,"status":"wet silent","ok":false},{"anchor":8,"material":50,"levels_db":[-200.0,-200.0,-200.0,-200.0,-200.0,-200.0],"dc_max":0.0,"finite":true,"status":"wet silent","ok":false},{"anchor":8,"material":100,"levels_db":[-200.0,-200.0,-200.0,-200.0,-200.0,-200.0],"dc_max":0.0,"finite":true,"status":"wet silent","ok":false}],
+  "generated": "2026-10-17T08:01Z"
+ },
+ "split-complementary": {
+  "name": "split-complementary",
+  "status": "skipped",
+  "ok": true,
+  "reason": "no debug patch (see docs/dev/04_RENDER_CI.md, hook contract)",
+  "generated": "2026-10-17T08:01Z"
+ }
+}

@@ -1,0 +1,293 @@
+{
+ "meta": {
+  "tool": "tools/render_ci.py",
+  "metrics_version": 2,
+  "target": "rebody",
+  "patch": "plugin/RE_BODY.cmajorpatch",
+  "cmaj": "1.0.3175",
+  "generated": "2026-10-17T08:04Z",
+  "settings": {
+   "decay": 50.0,
+   "mix": 100.0,
+   "bypass": 0.0,
+   "material": 50.0,
+   "enableA": 1.0,
+   "enableB": 0.0,
+   "enableC": 0.0,
+   "hold": 0.0
+  },
+  "extra_params": {},
+  "rates": [44100,48000,96000],
+  "stimuli": ["silence","impulse","pink","sine","bursts"],
+  "preroll_frames": {
+   "44100": 20480,
+   "48000": 20480,
+   "96000": 20480
+  },
+  "lead_frames": {
+   "44100": 22050,
+   "48000": 24000,
+   "96000": 48000
+  },
+  "ir_seconds": 4.0,
+  "lead_seconds": 0.5,
+  "cmd": "cmaj render --input=<lead-in + stimulus.wav> --output=<out.wav> --rate=<sr> <patched copy>/<patch>.cmajorpatch",
+  "bands_hz": [125,250,500,1000,2000,4000,8000],
+  "notes": "dual-mono stimuli; peak/rms dBFS; lufs BS.1770; t60 seconds (EDC -5..-35 dB); peaks [Hz, dB re strongest]; band_db = octave band energy re total; f0 Hz"
+ },
+ "results": {
+  "0": {
+   "44100": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "48000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "96000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   }
+  },
+  "1": {
+   "44100": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "48000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "96000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   }
+  },
+  "2": {
+   "44100": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "48000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "96000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   }
+  },
+  "3": {
+   "44100": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "48000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "96000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   }
+  },
+  "4": {
+   "44100": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "48000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "96000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   }
+  },
+  "5": {
+   "44100": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "48000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "96000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   }
+  },
+  "6": {
+   "44100": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "48000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "96000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   }
+  },
+  "7": {
+   "44100": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "48000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "96000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   }
+  },
+  "8": {
+   "44100": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "48000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "96000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   }
+  },
+  "9": {
+   "44100": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "48000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "96000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   }
+  },
+  "10": {
+   "44100": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "48000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   },
+   "96000": {
+    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
+    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
+    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
+    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
+    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+   }
+  }
+ }
+}
