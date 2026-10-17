@@ -316,7 +316,10 @@ float slotImpulseEnergy (int body, float sr, float rootHz, float decaySeconds, f
 bool slotEnergyNormalisationWithCrossTerms()
 {
     // Bass drum: 2 features + 7 following modes incl. the close 0.94 / 1.00 / 1.07 pair (cross terms matter).
+    // Each body is checked against its own energyTarget (P2 calibration: the targets are no longer all equal).
     float target = rebody::tables::energyTarget.at (0);
+    float oboeTarget = rebody::tables::energyTarget.at (8);
+    float obosaxTarget = rebody::tables::energyTarget.at (10);
     float bass = slotImpulseEnergy (0, 48000.0f, 73.6f, 0.358f, 50.0f, 96000);
     // Oboe: 4 formants + 8 cluster modes; Material 0 and 96 kHz (norm^2 = 0.5).
     float oboe = slotImpulseEnergy (8, 96000.0f, 220.0f, 0.6f, 0.0f, 96000);
@@ -327,8 +330,8 @@ bool slotEnergyNormalisationWithCrossTerms()
     float fiddleTarget = rebody::tables::energyTarget.at (6);
     return nearRel (fiddle, (48000.0f / 44100.0f) * fiddleTarget * fiddleTarget, 0.01f)
         && nearRel (bass, target * target, 0.01f)
-        && nearRel (oboe, 0.5f * target * target, 0.01f)
-        && nearRel (obosax, target * target, 0.01f);
+        && nearRel (oboe, 0.5f * oboeTarget * oboeTarget, 0.01f)
+        && nearRel (obosax, obosaxTarget * obosaxTarget, 0.01f);
 }
 
 bool normalisationCachedAndHoldIndependent()

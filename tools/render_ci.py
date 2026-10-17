@@ -15,7 +15,8 @@ Run from the repo root (paths are resolved from this file, so any cwd works):
       Material 50, Mix 100) -> tools/golden/re_body_latest.json + docs/dev/04_RENDER_CI.md
   python3 tools/render_ci.py compare [--gate] [--allow-silent]
       RE-BODY anchors vs the original's mapped anchors (0>0 1>1 3>2 5>3 7>4 8>5 9>6 10>7):
-      f0 +-5 ct, band T60 +-15 %, LUFS (pink) +-1 dB; --gate exits 1 on any failure
+      D44 gates: f0 +-5 ct, LUFS (pink) +-1 dB; new anchors 2,4,6 LUFS within +-3 dB of the mapped mean;
+      band T60 is only reported; --gate exits 1 on any failure
   python3 tools/render_ci.py check three-line-protector|hold-stability|split-complementary [--gate]
       the plan's extra gates (P3/P4b), see docs/dev/04_RENDER_CI.md
   python3 tools/render_ci.py selftest
@@ -83,7 +84,9 @@ LEAD_MARGIN = 1024           # frames of safety between the measured pre-roll an
 BAND_CENTRES = (125, 250, 500, 1000, 2000, 4000, 8000)
 SILENT_DB = -90.0            # "silent" / "silence in -> silence out" threshold (dBFS RMS)
 DC_LIMIT = 0.01
-TOL = {"f0_ct": 5.0, "t60_rel": 0.15, "lufs_db": 1.0}
+# D44: hard gates = pink LUFS and ring/sine f0. Band T60 is reported against t60_rel (flag only, never a gate).
+# New anchors (no BODY counterpart) must sit within lufs_new_db of the mean LUFS of the mapped anchors.
+TOL = {"f0_ct": 5.0, "t60_rel": 0.15, "lufs_db": 1.0, "lufs_new_db": 3.0}
 BAND_MIN_REL_DB = -40.0      # compare ignores bands more than 40 dB below the total energy
 F0_IR_MIN_CONF = 0.75        # compare checks the impulse-ring pitch only if the original is this periodic
                              # (and its own ring pitch is stable across the rendered rates within F0_TOL ct)
@@ -93,6 +96,7 @@ RE_ANCHORS = ["Bass Drum", "Snare", "Timpani", "Piano", "Guitar", "Ukulele", "Fi
 ORIG_ANCHORS = ["Bass Drum", "Snare", "Piano", "Ukulele", "Clarinet", "Oboe", "Sax", "Obosaxolele"]
 # RE-BODY anchor -> original Morph index (the original's series is 0,1,3,6,2,4,5 + hybrid)
 ANCHOR_MAP = {0: 0, 1: 1, 3: 2, 5: 3, 7: 4, 8: 5, 9: 6, 10: 7}
+NEW_ANCHORS = (2, 4, 6)      # Timpani, Guitar, Fiddle: no counterpart in BODY (D44: LUFS vs the mapped mean)
 
 DEFAULT_SETTINGS = dict(decay=50.0, mix=100.0, bypass=0.0, material=50.0,
                         enableA=1.0, enableB=0.0, enableC=0.0, hold=0.0)
@@ -1029,6 +1033,7 @@ def compare_entry(o: dict, r: dict, allow_silent: bool, o_all: dict | None = Non
     original's anchor (for the ring-pitch reliability test); `stats` (optional dict) receives the
     measured deviations: lufs_db, f0_ct, ring_ct, t60_max_rel."""
     stats = stats if stats is not None else {}
+    stats["t60_notes"] = []
     if any("error" in m for m in r.values()):
         return "FAIL", ["render error"]
     if entry_silent(r):
@@ -1062,15 +1067,15 @@ def compare_entry(o: dict, r: dict, allow_silent: bool, o_all: dict | None = Non
             if to[i] is None or (bo and bo[i] is not None and bo[i] < BAND_MIN_REL_DB):
                 continue
             if tr[i] is None:
-                why.append(f"T60@{fc} none vs {to[i]:.3f}")
+                stats["t60_notes"].append(f"T60@{fc} none vs {to[i]:.3f}")
                 continue
             rel = tr[i] / to[i] - 1.0
             if abs(rel) > abs(stats.get("t60_max_rel", 0.0)):
                 stats["t60_max_rel"] = rel
             if abs(rel) > TOL["t60_rel"]:
-                why.append(f"T60@{fc} {tr[i]:.3f} vs {to[i]:.3f} s ({rel * 100:+.0f} %)")
+                stats["t60_notes"].append(f"T60@{fc} {tr[i]:.3f} vs {to[i]:.3f} s ({rel * 100:+.0f} %)")
     elif to:
-        why.append("no impulse T60")
+        stats["t60_notes"].append("no impulse T60")
     # LUFS on pink
     lo, lr = o.get("pink", {}).get("lufs"), r.get("pink", {}).get("lufs")
     if lo is not None or lr is not None:
@@ -1089,9 +1094,11 @@ def cmd_compare(args) -> int:
     fails = 0
     only = parse_ints(args.anchors, 0, 10) if args.anchors else None
     rate_filter = set(parse_rates(args.rates)) if args.rates else None
-    print(f"tolerances: f0 +-{TOL['f0_ct']} ct, band T60 +-{TOL['t60_rel'] * 100:.0f} %, "
-          f"LUFS (pink) +-{TOL['lufs_db']} dB; bands {BAND_CENTRES} Hz (bands < {BAND_MIN_REL_DB:g} dB "
-          f"re total in the original are ignored)")
+    print(f"D44 gates: f0 +-{TOL['f0_ct']} ct (sine, and ring where the original is a usable reference), "
+          f"LUFS (pink) +-{TOL['lufs_db']} dB per mapped anchor, new anchors {list(NEW_ANCHORS)} within "
+          f"+-{TOL['lufs_new_db']} dB of the mapped mean. Band T60 is reported, not gated: deviations over "
+          f"{TOL['t60_rel'] * 100:.0f} %, bands {BAND_CENTRES} Hz (bands < {BAND_MIN_REL_DB:g} dB re total "
+          f"in the original are ignored)")
     for ra, oa in ANCHOR_MAP.items():
         if only is not None and ra not in only:
             continue
@@ -1121,7 +1128,8 @@ def cmd_compare(args) -> int:
             if "t60_max_rel" in stats:
                 nums.append(f"max dT60 {stats['t60_max_rel'] * 100:+.0f} %")
             notes.append(f"{sr}: {st}" + (f" ({', '.join(nums)})" if nums else "")
-                         + (f" [{'; '.join(why)}]" if why else ""))
+                         + (f" [{'; '.join(why)}]" if why else "")
+                         + (f" | T60 reported, not gated: {'; '.join(stats['t60_notes'])}" if stats.get("t60_notes") else ""))
         if not statuses:
             verdict = "FAIL"
         elif "FAIL" in statuses:
@@ -1134,8 +1142,65 @@ def cmd_compare(args) -> int:
         print(f"{label}: {verdict}")
         for n in notes:
             print(f"    {n}")
+    fails += compare_new_anchors(orig, re_, only, rate_filter, args.allow_silent)
     print(f"compare: {'FAIL' if fails else 'ok'} ({fails} failing anchor(s))")
     return 1 if (args.gate and fails) else 0
+
+
+def mapped_mean_lufs(orig: dict, sr: str) -> float | None:
+    """Mean pink LUFS of the original's mapped anchors at one rate (reference of the new anchors, D44)."""
+    vals = []
+    for oa in ANCHOR_MAP.values():
+        v = orig["results"].get(str(oa), {}).get(sr, {}).get("pink", {}).get("lufs")
+        if v is not None:
+            vals.append(v)
+    return sum(vals) / len(vals) if len(vals) == len(ANCHOR_MAP) else None
+
+
+def compare_new_anchors(orig: dict, re_: dict, only, rate_filter, allow_silent: bool) -> int:
+    """D44: Timpani, Guitar and Fiddle have no BODY counterpart; their pink LUFS must be within
+    TOL['lufs_new_db'] of the mean of the original's mapped anchors (same rate). Returns failing anchors."""
+    fails = 0
+    for ra in NEW_ANCHORS:
+        if only is not None and ra not in only:
+            continue
+        rr = re_["results"].get(str(ra))
+        label = f"RE anchor {ra:>2} {RE_ANCHORS[ra]:<10} (new, no BODY counterpart; LUFS vs mapped mean)"
+        if rr is None:
+            print(f"{label}: NOT RENDERED (run --anchors {ra})")
+            fails += 1
+            continue
+        statuses, notes = [], []
+        for sr in sorted(rr, key=int):
+            if rate_filter and int(sr) not in rate_filter:
+                continue
+            mean = mapped_mean_lufs(orig, sr)
+            if mean is None:
+                notes.append(f"{sr}: no golden mean")
+                continue
+            if any("error" in m for m in rr[sr].values()):
+                statuses.append("FAIL")
+                notes.append(f"{sr}: FAIL (render error)")
+                continue
+            if entry_silent(rr[sr]):
+                statuses.append("SKIP" if allow_silent else "FAIL")
+                notes.append(f"{sr}: {statuses[-1]} (wet silent)")
+                continue
+            lufs = rr[sr].get("pink", {}).get("lufs")
+            if lufs is None:
+                statuses.append("FAIL")
+                notes.append(f"{sr}: FAIL (no LUFS)")
+                continue
+            d = lufs - mean
+            st = "PASS" if abs(d) <= TOL["lufs_new_db"] else "FAIL"
+            statuses.append(st)
+            notes.append(f"{sr}: {st} (LUFS {lufs:.1f} vs mean {mean:.1f}, d {d:+.2f} dB)")
+        verdict = "FAIL" if (not statuses or "FAIL" in statuses) else ("SKIP" if all(x == "SKIP" for x in statuses) else "PASS")
+        fails += verdict == "FAIL"
+        print(f"{label}: {verdict}")
+        for n in notes:
+            print(f"    {n}")
+    return fails
 
 
 # --------------------------------------------------------------------------------------
@@ -1392,9 +1457,23 @@ def cmd_selftest(_args) -> int:
     check("compare f0 +10 ct -> FAIL", variant(lambda r: r["sine"].update(f0=440.0 * 2 ** (10 / 1200))) == "FAIL")
     check("compare f0 +4 ct -> PASS", variant(lambda r: r["sine"].update(f0=440.0 * 2 ** (4 / 1200))) == "PASS")
     check("compare ring f0 +10 ct -> FAIL", variant(lambda r: r["impulse"].update(f0_ir=220.0 * 2 ** (10 / 1200))) == "FAIL")
-    check("compare T60 +20 % -> FAIL", variant(lambda r: r["impulse"]["t60"].__setitem__(3, 0.24)) == "FAIL")
+    check("compare T60 +20 % -> PASS (D44: reported, not gated)", variant(lambda r: r["impulse"]["t60"].__setitem__(3, 0.24)) == "PASS")
+    st_t60: dict = {}
+    r_t60 = copy.deepcopy(o)
+    r_t60["impulse"]["t60"][3] = 0.24
+    compare_entry(o, r_t60, False, {"48000": o}, st_t60)
+    check("compare T60 +20 % is reported", len(st_t60.get("t60_notes", [])) == 1, f"{st_t60.get('t60_notes')}")
     check("compare T60 +10 % -> PASS", variant(lambda r: r["impulse"]["t60"].__setitem__(3, 0.22)) == "PASS")
     check("compare quiet band ignored", variant(lambda r: r["impulse"]["t60"].__setitem__(6, 0.2)) == "PASS")
+    fake_orig = {"results": {str(oa): {"48000": {"pink": {"lufs": -27.0}}} for oa in ANCHOR_MAP.values()}}
+    check("mapped mean LUFS", abs((mapped_mean_lufs(fake_orig, "48000") or 0) + 27.0) < 1e-9)
+    def new_anchor(lufs):
+        e = {"pink": {"lufs": lufs, "rms_active": -30.0}, "impulse": {"peak": -20.0}, "sine": {"rms_active": -30.0}}
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):
+            return compare_new_anchors(fake_orig, {"results": {str(a): {"48000": e} for a in NEW_ANCHORS}}, None, None, False)
+    check("new anchors within 3 dB -> pass", new_anchor(-29.5) == 0)
+    check("new anchors 3.5 dB off -> fail", new_anchor(-30.5) == len(NEW_ANCHORS))
     check("compare LUFS +1.5 dB -> FAIL", variant(lambda r: r["pink"].update(lufs=-25.5)) == "FAIL")
     check("compare wet silent -> FAIL", variant(lambda r: (r["pink"].update(rms_active=-120.0),
                                                            r["impulse"].update(peak=-120.0),

@@ -142,13 +142,13 @@
     "src": "22 s2: rattle = xorshift noise x input-edge envelope, modal otherwise"
   },
   "calibration": {
-    "out_gain": 1.4,
+    "out_gain": 1.48,
     "energy_target": 0.4496,
     "engine_gain": 1.9286,
     "body_gain": 1.0,
     "terms": {"shell": 1.4, "rattle": 2.7},
     "design": false,
-    "src": "BODY:856 wet = 1.4*shell + 2.7*rattle (engine_gain = 2.7/1.4); energy_target design"
+    "src": "BODY:856 wet = 1.4*shell + 2.7*rattle (engine_gain = 2.7/1.4); energy_target design; P2 calibration: out_gain 1.4 -> 1.48 (centres pink LUFS on BODY at 44.1/48/96 kHz), see docs/dev/05_LINE_A.md section 9"
   },
   "physics_map": {
     "stiffness": "head stretch",

@@ -120,6 +120,7 @@ decay law, sustain, out_gain, energy_target, codes, line scalars; Bessel law of 
 Mutation-checked: zeroing a T60, breaking gridHz order, a negative alpha, a count of 9, a huge multiplier, a bad sustain, a changed hybrid constant and an unused-slot gain each fail the named function.
 
 ## 8. Open calibration items
+P2 calibration (D44, 2026-10-17) changed `out_gain` / `energy_target` / `engine_gain` of Bass Drum, Snare, Timpani, Guitar, Ukulele, Clarinet and Obosaxolele, the Bass Drum pair ratio 1.07 -> 1.0638 and the Oboe grid floor -12 -> -18 dB; every value with before / after / effect is in `docs/dev/05_LINE_A.md` section 9.3. The two items below describe the state before that calibration (placeholders of Timpani / Guitar / Fiddle / Obosaxolele, uniform `energy_target` 0.4496); Fiddle still keeps its placeholders.
 - `out_gain` placeholders 1.0 for timpani, guitar, fiddle and obosaxolele (M1 measures); BODY starting points elsewhere.
 - `energy_target`: 0.4496 for every body (design); only the oboe has BODY's law `clamp(0.28 (f/130)^0.9, 0.14, 0.55)` (recipe `calibration.energy_law`), the table holds its value at 220 Hz. P2 decides whether the law applies to all pitched bodies.
 - Grid floors versus slot levels (item 1 above): tune by ear and by M1 loudness; the grid normalisation is the DSP's, the tables only fix relative shape and level.

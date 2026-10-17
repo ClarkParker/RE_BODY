@@ -16,7 +16,7 @@
   },
   "material": {"rho": 0.8, "eta": null, "src": "22 s9: law fitted to BODY's per-mode times"},
   "grid_profile": {
-    "floor_db": -12.0,
+    "floor_db": -18.0,
     "envelope": [
       {"hz": 60, "db": -36.707},
       {"hz": 500, "db": 0},
@@ -28,7 +28,7 @@
     "bumps": [],
     "sign": "positive",
     "lr": [],
-    "src": "22 s9: nasal skirt, +3 dB shelf 0.9-3.5 kHz, -12 dB/oct below 500 Hz and above 4 kHz, centred; level -12 dB design",
+    "src": "22 s9: nasal skirt, +3 dB shelf 0.9-3.5 kHz, -12 dB/oct below 500 Hz and above 4 kHz, centred; level -12 dB design; P2 calibration: floor -12 -> -18 dB (the 96-pole grid pulled the ring f0 -5.9 ct against BODY, cluster alone 0.0 ct, now -2.0 ct)",
     "design": true
   },
   "feature_modes": [

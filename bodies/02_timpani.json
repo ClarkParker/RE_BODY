@@ -144,13 +144,13 @@
     "src": "22 s3: modal"
   },
   "calibration": {
-    "out_gain": 1.0,
-    "energy_target": 0.4496,
+    "out_gain": 3.0,
+    "energy_target": 1.0,
     "engine_gain": 0.0,
     "body_gain": 1.0,
     "terms": {},
     "design": true,
-    "src": "22 s3: via energy normalisation, out_gain measured in M1 (placeholder 1.0)"
+    "src": "22 s3: via energy normalisation; P2 calibration: out_gain 1.0 -> 3.0, energy_target 0.4496 -> 1.0 (pink LUFS -31.8 -> -29.1, within 3 dB of the mapped mean), see docs/dev/05_LINE_A.md section 9"
   },
   "physics_map": {
     "stiffness": "ratio stretch",

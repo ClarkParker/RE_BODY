@@ -84,13 +84,13 @@
     "src": "BODY:520 loop low-pass 1.75 kHz, :55 buffer; radiation 1.4 kHz measured 1150-1450 Hz (R10 B4); dispersion -0.05 'slight' design"
   },
   "calibration": {
-    "out_gain": 0.149448188,
+    "out_gain": 0.07,
     "energy_target": 0.4496,
     "engine_gain": 3.8,
     "body_gain": 0.0,
     "terms": {"boreRadiation": 3.8},
     "design": false,
-    "src": "BODY:831 wet = 0.149448188*(3.8*boreRadiation); energy_target unused (no slots)"
+    "src": "BODY:831 wet = 0.149448188*(3.8*boreRadiation); energy_target unused (no slots); P2 calibration: out_gain 0.1494 -> 0.07 (pre-AGC level -6.6 dB, the AGC then runs higher in its range like BODY, pink LUFS +1.1 -> -0.2 dB), see docs/dev/05_LINE_A.md section 9"
   },
   "physics_map": {
     "stiffness": "slight dispersion",

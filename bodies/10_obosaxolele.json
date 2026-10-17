@@ -166,12 +166,12 @@
   },
   "calibration": {
     "out_gain": 1.0,
-    "energy_target": 0.4496,
+    "energy_target": 0.2,
     "engine_gain": 1.0,
     "body_gain": 1.0,
     "terms": {"endpoint_calibration": 2.0, "feed_trim": 1.5},
     "design": true,
-    "src": "22 s11: BODY's 2x endpoint calibration (BODY:839-843) and feed trim x1.5 (BODY:167-170) live in the hybrid constants; out_gain placeholder 1.0 (M1)"
+    "src": "22 s11: BODY's 2x endpoint calibration (BODY:839-843) and feed trim x1.5 (BODY:167-170) live in the hybrid constants; out_gain placeholder 1.0 (M1); P2 calibration: energy_target 0.4496 -> 0.2 (out_gain / engine_gain of this row are not read; the end stop runs on the constituents; pink LUFS +1.7 -> +0.2 dB), see docs/dev/05_LINE_A.md section 9"
   },
   "physics_map": {
     "stiffness": "Uke row",

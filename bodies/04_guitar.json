@@ -116,13 +116,13 @@
     "design": true
   },
   "calibration": {
-    "out_gain": 1.0,
+    "out_gain": 0.446899385,
     "energy_target": 0.4496,
-    "engine_gain": 1.0,
+    "engine_gain": 18.0,
     "body_gain": 1.0,
     "terms": {},
     "design": true,
-    "src": "22 s5: energy normalisation, out_gain measured in M1 (placeholder 1.0)"
+    "src": "22 s5: energy normalisation; P2 calibration: engine_gain 18 and out_gain 0.4469 as the Ukulele on the same string pickup (pink LUFS -41.1 -> -29.3), see docs/dev/05_LINE_A.md section 9"
   },
   "physics_map": {
     "stiffness": "dispersion",

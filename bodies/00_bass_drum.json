@@ -74,13 +74,13 @@
     },
     {
       "label": "(0,1) pair +",
-      "ratio": 1.07,
+      "ratio": 1.0638,
       "mn": [0, 1],
       "t60_mult": 1.0,
       "gain_db": -1.2096,
       "sign": 1,
       "pan": 0.0,
-      "src": "22 s1: coupled-head pair 1.07 (antiparallel head motion, R10 B4); split and +0.2 L/R skew design",
+      "src": "22 s1: coupled-head pair 1.07 (antiparallel head motion, R10 B4); split and +0.2 L/R skew design; P2 calibration: ratio 1.0638 = 1/0.94 (symmetric in log around the root, the 1.07 pair pulled the ring f0 -12 ct against BODY, now +0.4 ct)",
       "design": true
     },
     {
@@ -160,7 +160,7 @@
     "body_gain": 1.0,
     "terms": {"bass": 1.5},
     "design": false,
-    "src": "BODY:856 wet = 1.5*bass; energy_target = oboe law value at 220 Hz (design for non-oboe bodies, M1 measures)"
+    "src": "BODY:856 wet = 1.5*bass; energy_target = oboe law value at 220 Hz (design for non-oboe bodies, M1 measures); P2 calibration: energy_target 0.4496 -> 1.0 (BODY drum modes are not energy-normalised; pink LUFS -33.4 -> -27.4), see docs/dev/05_LINE_A.md section 9"
   },
   "physics_map": {
     "stiffness": "head mode stretch B 0..0.02",

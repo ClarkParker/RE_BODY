@@ -105,13 +105,13 @@
     "src": "BODY:526 loop low-pass 1.65 kHz, :376 comb, no dispersion in BODY's ukulele"
   },
   "calibration": {
-    "out_gain": 0.446899385,
-    "energy_target": 0.4496,
+    "out_gain": 0.30,
+    "energy_target": 0.3,
     "engine_gain": 18.0,
     "body_gain": 0.72,
     "terms": {"pluck": 18.0, "wood": 0.72},
     "design": false,
-    "src": "BODY:835 wet = 0.446899385*(18*pluck + 0.72*wood) as starting point; energy_target design"
+    "src": "BODY:835 wet = 0.446899385*(18*pluck + 0.72*wood) as starting point; energy_target design; P2 calibration: out_gain 0.4469 -> 0.30 and energy_target 0.4496 -> 0.30 (ring f0 +4.9/+5.5 ct -> +3.6/+4.0 ct, pink LUFS at 96 kHz +2.8 -> +0.3 dB), see docs/dev/05_LINE_A.md section 9"
   },
   "physics_map": {
     "stiffness": "dispersion",

@@ -113,7 +113,9 @@
 namespace rebody::modal
 {
     const float lnThousand = 6.907755f;
-    const float64 levelRate = 48000.0;         // BODY's level reference rate for sqrt(levelRate / sr) (BODY:312)
+    // BODY's level reference (BODY:312, norm = sqrt(48 kHz / sr)): the drive and energy laws keep BODY's loudness
+    // at that rate. It is a gain-law constant, not a sample-rate assumption (the real rate is always the caller's sr).
+    const float64 levelRate = 48.0e3;
     const float referenceHz = 200.0f;          // Material keeps T60 at this frequency (20 section 4)
     const float t60Min = 0.001f;
     const float t60Max = 60.0f;
