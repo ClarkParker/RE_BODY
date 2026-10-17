@@ -2474,6 +2474,8 @@ namespace rebody::line
 
         // Table-derived constants per body: calibration of the modal term and of the line-engine term.
         float[11] modalCal, engineCal;
+        float[11] gridEnergy;                      // grid share of the body's energy target (impulse energy at 48 kHz)
+        float[11] slotScale;                       // amplitude factor of the slot modes: their share of that target
         bool[11] slotted;
 
         // Modal control: what the slots and the grid were last set to (skip unchanged calls), who runs.
@@ -2481,7 +2483,7 @@ namespace rebody::line
         float keyLaw0, keyLaw1, keyDecayScale, keyMaterial, keySize, keyGridT;
         int keyGridA, keyGridB;
         bool[11] keyValid;
-        float[11] keyRoot, keySeconds, keyMaterialBody, keySizeBody, keyPosition;
+        float[11] keyRoot, keySeconds, keyMaterialBody, keySizeBody, keyPosition, keyScale;
         bool[11] bodyRun;
         bool gridLive;
 
@@ -2637,6 +2639,38 @@ namespace rebody::line
             l.modalCal.at (body) = rebody::tables::outGain.at (body) * bodyTerm (body);
             l.engineCal.at (body) = rebody::tables::outGain.at (body) * rebody::tables::engineGain.at (body);
             l.slotted.at (body) = hasSlots (body);
+
+            // One energy target per body (tables::energyTarget, BODY:427) shared by its grid and its slots in
+            // the proportion of the recipe gains: the slots are normalised to the whole target by the modal
+            // engine, so they are scaled down to their share and the grid is normalised to the rest.
+            float gridSum = 0.0f;
+            float slotSum = 0.0f;
+
+            for (int k = 0; k < rebody::gridPoles; k += 1)
+            {
+                float gl = rebody::tables::gridGainL.at (body * rebody::gridPoles + k);
+                float gr = rebody::tables::gridGainR.at (body * rebody::gridPoles + k);
+                gridSum += 0.5f * (gl * gl + gr * gr);
+            }
+
+            for (int k = 0; k < rebody::modal::featureCount (body); k += 1)
+            {
+                float gl = rebody::tables::featureGainL.at (body * rebody::featureStride + k);
+                float gr = rebody::tables::featureGainR.at (body * rebody::featureStride + k);
+                slotSum += 0.5f * (gl * gl + gr * gr);
+            }
+
+            for (int k = 0; k < rebody::modal::followCount (body); k += 1)
+            {
+                float gl = rebody::tables::followGainL.at (body * rebody::followStride + k);
+                float gr = rebody::tables::followGainR.at (body * rebody::followStride + k);
+                slotSum += 0.5f * (gl * gl + gr * gr);
+            }
+
+            float target = rebody::tables::energyTarget.at (body) * rebody::tables::energyTarget.at (body);
+            float sum = gridSum + slotSum;
+            l.gridEnergy.at (body) = sum > 0.0f ? target * gridSum / sum : target;
+            l.slotScale.at (body) = (slotSum > 0.0f && sum > 0.0f) ? float (sqrt (slotSum / sum)) : 1.0f;
         }
 
         l.noiseState.at (0) = 17431 + 7919 * seed;
@@ -3479,12 +3513,15 @@ namespace rebody::line
 
     // Grid level normalisation (20 section 7). Each grid pole normalises its own impulse energy, but poles of
     // one bump overlap (the bandwidth of a short T60 spans several 1/12-octave steps) and their responses add
-    // coherently, or cancel for alternating signs. The factor restores the energy of the independent poles:
-    // sqrt(sum of the self terms / sum of all terms), cross terms of the real parts in closed form (BODY:288-296)
-    // for neighbours up to `gridBand` poles apart (float64, control rate, only when the law or vector changed).
+    // coherently, or cancel for alternating signs. The factor scales the blended gain vector so that its total
+    // impulse energy, cross terms of the real parts in closed form (BODY:288-296) for neighbours up to
+    // `gridBand` poles apart, equals `targetEnergy` (the weight blend of the bodies' grid shares of their energy
+    // target, in the level convention of the modal drive (levelRate / sr)). Because the target follows the weights and the
+    // vector is renormalised, the grid level does not dip or bump across a morph. float64, control rate, only
+    // when the law or the vector changed.
     const int gridBand = 8;
 
-    float gridNormalisation (Line& l, const float[96]& gainL, const float[96]& gainR)
+    float gridNormalisation (Line& l, const float[96]& gainL, const float[96]& gainR, float targetEnergy)
     {
         float64[96] poleRe;
         float64[96] poleIm;
@@ -3501,7 +3538,6 @@ namespace rebody::line
             }
         }
 
-        float64 selfEnergy = 0.0;
         float64 totalEnergy = 0.0;
 
         for (int i = 0; i < rebody::gridPoles; i += 1)
@@ -3518,21 +3554,18 @@ namespace rebody::line
                     {
                         float64 weight = (j == i ? 1.0 : 2.0)
                                        * rebody::modal::pairCorrelation (poleRe.at (i), poleIm.at (i), poleRe.at (j), poleIm.at (j));
-                        float64 term = 0.5 * weight * (dLi * unitDrive.at (j) * float64 (gainL.at (j))
+                        totalEnergy += 0.5 * weight * (dLi * unitDrive.at (j) * float64 (gainL.at (j))
                                                        + dRi * unitDrive.at (j) * float64 (gainR.at (j)));
-                        totalEnergy += term;
-
-                        if (j == i)
-                            selfEnergy += term;
                     }
                 }
             }
         }
 
-        if (selfEnergy < 1.0e-20 || totalEnergy < 1.0e-20)
+        if (totalEnergy < 1.0e-20 || targetEnergy <= 0.0f)
             return 1.0f;
 
-        return clamp (float (sqrt (selfEnergy / totalEnergy)), 0.02f, 8.0f);
+        float64 wanted = float64 (targetEnergy) * rebody::modal::levelRate / float64 (l.sr);
+        return clamp (float (sqrt (wanted / totalEnergy)), 0.001f, 100.0f);
     }
 
     // Modal bodies: grid law and gain vectors for the active bodies, slot voicings (only bodies with weight; the
@@ -3574,7 +3607,12 @@ namespace rebody::line
             float[96] gainL;
             float[96] gainR;
             rebody::modal::gainVectorBlend (l.gridA, l.gridB, l.gridT, gainL, gainR);
-            float norm = gridNormalisation (l, gainL, gainR);
+            float targetEnergy = 0.0f;
+
+            for (int body = 0; body <= bodySax; body += 1)
+                targetEnergy += l.weight.at (body) * l.gridEnergy.at (body);
+
+            float norm = gridNormalisation (l, gainL, gainR, targetEnergy);
 
             for (int k = 0; k < rebody::gridPoles; k += 1)
             {
@@ -3613,15 +3651,16 @@ namespace rebody::line
                     float seconds = float (exp (l.logSeconds.at (body)));
                     // The oboe cluster hands over to the Obosaxolele cluster (body 10) by an equal-power crossfade.
                     float position = body == bodyOboe ? float (sqrt (max (0.0f, 1.0f - l.oboHybrid))) : 1.0f;
+                    float scale = l.slotScale.at (body);
 
                     if (! l.keyValid.at (body) || root != l.keyRoot.at (body) || seconds != l.keySeconds.at (body)
                          || material != l.keyMaterialBody.at (body) || size != l.keySizeBody.at (body)
-                         || position != l.keyPosition.at (body))
+                         || position != l.keyPosition.at (body) || scale != l.keyScale.at (body))
                     {
                         float[18] positionGain;
 
                         for (int k = 0; k < rebody::slotStride; k += 1)
-                            positionGain.at (k) = (body == bodyOboe && k >= rebody::featureStride) ? position : 1.0f;
+                            positionGain.at (k) = scale * ((body == bodyOboe && k >= rebody::featureStride) ? position : 1.0f);
 
                         rebody::modal::setBody (l.slots, body, sr, root, seconds, material, size, positionGain, false);
                         l.keyValid.at (body) = true;
@@ -3630,6 +3669,7 @@ namespace rebody::line
                         l.keyMaterialBody.at (body) = material;
                         l.keySizeBody.at (body) = size;
                         l.keyPosition.at (body) = position;
+                        l.keyScale.at (body) = scale;
                     }
                 }
 
@@ -3734,11 +3774,17 @@ namespace rebody::line
         if (l.balanceActiveFlag && l.balanceInputPower > 1.0e-10f && l.balanceOutputPower > 1.0e-12f)
             l.balanceTarget = clamp (float (sqrt (0.15848932f * l.balanceInputPower / max (1.0e-12f, l.balanceOutputPower))), 0.125f, 4.0f);
 
-        // Telemetry summary: T60 at the root of the dominant body from the damping law.
+        // Telemetry summary: T60 at the root of the dominant body. Modal-only bodies: from the damping law (it
+        // mirrors Material and the law, 20 section 8). Bodies behind a loop ring with the loop: its decay seconds.
         int d = l.dominant;
-        float scale = rebody::modal::decayScaleForSeconds (d, float (exp (l.logSeconds.at (d))));
-        l.t60 = rebody::modal::t60For (l.rootHz, rebody::tables::alphaG.at (d), rebody::tables::alphaR.at (d), scale,
-                                       clamp (l.control.at (rebody::params::slotMaterial), 0.0f, 100.0f));
+        float seconds = float (exp (l.logSeconds.at (d)));
+
+        if (rebody::tables::lineKind.at (d) != 0)
+            l.t60 = seconds;
+        else
+            l.t60 = rebody::modal::t60For (l.rootHz, rebody::tables::alphaG.at (d), rebody::tables::alphaR.at (d),
+                                           rebody::modal::decayScaleForSeconds (d, seconds),
+                                           clamp (l.control.at (rebody::params::slotMaterial), 0.0f, 100.0f));
     }
 
     // Forget the balance AGC (BODY:872: after half a second of inaudible ringout).
@@ -3761,15 +3807,19 @@ namespace rebody::line
     void tick (Line& l, bool initial)
     {
         l.enabled = l.control.at (rebody::params::slotEnable) >= 0.5f;
-        l.holdState = l.control.at (rebody::params::slotHold);
+        l.holdState = 0.0f;                        // Hold is inert in P2 (no arming, no freeze): reports 0
 
         // A disabled, drained line costs nothing.
         if (l.dormant && ! l.enabled)
             return;
 
-        // The first tick of a line (also when B or C are enabled later) snaps to its targets.
+        // The first tick of a line (also when B or C are enabled later) snaps to its targets. A line that is
+        // enabled when the plugin loads is on at once; one enabled later fades in.
         bool first = initial || ! l.started;
         l.started = true;
+
+        if (initial && l.enabled)
+            l.enableNow = 1.0f;
 
         updateMorphWeights (l, first);
         updateBodyControls (l, first);

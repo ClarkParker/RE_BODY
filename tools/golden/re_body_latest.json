@@ -5,7 +5,7 @@
   "target": "rebody",
   "patch": "plugin/RE_BODY.cmajorpatch",
   "cmaj": "1.0.3175",
-  "generated": "2026-10-17T08:04Z",
+  "generated": "2026-10-17T08:43Z",
   "settings": {
    "decay": 50.0,
    "mix": 100.0,
@@ -17,17 +17,13 @@
    "hold": 0.0
   },
   "extra_params": {},
-  "rates": [44100,48000,96000],
-  "stimuli": ["silence","impulse","pink","sine","bursts"],
+  "rates": [48000],
+  "stimuli": ["silence","impulse","pink","sine"],
   "preroll_frames": {
-   "44100": 20480,
-   "48000": 20480,
-   "96000": 20480
+   "48000": 20480
   },
   "lead_frames": {
-   "44100": 22050,
-   "48000": 24000,
-   "96000": 48000
+   "48000": 24000
   },
   "ir_seconds": 4.0,
   "lead_seconds": 0.5,
@@ -37,256 +33,91 @@
  },
  "results": {
   "0": {
-   "44100": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
    "48000": {
     "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
-   "96000": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+    "impulse": {"fin":true,"peak":-25.56,"rms":-56.48,"dc":1.41e-14,"corr":1.0,"lufs":-45.32,"onset_ms":0.0,"peaks":[[87.3,0.0],[78.4,-1.5],[138.0,-9.8],[143.7,-10.2],[66.2,-10.3],[121.0,-10.4],[207.6,-10.8],[198.0,-10.9],[178.8,-13.9],[165.4,-14.2],[230.6,-14.8],[242.3,-15.3]],"peak_abs":-53.45,"t60":[0.403,0.3143,0.2756,0.2146,0.1518,0.0917,0.0485],"band_db":[-3.6,-8.8,-13.7,-22.9,-30.9,-39.4,-47.9],"t60_bb":0.4642,"f0_ir":80.614,"f0_ir_conf":0.431},
+    "pink": {"fin":true,"peak":-10.22,"rms":-34.86,"dc":5.94e-06,"corr":1.0,"lufs":-33.4,"rms_active":-31.86,"rms_tail":-145.95,"lufs_in":-16.54,"gain_lufs":-16.86},
+    "sine": {"fin":true,"peak":-12.02,"rms":-36.99,"dc":2.1e-06,"corr":1.0,"lufs":-37.61,"f0":440.021,"f0_conf":0.998,"rms_active":-36.99}
    }
   },
   "1": {
-   "44100": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
    "48000": {
     "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
-   "96000": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+    "impulse": {"fin":true,"peak":0.0,"rms":-30.7,"dc":1.09e-06,"corr":-0.0137,"lufs":-14.58,"onset_ms":0.0,"peaks":[[5535.9,0.0],[3978.8,-0.2],[3478.2,-0.4],[6150.2,-1.0],[4774.8,-1.3],[5317.7,-1.3],[5038.9,-1.4],[5687.2,-2.0],[2953.3,-2.1],[2590.3,-2.2],[3705.5,-2.3],[2133.4,-2.3]],"peak_abs":-47.11,"t60":[0.3126,0.2842,0.2433,0.2298,0.2302,0.236,0.2359],"band_db":[-35.6,-27.6,-20.1,-13.2,-9.8,-6.5,-5.2],"t60_bb":0.2354,"f0_ir":null,"f0_ir_conf":0.068},
+    "pink": {"fin":true,"peak":-12.73,"rms":-36.51,"dc":2.48e-06,"corr":0.5094,"lufs":-30.02,"rms_active":-33.51,"rms_tail":-166.08,"lufs_in":-16.54,"gain_lufs":-13.48},
+    "sine": {"fin":true,"peak":-12.04,"rms":-34.34,"dc":3.8e-06,"corr":0.8961,"lufs":-32.38,"f0":439.469,"f0_conf":0.861,"rms_active":-34.34}
    }
   },
   "2": {
-   "44100": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
    "48000": {
     "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
-   "96000": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+    "impulse": {"fin":true,"peak":-26.15,"rms":-59.46,"dc":1.5e-12,"corr":1.0,"lufs":-48.51,"onset_ms":0.0,"peaks":[[186.4,0.0],[220.1,-0.1],[196.5,-0.6],[176.9,-1.8],[229.3,-2.0],[159.5,-2.3],[207.0,-2.5],[168.0,-2.5],[151.4,-3.2],[143.7,-4.5],[241.6,-4.6],[136.5,-5.5]],"peak_abs":-58.83,"t60":[1.5456,1.3866,1.2732,1.0588,0.7832,0.5162,0.2845],"band_db":[-5.0,-2.9,-9.9,-16.6,-24.0,-32.3,-40.7],"t60_bb":1.4664,"f0_ir":111.649,"f0_ir_conf":0.337},
+    "pink": {"fin":true,"peak":-14.31,"rms":-35.48,"dc":1.68e-11,"corr":1.0,"lufs":-31.75,"rms_active":-32.52,"rms_tail":-70.62,"lufs_in":-16.54,"gain_lufs":-15.21},
+    "sine": {"fin":true,"peak":-12.9,"rms":-33.18,"dc":1.14e-06,"corr":1.0,"lufs":-31.69,"f0":440.021,"f0_conf":0.998,"rms_active":-33.18}
    }
   },
   "3": {
-   "44100": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
    "48000": {
     "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
-   "96000": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+    "impulse": {"fin":true,"peak":-8.08,"rms":-48.76,"dc":3.16e-12,"corr":0.9978,"lufs":-35.33,"onset_ms":0.458,"peaks":[[221.4,0.0],[882.5,-3.6],[659.6,-4.4],[438.3,-5.2],[1109.5,-6.3],[1333.1,-7.3],[2246.7,-9.5],[2476.6,-9.9],[2017.2,-10.1],[2707.0,-11.2],[1788.4,-12.2],[194.4,-13.6]],"peak_abs":-45.33,"t60":[1.2768,1.3092,1.1664,1.0989,0.7841,0.5429,0.2463],"band_db":[-13.9,-7.2,-9.1,-7.2,-8.1,-9.0,-10.8],"t60_bb":1.194,"f0_ir":224.777,"f0_ir_conf":0.822},
+    "pink": {"fin":true,"peak":-15.39,"rms":-33.88,"dc":2.06e-11,"corr":0.9962,"lufs":-29.12,"rms_active":-30.97,"rms_tail":-72.51,"lufs_in":-16.54,"gain_lufs":-12.58},
+    "sine": {"fin":true,"peak":-12.0,"rms":-23.55,"dc":1.41e-05,"corr":0.9994,"lufs":-21.92,"f0":439.996,"f0_conf":0.998,"rms_active":-23.55}
    }
   },
   "4": {
-   "44100": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
    "48000": {
     "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
-   "96000": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+    "impulse": {"fin":true,"peak":-20.17,"rms":-65.98,"dc":2.6e-12,"corr":0.9999,"lufs":-51.64,"onset_ms":4.438,"peaks":[[439.8,0.0],[219.9,-5.5],[660.0,-6.5],[1321.3,-7.8],[1100.5,-11.3],[2205.3,-15.4],[1984.5,-16.9],[2426.8,-20.4],[3089.5,-22.8],[467.1,-22.9],[3313.1,-24.7],[3982.0,-25.9]],"peak_abs":-60.72,"t60":[1.0584,0.9563,0.7786,0.5804,0.2344,0.1067,0.0344],"band_db":[-17.7,-9.1,-5.7,-8.1,-8.7,-11.2,-10.1],"t60_bb":0.8108,"f0_ir":220.144,"f0_ir_conf":0.926},
+    "pink": {"fin":true,"peak":-28.42,"rms":-46.33,"dc":1.61e-12,"corr":0.9999,"lufs":-41.11,"rms_active":-43.39,"rms_tail":-93.97,"lufs_in":-16.54,"gain_lufs":-24.57},
+    "sine": {"fin":true,"peak":-18.35,"rms":-23.18,"dc":1.49e-05,"corr":0.9999,"lufs":-20.91,"f0":440.011,"f0_conf":0.998,"rms_active":-23.18}
    }
   },
   "5": {
-   "44100": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
    "48000": {
     "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
-   "96000": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+    "impulse": {"fin":true,"peak":0.0,"rms":-48.63,"dc":1.56e-06,"corr":0.9999,"lufs":-33.15,"onset_ms":4.438,"peaks":[[222.9,0.0],[438.2,-6.9],[880.8,-9.8],[208.3,-10.2],[1099.5,-12.2],[1770.8,-14.3],[2437.5,-15.6],[252.8,-17.2],[2214.8,-18.5],[3772.3,-19.2],[282.1,-19.3],[186.4,-19.5]],"peak_abs":-49.23,"t60":[0.2597,0.2596,0.2195,0.1343,0.0804,0.0387,0.023],"band_db":[-16.3,-8.2,-13.3,-12.4,-11.6,-9.9,-7.2],"t60_bb":0.2647,"f0_ir":221.135,"f0_ir_conf":0.869},
+    "pink": {"fin":true,"peak":-10.21,"rms":-34.81,"dc":1.11e-06,"corr":0.9999,"lufs":-30.42,"rms_active":-31.85,"rms_tail":-157.05,"lufs_in":-16.54,"gain_lufs":-13.88},
+    "sine": {"fin":true,"peak":-12.0,"rms":-24.59,"dc":9.77e-06,"corr":1.0,"lufs":-22.75,"f0":440.031,"f0_conf":0.998,"rms_active":-24.59}
    }
   },
   "6": {
-   "44100": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
    "48000": {
     "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
-   "96000": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+    "impulse": {"fin":true,"peak":-22.84,"rms":-66.16,"dc":2.6e-13,"corr":0.9984,"lufs":-51.31,"onset_ms":4.479,"peaks":[[880.0,0.0],[1320.3,-0.7],[440.0,-2.6],[660.0,-3.1],[1100.1,-3.5],[220.1,-9.1],[3306.0,-10.4],[1761.0,-10.5],[1981.7,-12.6],[3083.4,-13.3],[469.1,-14.3],[3744.7,-15.3]],"peak_abs":-64.94,"t60":[0.8625,0.8286,0.7145,0.5289,0.3876,0.1457,0.059],"band_db":[-27.2,-16.5,-9.0,-5.3,-8.1,-7.5,-8.4],"t60_bb":0.6159,"f0_ir":220.129,"f0_ir_conf":0.915},
+    "pink": {"fin":true,"peak":-16.7,"rms":-32.61,"dc":2.9e-12,"corr":0.9976,"lufs":-26.27,"rms_active":-29.66,"rms_tail":-89.37,"lufs_in":-16.54,"gain_lufs":-9.73},
+    "sine": {"fin":true,"peak":-12.05,"rms":-19.76,"dc":4.87e-06,"corr":0.9947,"lufs":-17.68,"f0":440.051,"f0_conf":0.998,"rms_active":-19.76}
    }
   },
   "7": {
-   "44100": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
    "48000": {
     "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
-   "96000": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+    "impulse": {"fin":true,"peak":-36.78,"rms":-70.41,"dc":7.89e-15,"corr":1.0,"lufs":-58.0,"onset_ms":0.0,"peaks":[[220.0,0.0],[660.9,-11.4],[1104.3,-18.8],[1550.1,-22.3],[1997.9,-29.0],[2447.3,-32.1],[2896.3,-36.0],[3346.0,-39.3],[1674.1,-41.4],[3794.3,-42.3],[4241.3,-45.6],[4686.9,-48.7]],"peak_abs":-62.19,"t60":[0.5016,0.5016,0.4479,0.1708,0.0798,0.0375,0.0216],"band_db":[-9.3,-2.1,-9.6,-9.6,-13.3,-21.6,-33.8],"t60_bb":0.5006,"f0_ir":220.232,"f0_ir_conf":0.93},
+    "pink": {"fin":true,"peak":-15.77,"rms":-30.67,"dc":1.18e-12,"corr":1.0,"lufs":-26.14,"rms_active":-27.69,"rms_tail":-107.71,"lufs_in":-16.54,"gain_lufs":-9.6},
+    "sine": {"fin":true,"peak":-30.14,"rms":-43.18,"dc":9.51e-06,"corr":1.0,"lufs":-40.8,"f0":440.003,"f0_conf":0.998,"rms_active":-43.18}
    }
   },
   "8": {
-   "44100": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
    "48000": {
     "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
-   "96000": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+    "impulse": {"fin":true,"peak":-10.4,"rms":-54.94,"dc":3.48e-14,"corr":1.0,"lufs":-39.93,"onset_ms":0.0,"peaks":[[1540.1,0.0],[1674.7,-5.9],[1414.9,-6.0],[2325.7,-9.7],[1131.4,-12.4],[1709.2,-12.6],[1073.7,-12.7],[1191.7,-13.7],[2858.2,-14.0],[1019.5,-14.3],[2714.0,-14.5],[1799.0,-14.7]],"peak_abs":-54.59,"t60":[0.2604,0.2203,0.188,0.2642,0.2735,0.144,0.106],"band_db":[-33.2,-22.1,-12.2,-6.0,-3.9,-7.5,-11.9],"t60_bb":0.2599,"f0_ir":1537.161,"f0_ir_conf":0.59},
+    "pink": {"fin":true,"peak":-10.22,"rms":-29.07,"dc":2.79e-08,"corr":1.0,"lufs":-22.84,"rms_active":-26.07,"rms_tail":-152.88,"lufs_in":-16.54,"gain_lufs":-6.3},
+    "sine": {"fin":true,"peak":-12.47,"rms":-21.19,"dc":4.21e-06,"corr":1.0,"lufs":-19.34,"f0":440.042,"f0_conf":0.998,"rms_active":-21.19}
    }
   },
   "9": {
-   "44100": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
    "48000": {
     "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
-   "96000": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+    "impulse": {"fin":true,"peak":-58.72,"rms":-87.59,"dc":5.49e-13,"corr":0.9869,"lufs":null,"onset_ms":0.0,"peaks":[[219.9,0.0],[440.0,-2.5],[660.0,-3.7],[880.1,-7.5],[61.8,-15.9],[1100.1,-16.4],[1760.1,-18.2],[1540.1,-20.7],[143.9,-21.5],[154.3,-21.6],[1980.6,-22.0],[2200.1,-25.9]],"peak_abs":-81.56,"t60":[0.6619,0.6598,0.6236,0.576,0.4444,0.3208,0.314],"band_db":[-10.0,-4.8,-5.3,-8.6,-16.7,-23.6,-26.8],"t60_bb":0.6366,"f0_ir":219.98,"f0_ir_conf":0.942},
+    "pink": {"fin":true,"peak":-14.82,"rms":-30.09,"dc":2.65e-12,"corr":0.9996,"lufs":-25.19,"rms_active":-27.12,"rms_tail":-94.6,"lufs_in":-16.54,"gain_lufs":-8.65},
+    "sine": {"fin":true,"peak":-12.01,"rms":-16.28,"dc":3.62e-05,"corr":1.0,"lufs":-14.05,"f0":440.002,"f0_conf":0.999,"rms_active":-16.28}
    }
   },
   "10": {
-   "44100": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.6,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
    "48000": {
     "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.54,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
-   },
-   "96000": {
-    "silence": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null},
-    "impulse": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"onset_ms":null,"peaks":[],"peak_abs":null,"t60":[null,null,null,null,null,null,null],"band_db":[null,null,null,null,null,null,null],"flags":["silent"]},
-    "pink": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"rms_active":-200.0,"rms_tail":-200.0,"lufs_in":-16.28,"flags":["silent"]},
-    "sine": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"f0":null,"f0_conf":0.0,"rms_active":-200.0,"flags":["silent"]},
-    "bursts": {"fin":true,"peak":-200.0,"rms":-200.0,"dc":0.0,"corr":null,"lufs":null,"click_peaks":[-200.0,-200.0,-200.0,-200.0,-200.0],"flags":["silent"]}
+    "impulse": {"fin":true,"peak":-7.38,"rms":-49.4,"dc":3.74e-13,"corr":1.0,"lufs":-36.57,"onset_ms":0.0,"peaks":[[439.8,0.0],[221.6,-0.7],[660.4,-13.1],[1100.3,-14.1],[880.6,-14.3],[2444.5,-19.4],[1776.7,-22.4],[2217.5,-23.8],[1546.9,-24.8],[1323.8,-25.9],[3780.7,-25.9],[3113.2,-26.9]],"peak_abs":-43.27,"t60":[1.2084,1.1371,0.9584,0.989,0.2308,0.0517,0.0232],"band_db":[-13.3,-5.0,-6.4,-9.7,-11.2,-11.2,-11.9],"t60_bb":1.0939,"f0_ir":220.629,"f0_ir_conf":0.949},
+    "pink": {"fin":true,"peak":-11.68,"rms":-29.84,"dc":8.61e-12,"corr":1.0,"lufs":-24.94,"rms_active":-26.88,"rms_tail":-76.23,"lufs_in":-16.54,"gain_lufs":-8.4},
+    "sine": {"fin":true,"peak":-12.0,"rms":-15.79,"dc":4.21e-05,"corr":1.0,"lufs":-13.57,"f0":439.994,"f0_conf":0.998,"rms_active":-15.79}
    }
   }
  }
