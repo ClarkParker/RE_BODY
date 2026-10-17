@@ -1,0 +1,334 @@
+// RE.BODY striker tests (rebody::strikers, src/dsp/30_strikers.cmajor) - run: cmaj test tests/strikers.cmajtest
+//
+// Contract: docs/dev/00_P1_CONTRACTS.md (P4b additions), 20_DSP_CONCEPT section 14, review E13.
+// The burst length is measured from the outside: after the last non-zero raw sample the output is the pure
+// DC-blocker tail, y[n] == r y[n - 1] exactly (r = dcRadius), so the last sample that breaks this rule is the
+// burst length. Typed locals only (no let), .at(i) indexing, float(...) around intrinsics.
+
+## global ("../src/dsp/20_analysis.cmajor", "../src/dsp/30_strikers.cmajor")
+
+## testFunction()
+
+bool near (float a, float b, float tol) { return abs (a - b) <= tol; }
+
+float dbOf (float v) { return 20.0f * float (log10 (max (v, 1.0e-30f))); }
+
+bool isFinite (float v) { return ! (isnan (v) || isinf (v)); }
+
+void start (rebody::strikers::StrikerState& s, int kind, float velocity, float position, float sr)
+{
+    rebody::strikers::reset (s);
+    s.noiseState = 17431;
+    rebody::strikers::trigger (s, kind, velocity, position, sr);
+}
+
+// Excite value the line would pass to step() for a kind (the body impulse runs under Excite = Pluck).
+int exciteOf (int kind)
+{
+    return kind == rebody::strikers::kindPluckBody ? rebody::strikers::modePluck : kind;
+}
+
+float holdAt (int n, int holdSamples)
+{
+    return n < holdSamples ? 1.0f : 0.0f;
+}
+
+// Burst length in samples (see the header), or -1 if the striker did not go idle within 2 s / produced a
+// non-finite sample.
+int burstLength (int kind, float velocity, float position, float hz, float sr, int holdSamples)
+{
+    rebody::strikers::StrikerState s;
+    start (s, kind, velocity, position, sr);
+    float previous = 0.0f;
+    int lastBreak = 0;
+    int limit = int (2.0f * sr);
+
+    for (int n = 0; n < limit; n += 1)
+    {
+        float y = rebody::strikers::step (s, exciteOf (kind), hz, holdAt (n, holdSamples), sr);
+
+        if (! isFinite (y))
+            return -1;
+
+        if (y != 0.0f && y != s.dcRadius * previous)
+            lastBreak = n;
+
+        previous = y;
+
+        if (! rebody::strikers::active (s))
+            return lastBreak;
+    }
+
+    return -1;
+}
+
+// (RMS over samples [from, to), sum over the whole active span, sum of |y| over it, span length in samples)
+float<4> burstStats (int kind, float velocity, float position, float hz, float sr, int holdSamples, int from, int to)
+{
+    rebody::strikers::StrikerState s;
+    start (s, kind, velocity, position, sr);
+    float64 energy = 0.0;
+    float64 sum = 0.0;
+    float64 absSum = 0.0;
+    int limit = int (2.0f * sr);
+    int span = 0;
+
+    for (int n = 0; n < limit; n += 1)
+    {
+        float y = rebody::strikers::step (s, exciteOf (kind), hz, holdAt (n, holdSamples), sr);
+
+        if (n >= from && n < to)
+            energy += float64 (y) * float64 (y);
+
+        sum += float64 (y);
+        absSum += float64 (abs (y));
+        span = n + 1;
+
+        if (! rebody::strikers::active (s))
+            break;
+    }
+
+    return float<4> (float (sqrt (energy / float64 (max (to - from, 1)))), float (sum), float (absSum), float (span));
+}
+
+// RMS in dB of a deterministic burst over its own duration.
+float burstDb (int kind, float velocity, float position, float hz, float sr)
+{
+    int length = burstLength (kind, velocity, position, hz, sr, 0);
+
+    if (length <= 0)
+        return 1000.0f;
+
+    return dbOf (burstStats (kind, velocity, position, hz, sr, 0, 0, length)[0]);
+}
+
+// ---- every kind ----------------------------------------------------------------------------------------
+
+bool everyKindIsFiniteAndEnds()
+{
+    float[4] velocities = (0.0f, 0.1f, 0.5f, 1.0f);
+    float[4] positions = (0.0f, 0.3f, 0.5f, 1.0f);
+    float[5] pitches = (0.0f, 25.0f, 110.0f, 2000.0f, 20000.0f);
+    float[2] rates = (44100.0f, 192000.0f);
+
+    for (int r = 0; r < 2; r += 1)
+        for (int kind = 1; kind <= 4; kind += 1)
+            for (int v = 0; v < 4; v += 1)
+                for (int p = 0; p < 4; p += 1)
+                    for (int h = 0; h < 5; h += 1)
+                        if (burstLength (kind, velocities.at (v), positions.at (p), pitches.at (h), rates.at (r), 2000) <= 0)
+                            return false;
+
+    float nan = 0.0f;
+    nan = nan / nan;
+    return burstLength (rebody::strikers::kindPluck, nan, nan, nan, 48000.0f, 0) > 0
+        && burstLength (rebody::strikers::kindBreath, 1.0f, 0.5f, 220.0f, 48000.0f, 0) > 0;
+}
+
+bool burstsCarryNoDc()
+{
+    float[4] positions = (0.0f, 0.2f, 0.5f, 1.0f);
+
+    for (int kind = 1; kind <= 4; kind += 1)
+    {
+        for (int p = 0; p < 4; p += 1)
+        {
+            float<4> st = burstStats (kind, 1.0f, positions.at (p), 55.0f, 48000.0f, 4800, 0, 1);
+
+            // mean over the whole burst (with its tail) and the DC share of the injected signal
+            if (abs (st[1]) / st[3] > 0.001f || abs (st[1]) > 0.001f * st[2])
+                return false;
+        }
+    }
+
+    return true;
+}
+
+bool idleStrikerIsSilentAndFree()
+{
+    rebody::strikers::StrikerState s;
+    rebody::strikers::reset (s);
+    s.noiseState = 4242;
+
+    for (int n = 0; n < 1000; n += 1)
+        if (rebody::strikers::step (s, rebody::strikers::modeBreath, 220.0f, 1.0f, 48000.0f) != 0.0f)
+            return false;
+
+    rebody::strikers::trigger (s, 0, 1.0f, 0.5f, 48000.0f);     // Through: ignored
+    rebody::strikers::trigger (s, 7, 1.0f, 0.5f, 48000.0f);     // unknown: ignored
+    return ! rebody::strikers::active (s) && s.noiseState == 4242 && s.kind == 0;
+}
+
+// ---- energy normalisation and the velocity law ---------------------------------------------------------------
+
+bool unitRmsAtFullVelocity()
+{
+    float[3] rates = (44100.0f, 48000.0f, 96000.0f);
+    float[4] pitches = (55.0f, 220.0f, 880.0f, 1760.0f);
+    float[3] positions = (0.0f, 0.5f, 1.0f);
+
+    for (int r = 0; r < 3; r += 1)
+    {
+        float sr = rates.at (r);
+
+        if (abs (burstDb (rebody::strikers::kindHammer, 1.0f, 0.5f, 220.0f, sr)) > 1.0f)
+            return false;
+
+        for (int p = 0; p < 3; p += 1)
+        {
+            if (abs (burstDb (rebody::strikers::kindPluckBody, 1.0f, positions.at (p), 0.0f, sr)) > 1.0f)
+                return false;
+
+            for (int h = 0; h < 4; h += 1)
+                if (abs (burstDb (rebody::strikers::kindPluck, 1.0f, 0.2f + 0.3f * float (p), pitches.at (h), sr)) > 1.0f)
+                    return false;
+        }
+
+        // Breath: unit RMS while it sustains (hold01 = 1), window 100-300 ms of a 300 ms hold
+        float<4> b = burstStats (rebody::strikers::kindBreath, 1.0f, 0.5f, 220.0f, sr, int (0.3f * sr), int (0.1f * sr), int (0.3f * sr));
+
+        if (abs (dbOf (b[0])) > 1.0f)
+            return false;
+    }
+
+    return true;
+}
+
+bool velocityPointOneIsMinus20dB()
+{
+    float sr = 48000.0f;
+    float<4> b = burstStats (rebody::strikers::kindBreath, 0.1f, 0.5f, 220.0f, sr, int (0.4f * sr), int (0.15f * sr), int (0.4f * sr));
+
+    return abs (burstDb (rebody::strikers::kindHammer, 0.1f, 0.5f, 220.0f, sr) + 20.0f) <= 1.5f
+        && abs (burstDb (rebody::strikers::kindPluck, 0.1f, 0.3f, 220.0f, sr) + 20.0f) <= 1.5f
+        && abs (burstDb (rebody::strikers::kindPluck, 0.1f, 0.7f, 82.4f, sr) + 20.0f) <= 1.5f
+        && abs (burstDb (rebody::strikers::kindPluckBody, 0.1f, 0.5f, 0.0f, sr) + 20.0f) <= 1.5f
+        && abs (dbOf (b[0]) + 20.0f) <= 1.5f
+        && near (dbOf (rebody::strikers::velocityLevel (0.1f)), -20.0f, 0.001f)
+        && near (dbOf (rebody::strikers::velocityLevel (0.0f)), -22.2222f, 0.001f)
+        && rebody::strikers::velocityLevel (1.0f) == 1.0f;
+}
+
+bool blendIsEqualPower()
+{
+    float s = rebody::strikers::strikeGain (50.0f);
+    float t = rebody::strikers::throughGain (50.0f);
+    return near (s * s + t * t, 1.0f, 0.00001f) && near (s, t, 0.00001f)
+        && rebody::strikers::strikeGain (0.0f) == 1.0f && near (rebody::strikers::throughGain (0.0f), 0.0f, 0.000001f);
+}
+
+// ---- kind-specific shape ---------------------------------------------------------------------------------
+
+bool hammerContactLasts1To4ms()
+{
+    float[3] rates = (44100.0f, 48000.0f, 96000.0f);
+    float[4] velocities = (0.0f, 0.1f, 0.5f, 1.0f);
+
+    for (int r = 0; r < 3; r += 1)
+    {
+        float sr = rates.at (r);
+        float previous = 1.0f;
+
+        for (int v = 0; v < 4; v += 1)
+        {
+            float seconds = float (burstLength (rebody::strikers::kindHammer, velocities.at (v), 0.5f, 220.0f, sr, 0)) / sr;
+
+            if (seconds < 0.001f || seconds > 0.004f || seconds >= previous)
+                return false;
+
+            previous = seconds;
+        }
+
+        // design values: 1.2 ms at velocity 1, 2.6 ms at velocity 0 (one sample tolerance)
+        float fastest = float (burstLength (rebody::strikers::kindHammer, 1.0f, 0.5f, 220.0f, sr, 0)) / sr;
+        float slowest = float (burstLength (rebody::strikers::kindHammer, 0.0f, 0.5f, 220.0f, sr, 0)) / sr;
+
+        if (abs (fastest - 0.0012f) > 1.5f / sr || abs (slowest - 0.0012f * 2.1553f) > 1.5f / sr)
+            return false;
+    }
+
+    return true;
+}
+
+bool pluckPeriodMatchesHz()
+{
+    float[4] pitches = (82.41f, 110.0f, 220.0f, 659.3f);
+    float[2] rates = (48000.0f, 96000.0f);
+
+    for (int r = 0; r < 2; r += 1)
+    {
+        float sr = rates.at (r);
+
+        for (int h = 0; h < 4; h += 1)
+        {
+            // position 0.5: one period hump + comb at half a period -> 1.5 periods
+            float expected = 1.5f * sr / pitches.at (h);
+            int measured = burstLength (rebody::strikers::kindPluck, 1.0f, 0.5f, pitches.at (h), sr, 0);
+
+            if (abs (float (measured) - expected) > 1.5f)
+                return false;
+
+            // position 0.25 -> 1.25 periods
+            if (abs (float (burstLength (rebody::strikers::kindPluck, 1.0f, 0.25f, pitches.at (h), sr, 0)) - 1.25f * sr / pitches.at (h)) > 1.5f)
+                return false;
+        }
+    }
+
+    // hz <= 0 falls back to the body impulse: 0.5 ms at position 0, 2 ms at position 1
+    return abs (burstLength (rebody::strikers::kindPluck, 1.0f, 0.0f, 0.0f, 48000.0f, 0) - 24) <= 1
+        && abs (burstLength (rebody::strikers::kindPluckBody, 1.0f, 1.0f, 440.0f, 48000.0f, 0) - 96) <= 1;
+}
+
+bool breathSustainsWhileHeldAndDecaysAfter()
+{
+    float sr = 48000.0f;
+    int hold = int (0.3f * sr);
+
+    // full level late in the hold, silence 100 ms after the release (20 ms ramp at velocity 1)
+    float<4> late = burstStats (rebody::strikers::kindBreath, 1.0f, 0.5f, 220.0f, sr, hold, int (0.25f * sr), hold);
+    float<4> after = burstStats (rebody::strikers::kindBreath, 1.0f, 0.5f, 220.0f, sr, hold, int (0.4f * sr), int (0.45f * sr));
+    int length = burstLength (rebody::strikers::kindBreath, 1.0f, 0.5f, 220.0f, sr, hold);
+
+    // no hold: attack + release only (2 x 20 ms at velocity 1, 2 x 74 ms at velocity 0.1)
+    int shortBurst = burstLength (rebody::strikers::kindBreath, 1.0f, 0.5f, 220.0f, sr, 0);
+    int softBurst = burstLength (rebody::strikers::kindBreath, 0.1f, 0.5f, 220.0f, sr, 0);
+
+    return abs (dbOf (late[0])) < 1.0f
+        && after[0] < 0.001f
+        && abs (float (length) - (0.3f + 0.02f) * sr) < 0.002f * sr
+        && late[3] < 0.7f * sr                       // went idle (tail drained) well within the run
+        && abs (float (shortBurst) - 0.04f * sr) < 0.002f * sr
+        && abs (float (softBurst) - 0.148f * sr) < 0.002f * sr;
+}
+
+bool breathReleasesWhenExciteLeavesBreath()
+{
+    rebody::strikers::StrikerState s;
+    start (s, rebody::strikers::kindBreath, 1.0f, 0.5f, 48000.0f);
+
+    for (int n = 0; n < 4800; n += 1)                         // 100 ms held as Breath
+        rebody::strikers::step (s, rebody::strikers::modeBreath, 220.0f, 1.0f, 48000.0f);
+
+    float before = s.envelope;
+
+    for (int n = 0; n < 1440; n += 1)                         // 30 ms with Excite = Through, hold still 1
+        rebody::strikers::step (s, rebody::strikers::modeThrough, 220.0f, 1.0f, 48000.0f);
+
+    return before == 1.0f && s.envelope == 0.0f && s.kind == 0;
+}
+
+bool breathRetriggerHasNoJump()
+{
+    rebody::strikers::StrikerState s;
+    start (s, rebody::strikers::kindBreath, 1.0f, 0.5f, 48000.0f);
+
+    for (int n = 0; n < 4800; n += 1)
+        rebody::strikers::step (s, rebody::strikers::modeBreath, 220.0f, 0.5f, 48000.0f);
+
+    float level = s.envelope;
+    rebody::strikers::trigger (s, rebody::strikers::kindBreath, 0.8f, 0.5f, 48000.0f);
+    rebody::strikers::step (s, rebody::strikers::modeBreath, 220.0f, 0.5f, 48000.0f);
+
+    // the new attack starts from the running envelope (no reset to 0, no jump to the new peak)
+    return near (level, 0.5f, 0.0001f) && s.envelope > level && s.envelope < level + 0.01f;
+}

@@ -1,0 +1,395 @@
+// RE.BODY analysis stage tests (rebody::analysis Splitter and PitchTracker, src/dsp/20_analysis.cmajor)
+// run: cmaj test tests/analysis.cmajtest
+//
+// Contract: docs/dev/00_P1_CONTRACTS.md (P4b additions), 20_DSP_CONCEPT section 13, review E9/E14.
+// Typed locals only (no let), .at(i) indexing, float(...) around intrinsics.
+
+## global ("../src/dsp/20_analysis.cmajor")
+
+## testFunction()
+
+bool near (float a, float b, float tol) { return abs (a - b) <= tol; }
+
+float cents (float hz, float reference) { return 1200.0f * float (log (max (hz, 0.001f) / reference)) / float (log (2.0f)); }
+
+float dbOf (float ratio) { return 20.0f * float (log10 (max (ratio, 1.0e-30f))); }
+
+// Burst-plus-pad test signal: a 0.3 sine pad at 220 Hz (L) / 330 Hz (R) and 1 kHz clicks every 250 ms that
+// decay in 10 ms.
+float<2> burstPad (int n, float sr, float padAmount)
+{
+    float t = float (n) / sr;
+    float<2> pad = float<2> (0.3f * float (sin (float (twoPi) * 220.0f * t)), 0.3f * float (sin (float (twoPi) * 330.0f * t)));
+    int period = int (0.25f * sr);
+    float local = float (n % period) / sr;
+    float click = 0.8f * float (exp (-local / 0.01f)) * float (sin (float (twoPi) * 1000.0f * local));
+    return padAmount * pad + float<2> (click, -0.7f * click);
+}
+
+// ---- Splitter ----------------------------------------------------------------------------------------------
+
+bool splitterIsComplementary()
+{
+    rebody::analysis::Splitter s;
+    float sr = 48000.0f;
+    rebody::analysis::prepare (s, sr);
+    float worst = 0.0f;
+
+    for (int n = 0; n < 48000; n += 1)
+    {
+        float<2> x = burstPad (n, sr, 1.0f);
+        rebody::analysis::step (s, x);
+        float<2> e = s.transient + s.sustain - x;
+        worst = max (worst, max (abs (e[0]), abs (e[1])));
+    }
+
+    return worst <= 0.000001f;
+}
+
+// Transient share of the energy in the first 10 ms of each click (after the first) and in the late pad.
+float<2> transientShares (bool withPad)
+{
+    rebody::analysis::Splitter s;
+    float sr = 48000.0f;
+    rebody::analysis::prepare (s, sr);
+    float clickTransient = 0.0f;
+    float clickAll = 0.0f;
+    float padTransient = 0.0f;
+    float padAll = 0.0f;
+
+    for (int n = 0; n < 48000; n += 1)
+    {
+        float<2> x = burstPad (n, sr, withPad ? 1.0f : 0.0f);
+
+        rebody::analysis::step (s, x);
+        int local = n % 12000;
+
+        if (n >= 12000 && local < 480)
+        {
+            clickTransient += rebody::analysis::meanPower (s.transient);
+            clickAll += rebody::analysis::meanPower (x);
+        }
+        else if (local >= 9000)
+        {
+            padTransient += rebody::analysis::meanPower (s.transient);
+            padAll += rebody::analysis::meanPower (x);
+        }
+    }
+
+    return float<2> (clickTransient / max (clickAll, 1.0e-20f), padTransient / max (padAll, 1.0e-20f));
+}
+
+bool splitterSeparatesClicksFromPads()
+{
+    // Classic transient-designer split (fast 1/20 ms, slow 20/150 ms, k = 1.2): a steady pad leaves nothing in
+    // Transient; clicks on top of the pad put about 6 % of their energy there, clicks in silence about 28 %
+    // (g peaks near 0.37 / 0.55: the slow follower's 20 ms attack catches up during a 10 ms click).
+    float<2> mixed = transientShares (true);
+    float<2> dry = transientShares (false);
+    return mixed[0] > 0.04f && mixed[1] < 0.001f && dry[0] > 0.2f;
+}
+
+bool bandSumIsAllpass()
+{
+    float[3] rates = (44100.0f, 48000.0f, 96000.0f);
+
+    for (int r = 0; r < 3; r += 1)
+    {
+        rebody::analysis::Splitter s;
+        rebody::analysis::prepare (s, rates.at (r));
+        float64 energy = 0.0;
+        float64 difference = 0.0;
+
+        for (int n = 0; n < 2048; n += 1)
+        {
+            float x = n == 0 ? 1.0f : 0.0f;
+            rebody::analysis::step (s, float<2> (x, x));
+            float sum = s.low[0] + s.mid[0] + s.high[0];
+            energy += float64 (sum) * float64 (sum);
+            difference += float64 (sum - x) * float64 (sum - x);
+
+            if (abs (s.low[1] + s.mid[1] + s.high[1] - sum) > 0.0000001f)
+                return false;
+        }
+
+        // RMS over 2048 samples of the band sum vs the impulse RMS (1 / sqrt 2048): energy ratio within 0.2 dB
+        float db = 10.0f * float (log10 (float (energy)));
+
+        if (abs (db) > 0.2f)
+            return false;
+
+        // and it is an allpass, not the identity (the phase is rotated)
+        if (difference < 0.01)
+            return false;
+    }
+
+    return true;
+}
+
+float bandShare (int band, float hz)
+{
+    rebody::analysis::Splitter s;
+    float sr = 48000.0f;
+    rebody::analysis::prepare (s, sr);
+    float64 inBand = 0.0;
+    float64 total = 0.0;
+
+    for (int n = 0; n < 24000; n += 1)
+    {
+        float x = float (sin (float (twoPi) * hz * float (n) / sr));
+        rebody::analysis::step (s, float<2> (x, x));
+
+        if (n >= 12000)
+        {
+            float v = band == 0 ? s.low[0] : (band == 1 ? s.mid[0] : s.high[0]);
+            inBand += float64 (v * v);
+            total += float64 (x * x);
+        }
+    }
+
+    return float (inBand / max (total, 1.0e-30));
+}
+
+bool bandsSelectTheirRegion()
+{
+    // centre of each band within 1 dB, 2 octaves away from the edges well below -20 dB
+    return bandShare (0, 50.0f) > 0.79f && bandShare (1, 630.0f) > 0.79f && bandShare (2, 8000.0f) > 0.79f
+        && bandShare (0, 5000.0f) < 0.01f && bandShare (2, 200.0f) < 0.01f
+        && bandShare (1, 40.0f) < 0.01f && bandShare (1, 10000.0f) < 0.01f;
+}
+
+bool listenedPicksTheField()
+{
+    rebody::analysis::Splitter s;
+    rebody::analysis::prepare (s, 48000.0f);
+
+    for (int n = 0; n < 1000; n += 1)
+        rebody::analysis::step (s, burstPad (n, 48000.0f, 1.0f));
+
+    float<2> a = rebody::analysis::listened (s, 0);
+    float<2> m = rebody::analysis::listened (s, 4);
+    float<2> c = rebody::analysis::listened (s, 6);
+    return a[0] == s.all[0] && m[1] == s.mid[1] && c[0] == s.all[0]
+        && rebody::analysis::listened (s, 1)[0] == s.transient[0]
+        && rebody::analysis::listened (s, 5)[1] == s.high[1];
+}
+
+// ---- PitchTracker -----------------------------------------------------------------------------------------
+
+// Runs a sine for `samples` host samples with work() every 32 samples; returns (hz, confidence).
+float<2> trackSine (float hz, float sr, int samples)
+{
+    rebody::analysis::PitchTracker t;
+    rebody::analysis::prepare (t, sr);
+    rebody::analysis::setEnabled (t, true);
+
+    for (int n = 0; n < samples; n += 1)
+    {
+        rebody::analysis::push (t, 0.5f * float (sin (float (twoPi) * hz * float (n) / sr + 0.3f)));
+
+        if ((n & 31) == 31)
+            rebody::analysis::work (t);
+    }
+
+    return float<2> (rebody::analysis::hz (t), rebody::analysis::confidence (t));
+}
+
+bool trackerLocksWithin150ms()
+{
+    float[4] notes = (110.0f, 220.0f, 440.0f, 880.0f);
+
+    for (int i = 0; i < 4; i += 1)
+    {
+        float<2> r = trackSine (notes.at (i), 48000.0f, 7200);      // 150 ms at 48 kHz
+
+        if (abs (cents (r[0], notes.at (i))) > 10.0f || r[1] <= 0.8f)
+            return false;
+    }
+
+    return true;
+}
+
+bool trackerCoversTheRangeAndOtherRates()
+{
+    float[5] notes = (41.0f, 65.4f, 330.0f, 1000.0f, 1180.0f);
+    float[3] rates = (44100.0f, 48000.0f, 96000.0f);
+
+    for (int r = 0; r < 3; r += 1)
+    {
+        for (int i = 0; i < 5; i += 1)
+        {
+            float<2> v = trackSine (notes.at (i), rates.at (r), int (0.2f * rates.at (r)));
+
+            if (abs (cents (v[0], notes.at (i))) > 10.0f || v[1] <= 0.8f)
+                return false;
+        }
+    }
+
+    return true;
+}
+
+bool trackerFirstEstimateLatency()
+{
+    // nothing before the first frame is complete (window 512 + 302 lags at 12 kHz = 67.8 ms), an estimate by 78 ms
+    float<2> early = trackSine (220.0f, 48000.0f, 3200);    // 66.7 ms
+    float<2> late = trackSine (220.0f, 48000.0f, 3744);     // 78.0 ms
+    return early[0] == 0.0f && early[1] == 0.0f && abs (cents (late[0], 220.0f)) < 10.0f && late[1] > 0.8f;
+}
+
+bool trackerReportsLowConfidenceOnNoise()
+{
+    rebody::analysis::PitchTracker t;
+    rebody::analysis::prepare (t, 48000.0f);
+    rebody::analysis::setEnabled (t, true);
+    int state = 99991;
+    float worst = 0.0f;
+    float sum = 0.0f;
+    int frames = 0;
+
+    for (int n = 0; n < 48000; n += 1)
+    {
+        state = rebody::analysis::xorshift (state);
+        rebody::analysis::push (t, 0.5f * rebody::analysis::noiseOf (state));
+
+        if ((n & 31) == 31)
+        {
+            rebody::analysis::work (t);
+
+            if (n > 4800 && (n & 511) == 511)       // once per hop after 100 ms
+            {
+                worst = max (worst, rebody::analysis::confidence (t));
+                sum += rebody::analysis::confidence (t);
+                frames += 1;
+            }
+        }
+    }
+
+    return frames > 80 && worst < 0.3f && sum / float (frames) < 0.25f;
+}
+
+bool trackerHoldsPitchThroughSilence()
+{
+    rebody::analysis::PitchTracker t;
+    rebody::analysis::prepare (t, 48000.0f);
+    rebody::analysis::setEnabled (t, true);
+
+    for (int n = 0; n < 24000; n += 1)
+    {
+        float x = n < 12000 ? 0.5f * float (sin (float (twoPi) * 330.0f * float (n) / 48000.0f)) : 0.0f;
+        rebody::analysis::push (t, x);
+
+        if ((n & 31) == 31)
+            rebody::analysis::work (t);
+    }
+
+    return abs (cents (rebody::analysis::hz (t), 330.0f)) < 10.0f && rebody::analysis::confidence (t) < 0.3f;
+}
+
+bool trackerFollowsAPitchStep()
+{
+    rebody::analysis::PitchTracker t;
+    rebody::analysis::prepare (t, 48000.0f);
+    rebody::analysis::setEnabled (t, true);
+    float phase = 0.0f;
+
+    for (int n = 0; n < 19200; n += 1)                 // 200 ms at 220 Hz, then 200 ms at 293.66 Hz
+    {
+        float f = n < 9600 ? 220.0f : 293.66f;
+        phase += float (twoPi) * f / 48000.0f;
+        rebody::analysis::push (t, 0.5f * float (sin (phase)));
+
+        if ((n & 31) == 31)
+            rebody::analysis::work (t);
+    }
+
+    return abs (cents (rebody::analysis::hz (t), 293.66f)) < 10.0f;
+}
+
+float checksum (rebody::analysis::PitchTracker& t)
+{
+    float s = 0.0f;
+
+    for (int i = 0; i < rebody::analysis::trackerRingSize; i += 1)
+        s += t.ring.at (i) * float (i + 1);
+
+    for (int i = 0; i < rebody::analysis::trackerFrameSize; i += 1)
+        s += t.frame.at (i) * float (i + 7);
+
+    for (int i = 0; i < rebody::analysis::trackerLagLimit + 2; i += 1)
+        s += t.diff.at (i) * float (i + 3);
+
+    return s;
+}
+
+bool disabledTrackerChangesNothing()
+{
+    rebody::analysis::PitchTracker t;
+    rebody::analysis::prepare (t, 48000.0f);
+    rebody::analysis::setEnabled (t, true);
+
+    for (int n = 0; n < 6000; n += 1)               // a real state with a voiced estimate
+    {
+        rebody::analysis::push (t, 0.5f * float (sin (float (twoPi) * 440.0f * float (n) / 48000.0f)));
+
+        if ((n & 31) == 31)
+            rebody::analysis::work (t);
+    }
+
+    t.enabled = false;
+    rebody::analysis::PitchTracker before = t;
+    float sumBefore = checksum (t);
+
+    for (int n = 0; n < 6000; n += 1)
+    {
+        rebody::analysis::push (t, 0.5f * float (sin (float (twoPi) * 220.0f * float (n) / 48000.0f)));
+
+        if ((n & 31) == 31)
+            rebody::analysis::work (t);
+    }
+
+    return before.write == t.write && before.filled == t.filled && before.phase == t.phase
+        && before.sinceFrame == t.sinceFrame && before.pending == t.pending && before.cursor == t.cursor
+        && before.hzOut == t.hzOut && before.confidenceOut == t.confidenceOut && before.frameHz == t.frameHz
+        && before.antiAlias.at (0).z1 == t.antiAlias.at (0).z1 && before.antiAlias.at (1).z2 == t.antiAlias.at (1).z2
+        && before.energy0 == t.energy0 && before.historyCount == t.historyCount
+        && sumBefore == checksum (t) && t.hzOut > 0.0f;
+}
+
+bool setEnabledRestartsCleanly()
+{
+    rebody::analysis::PitchTracker t;
+    rebody::analysis::prepare (t, 48000.0f);
+
+    if (t.enabled || rebody::analysis::hz (t) != 0.0f)
+        return false;
+
+    rebody::analysis::setEnabled (t, true);
+
+    for (int n = 0; n < 6000; n += 1)
+    {
+        rebody::analysis::push (t, 0.5f * float (sin (float (twoPi) * 440.0f * float (n) / 48000.0f)));
+
+        if ((n & 31) == 31)
+            rebody::analysis::work (t);
+    }
+
+    rebody::analysis::setEnabled (t, false);
+    bool offReportsZero = rebody::analysis::confidence (t) == 0.0f;
+    rebody::analysis::setEnabled (t, true);
+    return offReportsZero && t.filled == 0 && t.historyCount == 0 && rebody::analysis::hz (t) == 0.0f;
+}
+
+bool lagLayoutPerRate()
+{
+    rebody::analysis::PitchTracker a;
+    rebody::analysis::PitchTracker b;
+    rebody::analysis::PitchTracker c;
+    rebody::analysis::prepare (a, 48000.0f);
+    rebody::analysis::prepare (b, 44100.0f);
+    rebody::analysis::prepare (c, 96000.0f);
+
+    // 48 kHz: factor 4, lags 10..302, 21 lags per call -> finished within 15 of the 16 calls per hop
+    return a.factor == 4 && a.minLag == 10 && a.maxLag == 302 && a.lagsPerCall == 21 && a.frameLength == 814
+        && b.factor == 4 && b.maxLag == 277 && c.factor == 8 && c.maxLag == 302 && c.lagsPerCall == 10
+        && a.lagsPerCall * 15 >= a.maxLag && c.lagsPerCall * 31 >= c.maxLag;
+}

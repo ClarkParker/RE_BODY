@@ -1339,13 +1339,79 @@ namespace rebody::tables
 }
 
 // ===== 20_analysis.cmajor =====
-// RE-BODY analysis helpers: pure functions and plain structs, no processors and no state of
-// their own. The shared analysis stage (transient/sustain split, LR4 3-band split, pitch,
-// concept section 13) arrives in P2/P4b and is built from these; P1 only needs the coefficient
-// helpers and one novelty detector per line (T9).
+// RE-BODY analysis: coefficient helpers, one novelty detector per line (T9) and, since P4b, the shared
+// analysis stage of concept section 13: the transient/sustain + LR4 3-band Splitter and the YIN PitchTracker.
+// Plain structs and functions only, no processors; the caller owns one Splitter and one PitchTracker for the
+// whole plug-in (host rate, shared by the three lines).
 //
-// Every divisor below is provably non-zero (max(..., epsilon)); every cutoff is clamped to
-// 0.45 * sr (P03 2b).
+// Every divisor below is provably non-zero (max(..., epsilon)); every cutoff is clamped to 0.45 * sr (P03 2b).
+// Nothing in a per-sample path calls a transcendental: exp/sin/cos/tan/pow/log run in prepare() and in the
+// control-rate helpers only.
+//
+// ---- P4b API (namespace rebody::analysis) ---------------------------------------------------------------
+// Splitter (20 section 13, review E14):
+//   void prepare (Splitter& s, float sr)           coefficients from sr, state cleared
+//   void step (Splitter& s, float<2> x)             one host sample; then read the fields
+//     s.all        the input x (Listen = All)
+//     s.transient  x * g          g = clamp((fast - 1.2 slow) / (fast + 1e-6), 0, 1), smoothed 2 ms; fast and
+//     s.sustain    x - transient  slow are stereo-linked (max |L|, |R|) attack/release followers 1/20 ms and
+//                                 20/150 ms. transient + sustain == x up to one float rounding (< 1e-7 at |x| <= 1).
+//                                 The split amplitude-modulates at 1-20 ms rates (E14): an exciter, not a clean
+//                                 separation. Steady pads give g = 0 (sine 60 Hz-2 kHz, noise); a 10 ms 1 kHz
+//                                 click peaks at g 0.55 in silence and 0.37 on top of a pad (28 % / 6 % of its
+//                                 energy lands in Transient: the slow follower's 20 ms attack catches up).
+//     s.low        AP2k(LR4 low-pass 200 Hz (x))                Linkwitz-Riley 4th order = two cascaded
+//     s.mid        LR4 low-pass 2 kHz (LR4 high-pass 200 Hz (x))  Butterworth (Q 0.7071) biquads per side;
+//     s.high       LR4 high-pass 2 kHz (LR4 high-pass 200 Hz (x)) low + mid + high = AP2k(AP200(x)), an allpass
+//                                 (magnitude-flat, not phase-flat). AP2k is the RBJ allpass at 2 kHz, Q 0.7071,
+//                                 which equals LR4 LP + HP at 2 kHz exactly under the bilinear transform.
+//   float<2> listened (Splitter& s, int listen)     Listen 0 All, 1 Transient, 2 Sustain, 3 Low, 4 Mid, 5 High;
+//                                                   anything else (6 = Chain, the caller's) returns s.all
+//   float<6> analysisFrame (Splitter& s, PitchTracker& t)  analysisViz: RMS (110 ms) of transient, sustain,
+//                                                   low, mid, high (mean over L/R) and the tracker confidence
+// Biquad helpers (also usable elsewhere): BiquadCoefficients biquadDesign (int type 0 LP / 1 HP / 2 AP, hz, q, sr)
+//   (RBJ, float64 inside, prepare time); Biquad2 (stereo) / Biquad1 (mono) = coefficients + TDF-II state;
+//   biquadSet (q, coefficients) clears the state; biquadStep (q, x) per sample (5 mul + 4 add per channel).
+// PitchTracker (20 section 13, review E9):
+//   void prepare (PitchTracker& t, float sr)        coefficients, lag range, buffers cleared, enabled = false
+//   void setEnabled (PitchTracker& t, bool on)      rising edge restarts the analysis (no stale frame, no stale
+//                                                   history); falling edge reports confidence 0. While t.enabled
+//                                                   is false push() and work() return at once and change nothing.
+//   void push (PitchTracker& t, float mono)         every host sample (conditioned mono input, e.g. (L + R) / 2)
+//   void work (PitchTracker& t)                     every 32 host samples (the control tick)
+//   float hz (PitchTracker& t)                      median of the last 3 voiced estimates in Hz, 0 = none yet
+//   float confidence (PitchTracker& t)              1 - d'(tau) of the latest frame, 0..1
+//   Pipeline: 4th-order Butterworth anti-alias low-pass at 0.21 x the decimated rate (2.52 kHz at 48 kHz; two
+//   biquads, host rate) -> keep every factor-th sample, factor = round(sr / 12 kHz) (4 at 44.1/48 kHz, 8 at 96 kHz,
+//   16 at 192 kHz) -> ring buffer 1024. Aliasing into 40 Hz-1.2 kHz: the closest image band starts at
+//   rate - 1.2 kHz (10.8 kHz at 48 kHz), where the low-pass is -56.8 dB (48 kHz; -56.3 at 44.1, -52.0 at 96,
+//   -50.9 at 192 kHz), so every alias stays below -50 dB; the pass band loses 0.01-0.02 dB at 1.2 kHz.
+//   Every 128 decimated samples (hop) the newest window + maxLag samples are copied into a frame; YIN difference
+//   d(tau) = E0 + E(tau) - 2 r(tau) over a 512-sample window for tau = 1 .. maxLag (maxLag = rate / 40 Hz + 2,
+//   302 at 12 kHz; minLag = rate / 1200 Hz, 10 at 12 kHz), r in float, the energies in float64 (sliding).
+//   work() computes a fixed slice of ceil(maxLag / (calls per hop - 1)) lags per call (21 at 48 kHz, 16 calls per
+//   hop), so one frame is finished after at most 15 calls; the last call adds the cumulative-mean normalisation
+//   d', the absolute threshold 0.15 (first dip, then down to its local minimum; no dip -> global minimum),
+//   parabolic interpolation of the lag on d (raw difference: < 0.5 ct error 40 Hz-1.2 kHz without noise; on d'
+//   it would be 2-8 ct high above 800 Hz), confidence = 1 - d'(tau), and a gate: only frames with confidence
+//   >= 0.5 enter the median-of-3 history, so hz() holds the last voiced pitch through noise and silence.
+//   Latency at 48 kHz (from the first sample of a tone after enable): frame = 512 + 302 = 814 decimated samples =
+//   67.8 ms, + at most 15 work calls = 10.0 ms -> first estimate after <= 77.8 ms (measured: 77.3 ms, with the
+//   work() phase of the tests); then one estimate per hop = 10.7 ms. Until 3 voiced estimates exist hz() is the
+//   latest one; afterwards the median of 3 follows a pitch step one hop after the frames see it. A cold start
+//   with Follow therefore reaches its target by about 78 ms + the caller's 40 ms glide (gate: 150 ms).
+//
+// ---- State size (floats; int and bool count as one, float64 as two) ------------------------------------------
+//   Splitter: 6 x 2 outputs + 3 envelopes + 6 slews + 9 biquads x (5 coefficients + 4 state) + 5 powers = 107
+//   PitchTracker: ring 1024 + frame 832 + d 320 + history 3 + 2 biquads x 7 + 2 float64 + 18 scalars = 2215
+//                 (8.9 KB, one per plug-in); trackerFinish uses a 320-float local array.
+// ---- Per-sample cost at 48 kHz (flops) -------------------------------------------------------------------
+//   Splitter: envelopes and gain about 20 + 1 division, split 4, 9 stereo biquads 162, meters 25 = about 210.
+//   PitchTracker while enabled: anti-alias 18 per host sample + the frame copy (814 per hop, 1.6 per sample); per
+//   hop 302 lags x 512 x 2 = 309 k flops spread over 15 calls (21.5 k flops per work call, once per 32 samples)
+//   + 0.5 k window energy (float64) + about 2 k finish = about 630 flops/sample on average at 48 kHz (the
+//   review's 600). Disabled: one bool test per push() and per work() call. The work per second is independent
+//   of sr (10 lags per call at 96 kHz, twice as many calls).
 
 namespace rebody::analysis
 {
@@ -1640,22 +1706,545 @@ namespace rebody::analysis
 
         return v;
     }
+
+    // ---- P4b: shared analysis stage (concept 13) -------------------------------------------------------------
+
+    // Biquad coefficients, normalised so a0 = 1 (RBJ cookbook, bilinear transform prewarped at hz).
+    struct BiquadCoefficients
+    {
+        float b0, b1, b2, a1, a2;
+    }
+
+    // Stereo and mono biquad sections, transposed direct form II.
+    struct Biquad2
+    {
+        BiquadCoefficients c;
+        float<2> z1, z2;
+    }
+
+    struct Biquad1
+    {
+        BiquadCoefficients c;
+        float z1, z2;
+    }
+
+    const int biquadLowpass = 0;
+    const int biquadHighpass = 1;
+    const int biquadAllpass = 2;
+    const float butterworthQ = 0.70710678f;
+
+    // One biquad design in float64 (prepare time only). `q` is clamped to >= 0.05, hz to 1 Hz .. 0.45 sr.
+    BiquadCoefficients biquadDesign (int type, float hz, float q, float sr)
+    {
+        float64 w0 = twoPi * float64 (limitHz (hz, sr)) / float64 (max (sr, 1000.0f));
+        float64 cw = cos (w0);
+        float64 alpha = sin (w0) / (2.0 * float64 (max (q, 0.05f)));
+        float64 a0 = 1.0 + alpha;
+        float64 b0 = 1.0 - alpha;
+        float64 b1 = -2.0 * cw;
+        float64 b2 = 1.0 + alpha;
+
+        if (type == biquadLowpass)
+        {
+            b0 = 0.5 * (1.0 - cw);
+            b1 = 1.0 - cw;
+            b2 = b0;
+        }
+        else if (type == biquadHighpass)
+        {
+            b0 = 0.5 * (1.0 + cw);
+            b1 = -(1.0 + cw);
+            b2 = b0;
+        }
+
+        BiquadCoefficients c;
+        c.b0 = float (b0 / a0);
+        c.b1 = float (b1 / a0);
+        c.b2 = float (b2 / a0);
+        c.a1 = float (-2.0 * cw / a0);
+        c.a2 = float ((1.0 - alpha) / a0);
+        return c;
+    }
+
+    void biquadSet (Biquad2& q, BiquadCoefficients c)
+    {
+        q.c = c;
+        q.z1 = float<2> (0.0f);
+        q.z2 = float<2> (0.0f);
+    }
+
+    void biquadSet (Biquad1& q, BiquadCoefficients c)
+    {
+        q.c = c;
+        q.z1 = 0.0f;
+        q.z2 = 0.0f;
+    }
+
+    float<2> biquadStep (Biquad2& q, float<2> x)
+    {
+        float<2> y = q.c.b0 * x + q.z1;
+        q.z1 = q.c.b1 * x - q.c.a1 * y + q.z2;
+        q.z2 = q.c.b2 * x - q.c.a2 * y;
+        return y;
+    }
+
+    float biquadStep (Biquad1& q, float x)
+    {
+        float y = q.c.b0 * x + q.z1;
+        q.z1 = q.c.b1 * x - q.c.a1 * y + q.z2;
+        q.z2 = q.c.b2 * x - q.c.a2 * y;
+        return y;
+    }
+
+    // ---- Splitter: transient/sustain and LR4 3-band split -------------------------------------------------
+
+    const float splitK = 1.2f;                 // slow-envelope weight: steady pads give g = 0 (BODY's 1.2, :591)
+    const float splitEpsilon = 0.000001f;      // keeps g finite and 0 in silence
+    const float splitLowHz = 200.0f;
+    const float splitHighHz = 2000.0f;
+
+    struct Splitter
+    {
+        float<2> all, transient, sustain, low, mid, high;
+        float fast, slow, gain;                // linked envelopes and the smoothed transient gain
+        float fastRise, fastFall, slowRise, slowFall, gainSlew, powerSlew;
+        Biquad2[2] low200, high200, low2k, high2k;
+        Biquad2 allpass2k;
+        float[5] power;                        // 110 ms power of transient, sustain, low, mid, high (analysisViz)
+    }
+
+    void prepare (Splitter& s, float sr)
+    {
+        s.all = float<2> (0.0f);
+        s.transient = float<2> (0.0f);
+        s.sustain = float<2> (0.0f);
+        s.low = float<2> (0.0f);
+        s.mid = float<2> (0.0f);
+        s.high = float<2> (0.0f);
+        s.fast = 0.0f;
+        s.slow = 0.0f;
+        s.gain = 0.0f;
+        s.fastRise = slewCoefficient (0.001f, sr);
+        s.fastFall = slewCoefficient (0.020f, sr);
+        s.slowRise = slewCoefficient (0.020f, sr);
+        s.slowFall = slewCoefficient (0.150f, sr);
+        s.gainSlew = slewCoefficient (0.002f, sr);
+        s.powerSlew = slewCoefficient (0.11f, sr);
+
+        BiquadCoefficients lowA = biquadDesign (biquadLowpass, splitLowHz, butterworthQ, sr);
+        BiquadCoefficients highA = biquadDesign (biquadHighpass, splitLowHz, butterworthQ, sr);
+        BiquadCoefficients lowB = biquadDesign (biquadLowpass, splitHighHz, butterworthQ, sr);
+        BiquadCoefficients highB = biquadDesign (biquadHighpass, splitHighHz, butterworthQ, sr);
+
+        for (int k = 0; k < 2; k += 1)
+        {
+            biquadSet (s.low200.at (k), lowA);
+            biquadSet (s.high200.at (k), highA);
+            biquadSet (s.low2k.at (k), lowB);
+            biquadSet (s.high2k.at (k), highB);
+        }
+
+        biquadSet (s.allpass2k, biquadDesign (biquadAllpass, splitHighHz, butterworthQ, sr));
+
+        for (int k = 0; k < 5; k += 1)
+            s.power.at (k) = 0.0f;
+    }
+
+    float meanPower (float<2> v)
+    {
+        return 0.5f * (v[0] * v[0] + v[1] * v[1]);
+    }
+
+    void step (Splitter& s, float<2> x)
+    {
+        s.all = x;
+
+        float level = max (abs (x[0]), abs (x[1]));
+        s.fast = envelopeStep (s.fast, level, s.fastRise, s.fastFall);
+        s.slow = envelopeStep (s.slow, level, s.slowRise, s.slowFall);
+        float g = clamp ((s.fast - splitK * s.slow) / (s.fast + splitEpsilon), 0.0f, 1.0f);
+        s.gain += s.gainSlew * (g - s.gain);
+
+        s.transient = x * s.gain;
+        s.sustain = x - s.transient;
+
+        float<2> lowPart = biquadStep (s.low200.at (1), biquadStep (s.low200.at (0), x));
+        float<2> highPart = biquadStep (s.high200.at (1), biquadStep (s.high200.at (0), x));
+        s.low = biquadStep (s.allpass2k, lowPart);
+        s.mid = biquadStep (s.low2k.at (1), biquadStep (s.low2k.at (0), highPart));
+        s.high = biquadStep (s.high2k.at (1), biquadStep (s.high2k.at (0), highPart));
+
+        s.power.at (0) += s.powerSlew * (meanPower (s.transient) - s.power.at (0));
+        s.power.at (1) += s.powerSlew * (meanPower (s.sustain) - s.power.at (1));
+        s.power.at (2) += s.powerSlew * (meanPower (s.low) - s.power.at (2));
+        s.power.at (3) += s.powerSlew * (meanPower (s.mid) - s.power.at (3));
+        s.power.at (4) += s.powerSlew * (meanPower (s.high) - s.power.at (4));
+    }
+
+    // The Splitter field a line listens to (Listen 0..5); Chain (6) is the caller's, it returns the input here.
+    float<2> listened (Splitter& s, int listen)
+    {
+        if (listen == 1) return s.transient;
+        if (listen == 2) return s.sustain;
+        if (listen == 3) return s.low;
+        if (listen == 4) return s.mid;
+        if (listen == 5) return s.high;
+        return s.all;
+    }
+
+    // ---- PitchTracker: decimated YIN with the work spread over the hop -------------------------------------
+
+    const float trackerRate = 12000.0f;        // target decimated rate
+    const int trackerWindow = 512;
+    const int trackerHop = 128;                // decimated samples between frames
+    const int trackerRingSize = 1024;          // power of two >= window + max lag
+    const int trackerRingMask = 1023;
+    const int trackerLagLimit = 318;           // largest maxLag (keeps tau + 1 inside the arrays)
+    const int trackerFrameSize = 832;          // window + trackerLagLimit + 2
+    const int trackerWorkPeriod = 32;          // host samples between work() calls (the control tick)
+    const float trackerLowHz = 40.0f;
+    const float trackerHighHz = 1200.0f;
+    const float trackerThreshold = 0.15f;      // YIN absolute threshold on d'
+    const float trackerGate = 0.5f;            // minimum confidence for a frame to enter the median history
+    const float trackerAntiAlias = 0.21f;      // anti-alias cutoff as a fraction of the decimated rate
+    const float butterworth4Q1 = 0.54119610f;  // 1 / (2 cos(pi / 8))
+    const float butterworth4Q2 = 1.30656296f;  // 1 / (2 cos(3 pi / 8))
+
+    struct PitchTracker
+    {
+        bool enabled;
+        int factor;                            // decimation factor
+        int phase;                             // host samples since the last kept sample
+        float rate;                            // decimated rate
+        int minLag, maxLag, frameLength, lagsPerCall;
+        Biquad1[2] antiAlias;
+        float[trackerRingSize] ring;
+        int write;                             // next ring index
+        int filled;                            // decimated samples since (re)start, saturating
+        int sinceFrame;                        // decimated samples since the last frame was taken
+        float[trackerFrameSize] frame;
+        bool pending;                          // a frame is being analysed
+        int cursor;                            // next lag to compute (1 = frame not started)
+        float64 energy0, energyLag;            // window energy at lag 0 and at the current lag
+        float[trackerLagLimit + 2] diff;       // d(tau), tau = 0 .. maxLag
+        float[3] history;
+        int historyCount, historyIndex;
+        float hzOut, confidenceOut, frameHz;
+    }
+
+    void trackerRestart (PitchTracker& t)
+    {
+        t.phase = 0;
+        t.write = 0;
+        t.filled = 0;
+        t.sinceFrame = trackerHop;
+        t.pending = false;
+        t.cursor = 1;
+        t.energy0 = 0.0;
+        t.energyLag = 0.0;
+        t.historyCount = 0;
+        t.historyIndex = 0;
+        t.hzOut = 0.0f;
+        t.confidenceOut = 0.0f;
+        t.frameHz = 0.0f;
+
+        for (int k = 0; k < 2; k += 1)
+        {
+            t.antiAlias.at (k).z1 = 0.0f;
+            t.antiAlias.at (k).z2 = 0.0f;
+        }
+
+        for (int i = 0; i < trackerRingSize; i += 1)
+            t.ring.at (i) = 0.0f;
+
+        for (int i = 0; i < trackerFrameSize; i += 1)
+            t.frame.at (i) = 0.0f;
+
+        for (int i = 0; i < trackerLagLimit + 2; i += 1)
+            t.diff.at (i) = 0.0f;
+
+        for (int i = 0; i < 3; i += 1)
+            t.history.at (i) = 0.0f;
+    }
+
+    void prepare (PitchTracker& t, float sr)
+    {
+        float hostRate = max (sr, 1000.0f);
+        t.factor = clamp (int (hostRate / trackerRate + 0.5f), 1, 16);
+        t.rate = hostRate / float (t.factor);
+        t.minLag = max (2, int (t.rate / trackerHighHz));
+        t.maxLag = clamp (int (t.rate / trackerLowHz) + 2, t.minLag + 2, trackerLagLimit);
+        t.frameLength = trackerWindow + t.maxLag;
+        int calls = max (2, trackerHop * t.factor / trackerWorkPeriod);
+        t.lagsPerCall = (t.maxLag + calls - 2) / (calls - 1);
+
+        float cutoff = trackerAntiAlias * t.rate;
+        biquadSet (t.antiAlias.at (0), biquadDesign (biquadLowpass, cutoff, butterworth4Q1, hostRate));
+        biquadSet (t.antiAlias.at (1), biquadDesign (biquadLowpass, cutoff, butterworth4Q2, hostRate));
+
+        t.enabled = false;
+        trackerRestart (t);
+    }
+
+    void setEnabled (PitchTracker& t, bool on)
+    {
+        if (on && ! t.enabled)
+            trackerRestart (t);
+
+        if (! on)
+            t.confidenceOut = 0.0f;
+
+        t.enabled = on;
+    }
+
+    void push (PitchTracker& t, float mono)
+    {
+        if (! t.enabled)
+            return;
+
+        float x = biquadStep (t.antiAlias.at (1), biquadStep (t.antiAlias.at (0), finiteOrZero (mono)));
+        t.phase += 1;
+
+        if (t.phase < t.factor)
+            return;
+
+        t.phase = 0;
+        t.ring.at (t.write) = x;
+        t.write = (t.write + 1) & trackerRingMask;
+        t.filled = min (t.filled + 1, 1 << 24);
+        t.sinceFrame = min (t.sinceFrame + 1, 1 << 24);
+
+        if (t.filled >= t.frameLength && t.sinceFrame >= trackerHop)
+        {
+            int start = (t.write - t.frameLength) & trackerRingMask;
+
+            for (int j = 0; j < t.frameLength; j += 1)
+                t.frame.at (j) = t.ring.at ((start + j) & trackerRingMask);
+
+            t.sinceFrame = 0;
+            t.pending = true;
+            t.cursor = 1;
+        }
+    }
+
+    float medianOf3 (float a, float b, float c)
+    {
+        return max (min (a, b), min (max (a, b), c));
+    }
+
+    // Last step of a frame: d', threshold, parabolic interpolation, confidence, gated median of 3.
+    void trackerFinish (PitchTracker& t)
+    {
+        float[trackerLagLimit + 2] norm;
+        norm.at (0) = 1.0f;
+        float64 running = 0.0;
+
+        for (int tau = 1; tau <= t.maxLag; tau += 1)
+        {
+            float64 d = float64 (t.diff.at (tau));
+            running += d;
+            norm.at (tau) = running > 1.0e-20 ? float (d * float64 (tau) / running) : 1.0f;
+        }
+
+        int best = -1;
+
+        for (int tau = t.minLag; tau < t.maxLag; tau += 1)
+        {
+            if (norm.at (tau) < trackerThreshold)
+            {
+                best = tau;
+                break;
+            }
+        }
+
+        if (best >= 0)
+        {
+            while (best + 1 < t.maxLag && norm.at (best + 1) < norm.at (best))
+                best += 1;
+        }
+        else
+        {
+            best = t.minLag;
+
+            for (int tau = t.minLag + 1; tau < t.maxLag; tau += 1)
+                if (norm.at (tau) < norm.at (best))
+                    best = tau;
+        }
+
+        float a = t.diff.at (best - 1);
+        float b = t.diff.at (best);
+        float c = t.diff.at (best + 1);
+        float curvature = a - 2.0f * b + c;
+        float offset = curvature > 1.0e-30f ? clamp (0.5f * (a - c) / curvature, -1.0f, 1.0f) : 0.0f;
+        float conf = clamp (1.0f - norm.at (best), 0.0f, 1.0f);
+
+        t.frameHz = t.rate / max (float (best) + offset, 1.0f);
+        t.confidenceOut = conf;
+
+        if (conf >= trackerGate)
+        {
+            t.history.at (t.historyIndex) = t.frameHz;
+            t.historyIndex = (t.historyIndex + 1) % 3;
+            t.historyCount = min (t.historyCount + 1, 3);
+
+            if (t.historyCount >= 3)
+                t.hzOut = medianOf3 (t.history.at (0), t.history.at (1), t.history.at (2));
+            else
+                t.hzOut = t.frameHz;
+        }
+    }
+
+    void work (PitchTracker& t)
+    {
+        if (! t.enabled || ! t.pending)
+            return;
+
+        if (t.cursor <= 1)
+        {
+            float64 e = 0.0;
+
+            for (int j = 0; j < trackerWindow; j += 1)
+            {
+                float64 v = float64 (t.frame.at (j));
+                e += v * v;
+            }
+
+            t.energy0 = e;
+            t.energyLag = e;
+            t.diff.at (0) = 0.0f;
+            t.cursor = 1;
+        }
+
+        int last = min (t.cursor + t.lagsPerCall - 1, t.maxLag);
+
+        for (int tau = t.cursor; tau <= last; tau += 1)
+        {
+            float64 leaving = float64 (t.frame.at (tau - 1));
+            float64 entering = float64 (t.frame.at (tau - 1 + trackerWindow));
+            t.energyLag += entering * entering - leaving * leaving;
+
+            float r = 0.0f;
+
+            for (int j = 0; j < trackerWindow; j += 1)
+                r += t.frame.at (j) * t.frame.at (j + tau);
+
+            t.diff.at (tau) = max (0.0f, float (t.energy0 + t.energyLag - 2.0 * float64 (r)));
+        }
+
+        t.cursor = last + 1;
+
+        if (t.cursor > t.maxLag)
+        {
+            t.pending = false;
+            t.cursor = 1;
+            trackerFinish (t);
+        }
+    }
+
+    float hz (PitchTracker& t)
+    {
+        return t.hzOut;
+    }
+
+    float confidence (PitchTracker& t)
+    {
+        return t.confidenceOut;
+    }
+
+    // analysisViz frame: RMS of transient, sustain, low, mid, high and the pitch confidence.
+    float<6> analysisFrame (Splitter& s, PitchTracker& t)
+    {
+        float<6> v = float<6> (0.0f);
+
+        for (int k = 0; k < 5; k += 1)
+        {
+            float p = s.power.at (k);
+            v.at (k) = p > 1.0e-18f ? float (sqrt (p)) : 0.0f;
+        }
+
+        v.at (5) = t.enabled ? t.confidenceOut : 0.0f;
+        return v;
+    }
 }
 
 // ===== 30_strikers.cmajor =====
-// RE-BODY strikers (concept section 14): one shared module used by all three lines. Hammer,
-// Pluck and Breath are onset-triggered excitations that replace (or, with Blend, join) the
-// audio-through contact. P1 declares the state and the documented signatures so the line
-// struct has its final size; the bodies are filled in P4b (ported from PHYSIFY DSP:913-1004,
-// :2060-2131). Until then every striker returns silence and never triggers.
+// RE-BODY strikers (concept 20 section 14, review E13): one shared module used by all three lines. Hammer, Pluck
+// and Breath are onset-triggered excitations that replace (or, with Blend, join) the audio-through contact.
+// Detection (novelty hysteresis 0.15, refractory 30 ms, velocity from the onset peak, Touch curve) is the line's;
+// this module turns one trigger into one burst.
 //
-// Contract for the real implementation:
-//  - every striker output is DC-blocked (unipolar force pulses inject DC) and energy-normalised
-//    to the listened envelope, so Blend 50 is a real half/half;
-//  - triggering has hysteresis and a 30 ms refractory time, so a Low-listening Hammer line does
-//    not fire on hi-hats;
-//  - velocity comes from the onset energy (log map, Touch = curve), position from the line's
-//    Position parameter.
+// ---- Final API (namespace rebody::strikers) -------------------------------------------------------------------
+//   struct StrikerState                         one per line; reset() clears it except noiseState (the line
+//                                               seeds noiseState after reset, as initLine does)
+//   void reset (StrikerState& s)
+//   void trigger (StrikerState& s, int kind, float velocity01, float position01, float sr)
+//       kind 1 Hammer, 2 Pluck (string targets), 3 Breath, 4 Pluck for non-string targets (kindPluckBody);
+//       other kinds are ignored. Starts a new burst at once. A running Breath re-attacks from its current
+//       envelope (no click); a running Hammer/Pluck restarts hard (with the line's 30 ms refractory only Plucks
+//       below about 65 Hz can still be running). velocity01 and position01 are clamped to 0..1.
+//   float step (StrikerState& s, int kind, float hz, float hold01, float sr)
+//       One mono sample, DC-blocked (20 Hz) and energy-normalised. Call it every sample while active(s) (it
+//       returns 0 at no cost when idle). The running burst keeps the kind it was triggered with; `kind` (the
+//       line's current Excite) only matters for Breath: anything but 3 releases it. `hz` is read on the first
+//       step after the trigger (Pluck period; hz <= 0 turns a Pluck into the body impulse). `hold01` is the
+//       Breath sustain level 0..1 (listened component above threshold); `sr` is ignored after the trigger.
+//   bool active (StrikerState& s)               burst running or its DC-blocker tail above 1e-6
+//   float velocityLevel (float velocity01)      the level law below; strikeGain / throughGain: equal-power Blend
+//   Wiring sketch (per sample, the line's): kind = excite == modePluck && the target is not a string ?
+//   kindPluckBody : excite; on an accepted onset trigger (l.striker, kind, velocity01, position01, sr); then
+//   strike = step (l.striker, excite, pitchHz, hold01, sr) and contact = strikeGain (blend) * strike (both
+//   channels) + throughGain (blend) * through. Velocity carries the onset energy, so the striker needs no other
+//   envelope; a caller that wants concept 14's "normalised to the listened envelope" multiplies strike by it.
+//
+// ---- Level law and energy normalisation --------------------------------------------------------------------
+//   level = 10^(-22.22 (1 - velocity01) / 20): 0 dB at 1, -20 dB at 0.1, -22.2 dB at 0 (dB linear in velocity,
+//   i.e. the force is log-mapped). A burst with velocity01 = 1 has unit RMS over its own duration:
+//     Hammer, Pluck, body impulse: deterministic bursts. On the first step the burst is rendered once ahead
+//       (same generator, DC blocker from zero) and the gain is level / RMS of that rendering over the burst
+//       length, so the normalisation is exact and includes the DC blocker (which takes 0.4-0.8 dB off a
+//       unipolar 1-3 ms pulse and much more off a 40 Hz pluck).
+//     Breath: stochastic, normalised analytically: band-passed noise / its exact RMS (closed-form sum of the
+//       squared impulse response of the two one-poles, uniform variance 1/3), then the reed shaping divided by
+//       its measured RMS (0.6575, +-0.1 dB 44.1-192 kHz), so the sustained level at hold01 = 1 is unit RMS
+//       (that is the Breath's own duration while it sustains). A Breath without hold (attack + release only,
+//       linear ramps) has the same peak and an RMS of 1/sqrt(3) (-4.8 dB) over its 40-160 ms.
+//   So Blend 50 (equal power, strikeGain/throughGain) is half/half against a unit-RMS Through signal.
+//
+// ---- Kinds ------------------------------------------------------------------------------------------------
+//   Hammer (PHYSIFY DSP:913-1004, :2060-2131): Hertz contact F = x^p + a d(x^p)/dt (Stulov hysteresis), p 2.5
+//     (felt), a 0.25, F >= 0, integrated by symplectic Euler with 4 substeps per sample in units where mass,
+//     stiffness and impact speed are 1 (x unit = (m v0^2 / K)^(1/(p+1)), time unit T = x unit / v0). The pulse
+//     shape is then universal (normalised contact time 2.953); mass/stiffness only set T. Impact speed is
+//     log-mapped from velocity01 over 6:1 (= the 22.2 dB level range at F ~ v0^(2p/(p+1))), so the contact
+//     time is 1.2 ms x 2.155^(1 - velocity01): 1.2 ms at 1, 2.4 ms at 0.1, 2.6 ms at 0 (Hertz: tau ~ v0^-3/7).
+//     Output = mean force of the 4 substeps. The burst ends when the force returns to 0 on the rebound.
+//   Pluck (BODY's uke pick comb, BODY:376, :689-690): one period P = sr / hz (2..4096 samples, latched on the
+//     first step) of a raised-cosine displacement hump 0.5 (1 - cos(2 pi n / P)) through the position comb
+//     y = h(n) - 0.92 h(n - D), D = position01 x P (1..2048 samples, fractional). Burst length ceil(P + D).
+//   Pluck body impulse (kind 4, or kind 2 with hz <= 0): one raised-cosine hump of 0.5 + 1.5 position01 ms
+//     (position 0 = edge, short and bright; 1 = centre, soft); its width is the position low-pass (first
+//     spectral null at 2 / width: 4 kHz .. 1 kHz).
+//   Breath (BODY:615-634 gated noise, :768-803 sax reed law): xorshift noise (per-line seed noiseState)
+//     band-passed as BODY's sax breath (one-pole 4.2 kHz minus one-pole 450 Hz), normalised to unit RMS, then
+//     BODY's asymmetric reed shaping q = 0.65 clamp(u, -4, 4), 1.55 (q / (1 + 0.6 |q|) + 0.12 q^2 / (1 + q^2)),
+//     times a linear envelope: attack to the level in A, then the envelope follows level x hold01 (rise over A,
+//     fall over R per full level), A = R = 80 - 60 velocity01 ms (20 ms at 1, 74 ms at 0.1). The burst ends
+//     when the envelope is 0 and hold01 is 0. The even term adds DC in proportion to the envelope; the DC
+//     blocker removes it.
+//   Every kind: DC blocker y = x - x[-1] + r y[-1], r = exp(-2 pi 20 / sr) (E13: unipolar pulses carry DC); the
+//   sum of a whole burst including its tail is 0 by construction. After the burst the tail rings down
+//   (about 100 ms to 1e-6 after a hammer); active() stays true until then.
+//
+// ---- State size and cost -----------------------------------------------------------------------------------
+//   StrikerState: 4 int + 1 bool + 22 float + 6 float64 = 39 words (156 bytes) per line, no buffers (the comb
+//   reads the analytic hump at n - D instead of a delay line).
+//   Per sample while a burst runs (flops): Hammer 4 x (sqrt + 14) about 60 + 4 sqrt; Pluck 18 (float64 phasor);
+//   body impulse 10; Breath about 30 + 2 divisions (xorshift, two one-poles, shaping, envelope); DC blocker 3.
+//   Idle: three compares. Tail only: 4 + compares.
+//   Per trigger (the look-ahead runs inside the first step(), one spike per strike): velocityLevel (one pow), DC
+//   radius (one exp); Hammer one pow + the look-ahead of its 58-125 samples at 48 kHz (about 7 k flops and 500
+//   sqrt); Pluck float64 cos/sin twice + the look-ahead of P + D samples (about 18 flops each: 15 k at 110 Hz,
+//   worst case 110 k at P = 4096, D = 2048); Breath two exp and one sqrt.
 
 namespace rebody::strikers
 {
@@ -1665,51 +2254,351 @@ namespace rebody::strikers
     const int modePluck = 2;
     const int modeBreath = 3;
 
+    // trigger() kinds: the Excite values plus the Pluck variant for non-string targets.
+    const int kindHammer = 1;
+    const int kindPluck = 2;
+    const int kindBreath = 3;
+    const int kindPluckBody = 4;
+
+    const float velocityRangeDb = 22.222222f;  // level at velocity 0 (dB below velocity 1); 0.1 -> -20 dB
+    const float dcHz = 20.0f;
+    const float tailFloor = 0.000001f;         // DC-blocker tail below this ends active()
+
+    const float hammerHysteresis = 0.25f;      // Stulov alpha in units of T
+    const float hammerSpan = 2.95315f;         // contact duration of the normalised pulse (p 2.5, a 0.25)
+    const float hammerFastest = 0.0012f;       // contact time at velocity 1, seconds
+    const float hammerRatio = 2.1553f;         // contact time ratio velocity 0 / velocity 1 = 6^(3/7)
+    const int lookAheadLimit = 8192;           // safety cap of the look-ahead rendering
+
+    const float pluckCombGain = 0.92f;         // BODY:690
+    const float pluckMaxPeriod = 4096.0f;
+    const float pluckMaxDelay = 2048.0f;
+    const float bodyImpulseShortest = 0.0005f;
+    const float bodyImpulseLongest = 0.002f;
+
+    const float breathFastest = 0.020f;        // attack/release at velocity 1, seconds
+    const float breathSlowest = 0.080f;        // ... at velocity 0
+    const float breathLowHz = 4200.0f;         // BODY:536-538 sax breath band
+    const float breathHighHz = 450.0f;
+    const float reedDrive = 0.65f;             // BODY sax reed law (:787-788)
+    const float reedSoft = 0.60f;
+    const float reedEven = 0.12f;
+    const float reedGain = 1.55f;
+    const float reedClamp = 4.0f;
+    const float reedRms = 0.6575f;             // RMS of the shaped unit noise after DC removal (measured)
+
     struct StrikerState
     {
-        int mode;               // excite mode captured when the strike was triggered
-        int age;                // samples since the trigger; negative = idle
-        int refractory;         // samples left before another trigger is accepted (30 ms)
-        float velocity;         // 0..1, from the onset energy at the trigger
-        float envelope;         // strike envelope used for energy normalisation
-        float<2> force;         // last striker sample before DC blocking
-        float<2> dcPrevious;    // DC blocker input memory
-        float<2> dcState;       // DC blocker state
-        int noiseState;         // xorshift state for Breath (seeded per line in initLine)
+        int kind;                  // kind of the running burst, 0 = none (the DC tail may still ring)
+        int age;                   // samples since the trigger (0 = set-up pending on the next step)
+        int length;                // burst length in samples; 0 = not known yet (Hammer in contact, Breath)
+        bool sustaining;           // Breath: attack finished, the envelope follows hold01
+        float velocity, position, level, gain, sr;
+        float xi, eta, xpPrev, substep;                    // Hammer: normalised Hertz contact
+        float period, delay;                               // Pluck: hump length and comb delay (samples)
+        float64 pc, ps, rotC, rotS, delayCos, delaySin;    // Pluck: raised-cosine phasor
+        float envelope, attackStep, releaseStep;           // Breath envelope (per-sample steps)
+        float noiseLow, noiseHigh, lowCoef, highCoef, noiseNorm;
+        float dcRadius, dcPrevious, dcState;               // DC blocker
+        int noiseState;                                    // xorshift state for Breath (seeded per line)
     }
 
     void reset (StrikerState& s)
     {
-        s.mode = modeThrough;
-        s.age = -1;
-        s.refractory = 0;
+        s.kind = 0;
+        s.age = 0;
+        s.length = 0;
+        s.sustaining = false;
         s.velocity = 0.0f;
+        s.position = 0.0f;
+        s.level = 0.0f;
+        s.gain = 0.0f;
+        s.sr = 0.0f;                           // set by trigger()
+        s.xi = 0.0f;
+        s.eta = 0.0f;
+        s.xpPrev = 0.0f;
+        s.substep = 0.0f;
+        s.period = 0.0f;
+        s.delay = 0.0f;
+        s.pc = 1.0;
+        s.ps = 0.0;
+        s.rotC = 1.0;
+        s.rotS = 0.0;
+        s.delayCos = 1.0;
+        s.delaySin = 0.0;
         s.envelope = 0.0f;
-        s.force = float<2> (0.0f);
-        s.dcPrevious = float<2> (0.0f);
-        s.dcState = float<2> (0.0f);
+        s.attackStep = 0.0f;
+        s.releaseStep = 0.0f;
+        s.noiseLow = 0.0f;
+        s.noiseHigh = 0.0f;
+        s.lowCoef = 0.0f;
+        s.highCoef = 0.0f;
+        s.noiseNorm = 0.0f;
+        s.dcRadius = 0.0f;
+        s.dcPrevious = 0.0f;
+        s.dcState = 0.0f;
     }
 
-    // Decide whether this sample starts a strike. `onset` is the line's detector output 0..1,
-    // `touch` is Touch 0..1 (onset threshold), `refractorySamples` is 30 ms in samples.
-    // P1 stub: never triggers.
-    bool trigger (StrikerState& s, float onset, float touch, int refractorySamples)
+    // Level law: dB linear in velocity, 0 dB at 1, -20 dB at 0.1.
+    float velocityLevel (float velocity01)
     {
-        return false;
+        return rebody::analysis::dbToGain (-velocityRangeDb * (1.0f - clamp (velocity01, 0.0f, 1.0f)));
     }
 
-    // One sample of the active strike, stereo. `excite` is a mode constant above, `position`
-    // and `hardness` are Position and Reed 0..1, `pitchHz` is the line's root for Pluck/Breath
-    // timing, `sr` the sample rate. P1 stub: silence.
-    float<2> step (StrikerState& s, int excite, float position, float hardness, float pitchHz, float sr)
+    // BODY's asymmetric reed shaping on a unit-RMS signal (BODY:787-788).
+    float reedShape (float u)
     {
-        return float<2> (0.0f);
+        float q = reedDrive * clamp (u, -reedClamp, reedClamp);
+        return reedGain * (q / (1.0f + reedSoft * abs (q)) + reedEven * q * q / (1.0f + q * q));
     }
 
-    // Scale a strike so its energy follows the listened envelope. P1 stub: pass-through.
-    float<2> normalise (float<2> strike, float listenedEnvelope, float strikeEnvelope)
+    void trigger (StrikerState& s, int kind, float velocity01, float position01, float sr)
     {
-        return strike;
+        if (kind < kindHammer || kind > kindPluckBody)
+            return;
+
+        float rate = max (sr, 1000.0f);
+        float v = clamp (rebody::analysis::finiteOrZero (velocity01), 0.0f, 1.0f);
+        bool breathRunning = s.kind == kindBreath;
+
+        s.kind = kind;
+        s.age = 0;
+        s.length = 0;
+        s.velocity = v;
+        s.position = clamp (rebody::analysis::finiteOrZero (position01), 0.0f, 1.0f);
+        s.sr = rate;
+        s.level = velocityLevel (v);
+        s.gain = 0.0f;
+        s.dcRadius = rebody::analysis::dcBlockRadius (dcHz, rate);
+
+        if (kind == kindBreath)
+        {
+            if (! breathRunning)
+            {
+                s.envelope = 0.0f;
+                s.noiseLow = 0.0f;
+                s.noiseHigh = 0.0f;
+            }
+
+            float seconds = breathSlowest + (breathFastest - breathSlowest) * v;
+            s.attackStep = s.level / (seconds * rate);
+            s.releaseStep = s.attackStep;
+            s.sustaining = false;
+            s.lowCoef = rebody::analysis::onePoleCoefficient (breathLowHz, rate);
+            s.highCoef = rebody::analysis::onePoleCoefficient (breathHighHz, rate);
+
+            // Sum of h^2 of h = a1 b1^n - a2 b2^n (b = 1 - a): the band-pass gain on white noise.
+            float a1 = s.lowCoef;
+            float a2 = s.highCoef;
+            float b1 = 1.0f - a1;
+            float b2 = 1.0f - a2;
+            float sumSquares = a1 * a1 / (1.0f - b1 * b1) + a2 * a2 / (1.0f - b2 * b2) - 2.0f * a1 * a2 / (1.0f - b1 * b2);
+            s.noiseNorm = 1.0f / float (sqrt (max (sumSquares / 3.0f, 1.0e-12f)));
+            s.gain = 1.0f / reedRms;
+        }
+    }
+
+    // ---- generators: raw (pre-DC, unit-scale) sample at s.age; they advance their own state ----------------
+
+    float hammerRaw (StrikerState& s)
+    {
+        if (s.length > 0)
+            return 0.0f;
+
+        float h = s.substep;
+        float force = 0.0f;
+
+        for (int k = 0; k < 4; k += 1)
+        {
+            float x = max (s.xi, 0.0f);
+            float xp = x * x * float (sqrt (x));
+            float f = max (0.0f, xp + hammerHysteresis * (xp - s.xpPrev) / h);
+            s.xpPrev = xp;
+            s.eta -= f * h;
+            s.xi += s.eta * h;
+            force += 0.25f * f;
+
+            if (f == 0.0f && s.eta < 0.0f)
+            {
+                s.length = s.age + 1;
+                break;
+            }
+        }
+
+        return force;
+    }
+
+    float pluckRaw (StrikerState& s)
+    {
+        float n = float (s.age);
+        float hump = n < s.period ? 0.5f - 0.5f * float (s.pc) : 0.0f;
+        float shifted = 0.0f;
+
+        if (n >= s.delay && n < s.delay + s.period)
+            shifted = 0.5f - 0.5f * float (s.pc * s.delayCos + s.ps * s.delaySin);
+
+        float64 c = s.pc * s.rotC - s.ps * s.rotS;
+        s.ps = s.pc * s.rotS + s.ps * s.rotC;
+        s.pc = c;
+        return hump - pluckCombGain * shifted;
+    }
+
+    float breathRaw (StrikerState& s, float hold)
+    {
+        if (! s.sustaining)
+        {
+            s.envelope = min (s.envelope + s.attackStep, max (s.level, s.envelope));
+
+            if (s.envelope >= s.level)
+                s.sustaining = true;
+        }
+        else
+        {
+            float target = s.level * clamp (hold, 0.0f, 1.0f);
+
+            if (s.envelope < target)
+                s.envelope = min (target, s.envelope + s.attackStep);
+            else
+                s.envelope = max (target, s.envelope - s.releaseStep);
+
+            if (s.envelope <= 0.0f && target <= 0.0f)
+            {
+                s.envelope = 0.0f;
+                s.length = s.age + 1;
+            }
+        }
+
+        s.noiseState = rebody::analysis::xorshift (s.noiseState);
+        float noise = rebody::analysis::noiseOf (s.noiseState);
+        s.noiseLow += s.lowCoef * (noise - s.noiseLow);
+        s.noiseHigh += s.highCoef * (noise - s.noiseHigh);
+        return s.envelope * reedShape ((s.noiseLow - s.noiseHigh) * s.noiseNorm);
+    }
+
+    float deterministicRaw (StrikerState& s)
+    {
+        if (s.kind == kindHammer)
+            return hammerRaw (s);
+
+        return pluckRaw (s);
+    }
+
+    float dcBlock (StrikerState& s, float x)
+    {
+        float y = x - s.dcPrevious + s.dcRadius * s.dcState;
+        s.dcPrevious = x;
+        s.dcState = y;
+        return y;
+    }
+
+    // Look-ahead: render the deterministic burst once (unit gain, DC blocker from zero) and return the gain that
+    // gives the burst RMS = level over its own length.
+    float normaliserFor (StrikerState& s)
+    {
+        StrikerState c = s;
+        c.dcPrevious = 0.0f;
+        c.dcState = 0.0f;
+        float64 energy = 0.0;
+
+        for (int n = 0; n < lookAheadLimit; n += 1)
+        {
+            float y = dcBlock (c, deterministicRaw (c));
+            energy += float64 (y) * float64 (y);
+            c.age += 1;
+
+            if (c.length > 0 && c.age >= c.length)
+                break;
+        }
+
+        float meanSquare = float (energy / float64 (max (c.age, 1)));
+        return meanSquare > 1.0e-20f ? s.level / float (sqrt (meanSquare)) : 0.0f;
+    }
+
+    // First step after a trigger: everything that needs hz, then the normaliser.
+    void setUp (StrikerState& s, float hz)
+    {
+        if (s.kind == kindBreath)
+            return;
+
+        if (s.kind == kindHammer)
+        {
+            float contact = hammerFastest * float (pow (hammerRatio, 1.0f - s.velocity));
+            s.xi = 0.0f;
+            s.eta = 1.0f;
+            s.xpPrev = 0.0f;
+            s.substep = 0.25f * hammerSpan / (contact * max (s.sr, 1000.0f));
+            s.length = 0;
+        }
+        else
+        {
+            bool onString = s.kind == kindPluck && hz > 0.0f;
+
+            if (onString)
+            {
+                s.period = clamp (s.sr / max (hz, 0.001f), 2.0f, pluckMaxPeriod);
+                s.delay = clamp (s.position * s.period, 1.0f, pluckMaxDelay);
+                s.length = int (float (ceil (s.period + s.delay)));
+            }
+            else
+            {
+                s.kind = kindPluckBody;
+                s.period = max (2.0f, (bodyImpulseShortest + (bodyImpulseLongest - bodyImpulseShortest) * s.position) * s.sr);
+                s.delay = 1.0e9f;
+                s.length = int (float (ceil (s.period)));
+            }
+
+            float64 w = twoPi / float64 (s.period);
+            s.pc = 1.0;
+            s.ps = 0.0;
+            s.rotC = cos (w);
+            s.rotS = sin (w);
+            s.delayCos = onString ? cos (w * float64 (s.delay)) : 1.0;
+            s.delaySin = onString ? sin (w * float64 (s.delay)) : 0.0;
+        }
+
+        s.gain = normaliserFor (s);
+    }
+
+    float step (StrikerState& s, int kind, float hz, float hold01, float sr)
+    {
+        if (s.kind == 0)
+        {
+            if (s.dcState == 0.0f && s.dcPrevious == 0.0f)
+                return 0.0f;
+
+            float tail = dcBlock (s, 0.0f);
+
+            if (abs (tail) < tailFloor)
+            {
+                s.dcState = 0.0f;
+                s.dcPrevious = 0.0f;
+            }
+
+            return tail;
+        }
+
+        if (s.age == 0)
+            setUp (s, rebody::analysis::finiteOrZero (hz));
+
+        float raw = 0.0f;
+
+        if (s.kind == kindBreath)
+            raw = breathRaw (s, kind == modeBreath ? rebody::analysis::finiteOrZero (hold01) : 0.0f);
+        else
+            raw = deterministicRaw (s);
+
+        float y = dcBlock (s, s.gain * raw);
+        s.age += 1;
+
+        if (s.length > 0 && s.age >= s.length)
+            s.kind = 0;
+
+        return y;
+    }
+
+    bool active (StrikerState& s)
+    {
+        return s.kind != 0 || s.dcState != 0.0f || s.dcPrevious != 0.0f;
     }
 
     // Equal-power Blend law (Blend 0..100 %): 0 = striker alone, 100 = Through alone (concept 14).
