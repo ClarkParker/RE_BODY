@@ -4,10 +4,13 @@
   "rate": 48000,
   "anchor_A": 7,
   "input_peak_db": -7.54,
-  "renders": {"A":{"peak":-200.0,"rms":-200.0,"lufs":null},"B":{"peak":-200.0,"rms":-200.0,"lufs":null},"C":{"peak":-200.0,"rms":-200.0,"lufs":null},"ABC":{"peak":-200.0,"rms":-200.0,"lufs":null}},
-  "status": "wet silent",
-  "ok": false,
-  "generated": "2026-10-17T08:01Z"
+  "renders": {"A":{"peak":-18.88,"rms":-29.37,"lufs":-27.43},"B":{"peak":-10.21,"rms":-27.18,"lufs":-27.45},"C":{"peak":-15.39,"rms":-30.97,"lufs":-29.12},"ABC":{"peak":-10.21,"rms":-24.06,"lufs":-22.77}},
+  "delta_peak_db": 8.67,
+  "reduction_est_db": -0.06,
+  "status": "pass",
+  "ok": true,
+  "problems": [],
+  "generated": "2026-10-17T10:21Z"
  },
  "hold-stability": {
   "name": "hold-stability",

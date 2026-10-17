@@ -120,6 +120,69 @@
     "reed": "pick hardness",
     "excite": "Through; Pluck"
   },
+  "physics": {
+    "touch": {
+      "strike_factor": 0.1,
+      "src": "20 s5 Touch, task P3: 50 = recipe sustain, 0 = sustain x 0.1, 100 = 1.0, log-interpolated"
+    },
+    "position": {
+      "kind": "comb",
+      "min": 0.05,
+      "max": 0.5,
+      "src": "22 s6: pick comb 0.32 of the period (BODY:376, :689-690); range 0.05..0.5"
+    },
+    "bright": {
+      "tilt_db_oct": 6.0,
+      "pivot_hz": 1000.0,
+      "lp_scale": [0.357, 2.857],
+      "lp_clamp_hz": [2000.0, 16000.0],
+      "src": "20 s5 Bright: pick/hammer low-pass tilt +-1.5 oct around the Reed base, clamped 2..16 kHz; upper-mode tilt +-6 dB/oct above 1 kHz"
+    },
+    "stretch": {
+      "max": 0.3,
+      "src": "20 s5 Stretch: f' = 1000 (f/1000)^(1+s), s = -0.3..+0.3 (Sculpture Formant Stretch); following modes: ratio^(1+s)"
+    },
+    "stiffness": {
+      "kind": "dispersion",
+      "min": 0.0,
+      "default": 0.0,
+      "max": -0.85,
+      "src": "22 s13: dispersion; recipe 0 (BODY), the lower half of the dial is inert; -0.85 as the piano (-0.5 changes nothing audible)"
+    },
+    "coupling": {
+      "kind": "feed",
+      "min": 0.0,
+      "default": 1.0,
+      "max": 2.0,
+      "radiation_direct_at_0": 0.0,
+      "radiation_cut_scale_at_100": 1.0,
+      "src": "22 s13: string -> box feed 0..2x"
+    },
+    "air": {
+      "kind": "helmholtz_2dof",
+      "min": 0.0,
+      "default": 1.0,
+      "max": 2.0,
+      "plate_hz": 283.5,
+      "cavity_hz": 237.965,
+      "kappa": 0.15,
+      "cavity_radiation": 0.8,
+      "src": "plate 283.5 / cavity 238.0 Hz with kappa 0.15 solve to the recipe A0 230 / T1 290 Hz; Air scales kappa 0..2x"
+    },
+    "reed": {
+      "kind": "pick_lowpass_hz",
+      "min": 2000.0,
+      "default": 5600.0,
+      "max": 12000.0,
+      "src": "22 s13: pick hardness (recipe 5.6 kHz, BODY:527)"
+    },
+    "width": {
+      "detune_ct": 3.0,
+      "split": 0.5,
+      "tap_offset": 0.0,
+      "src": "20 s5 Width: +-3 ct"
+    }
+  },
   "ui": {
     "label": "UKE",
     "label_long": "UKULELE",

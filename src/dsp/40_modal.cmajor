@@ -68,6 +68,20 @@
 //   void flush (SlotState& st)                               control rate, all 33 lanes per channel
 //   bool isSilent (SlotState& st, int body)                  all six lanes of the body below 1e-20
 //   float slotEnergy (SlotState& st, int body, int slot)     (re^2 + im^2) mean over L/R, lineModes telemetry
+// P3 additions (physics knobs, docs/dev/06_P3_PHYSICS.md; additive, the calls above keep their behaviour):
+//   float stretchHz (float hz, float s)                      f' = 1000 (f/1000)^(1+s), s = 0 returns hz exactly
+//   void setLawShaped (GridState& g, float sr, float alphaG, float alphaR, float decayScale, float material,
+//                      float sizeShiftOct, float stretch, bool hold)
+//       setLaw with the Stretch law applied to every pole after the Size shift (cached on stretch as well);
+//       setLaw = setLawShaped with stretch 0.
+//   void setBodyShaped (SlotState& st, int body, float sr, float rootHz, float decaySeconds, float material,
+//                       float sizeShiftOct, const float[18]& hzMul, const float[18]& t60Mul,
+//                       const float[18]& positionGain, const float[18]& spread, bool hold)
+//       setBody with a per-slot frequency multiplier (features: x tables::featureHz 2^size, following: x rootHz
+//       ratio) and a per-slot T60 multiplier; the caller builds them for Stretch, Stiffness, Air and Reed. They
+//       enter the cached energy normalisation (a checksum is part of the key); positionGain is still applied
+//       after the normalisation. spread[k] splits slot k between the channels, drive L x (1 + spread), drive R
+//       x (1 - spread) (Width, odd/even mode split). setBody = setBodyShaped with all multipliers 1, spread 0.
 // Helpers:
 //   void gainVectorBlend (int bodyA, int bodyB, float t, float[96]& outL, float[96]& outR)
 //       (1 - t) gA + t gB from tables::gridGainL/R; t = 0 and t = 1 return the table vectors exactly.
@@ -216,6 +230,16 @@ namespace rebody::modal
         return hz >= nyquistFraction * sr;
     }
 
+    // Stretch (20 section 5, Sculpture Formant Stretch): mode spacing around 1 kHz, f' = 1000 (f / 1000)^(1 + s).
+    // s = 0 returns the input exactly, so the default keeps every table value.
+    float stretchHz (float hz, float s)
+    {
+        if (s == 0.0f)
+            return hz;
+
+        return float (1000.0 * pow (float64 (max (hz, 1.0f)) / 1000.0, 1.0 + float64 (clamp (s, -0.5f, 0.5f))));
+    }
+
     float decayScaleForSeconds (int body, float seconds)
     {
         int b = clamp (body, 0, rebody::tables::numBodies - 1);
@@ -284,7 +308,7 @@ namespace rebody::modal
         float<8>[12] c, s, cTarget, sTarget, cStep, sStep;        // shared pole r cos w, r sin w
         float<8>[12] dL, dR, dLTarget, dRTarget, dLStep, dRStep;  // drive per channel = law drive x gain
         float<8>[12] lawDrive;                                    // driveFor(sr, rLaw, 1), 0 when culled
-        float keySr, keyAlphaG, keyAlphaR, keyDecay, keyMaterial, keySize;
+        float keySr, keyAlphaG, keyAlphaR, keyDecay, keyMaterial, keySize, keyStretch;
         bool keyHold, lawReady, ready;
         int rampLeft;
     }
@@ -308,13 +332,15 @@ namespace rebody::modal
         g.rampLeft = 0;
     }
 
-    void setLaw (GridState& g, float sr, float alphaG, float alphaR, float decayScale, float material, float sizeShiftOct, bool hold)
+    void setLawShaped (GridState& g, float sr, float alphaG, float alphaR, float decayScale, float material, float sizeShiftOct,
+                       float stretch, bool hold)
     {
         float rate = max (sr, 1000.0f);
         float size = clamp (sizeShiftOct, -maxSizeOct, maxSizeOct);
+        float s = clamp (stretch, -0.5f, 0.5f);
 
         if (g.lawReady && rate == g.keySr && alphaG == g.keyAlphaG && alphaR == g.keyAlphaR && decayScale == g.keyDecay
-             && material == g.keyMaterial && size == g.keySize && hold == g.keyHold)
+             && material == g.keyMaterial && size == g.keySize && s == g.keyStretch && hold == g.keyHold)
             return;
 
         g.keySr = rate;
@@ -323,6 +349,7 @@ namespace rebody::modal
         g.keyDecay = decayScale;
         g.keyMaterial = material;
         g.keySize = size;
+        g.keyStretch = s;
         g.keyHold = hold;
         g.lawReady = true;
 
@@ -341,6 +368,9 @@ namespace rebody::modal
             {
                 float64 hz = float64 (rebody::tables::gridHz.at (lane * 8 + k)) * shift;
 
+                if (s != 0.0f)
+                    hz = float64 (stretchHz (float (hz), s));
+
                 if (! culled (float (hz), rate))
                 {
                     float64 rLaw = radius64 (rate, t60At (terms, float (hz)));
@@ -356,6 +386,11 @@ namespace rebody::modal
             g.sTarget.at (lane) = sT;
             g.lawDrive.at (lane) = unit;
         }
+    }
+
+    void setLaw (GridState& g, float sr, float alphaG, float alphaR, float decayScale, float material, float sizeShiftOct, bool hold)
+    {
+        setLawShaped (g, sr, alphaG, alphaR, decayScale, material, sizeShiftOct, 0.0f, hold);
     }
 
     void setGains (GridState& g, const float[96]& gainL, const float[96]& gainR)
@@ -490,7 +525,7 @@ namespace rebody::modal
         float<8>[3] reL, imL, reR, imR;
         float<8>[3] c, s, cTarget, sTarget, cStep, sStep;
         float<8>[3] dL, dR, dLTarget, dRTarget, dLStep, dRStep;
-        float keySr, keyRoot, keyDecay, keyMaterial, keySize, energyGain;
+        float keySr, keyRoot, keyDecay, keyMaterial, keySize, keyShape, energyGain;
         bool normReady, ready;
         int rampLeft;
     }
@@ -536,7 +571,8 @@ namespace rebody::modal
     }
 
     void setBodyState (SlotBody& sb, int b, float rate, float rootHz, float decaySeconds, float material, float size,
-                       const float[18]& positionGain, bool hold)
+                       const float[18]& hzMul, const float[18]& t60Mul, const float[18]& positionGain,
+                       const float[18]& spread, bool hold)
     {
         float aG = rebody::tables::alphaG.at (b);
         float aR = rebody::tables::alphaR.at (b);
@@ -563,8 +599,8 @@ namespace rebody::modal
             {
                 int i = b * rebody::tables::featureStride + k;
                 float tableHz = rebody::tables::featureHz.at (i);
-                hz = float64 (tableHz) * shift;
-                t60 = rebody::tables::featureT60.at (i) / t60At (terms50, tableHz) * t60At (terms, float (hz));
+                hz = float64 (tableHz) * shift * float64 (hzMul.at (k));
+                t60 = rebody::tables::featureT60.at (i) / t60At (terms50, tableHz) * t60At (terms, float (hz)) * t60Mul.at (k);
                 gainL = rebody::tables::featureGainL.at (i);
                 gainR = rebody::tables::featureGainR.at (i);
                 used = k < features;
@@ -572,8 +608,8 @@ namespace rebody::modal
             else
             {
                 int i = b * rebody::tables::followStride + (k - rebody::tables::featureStride);
-                hz = float64 (max (rootHz, 1.0f)) * float64 (rebody::tables::followRatio.at (i));
-                t60 = rebody::tables::followT60Mult.at (i) * t60At (terms, float (hz));
+                hz = float64 (max (rootHz, 1.0f)) * float64 (rebody::tables::followRatio.at (i)) * float64 (hzMul.at (k));
+                t60 = rebody::tables::followT60Mult.at (i) * t60At (terms, float (hz)) * t60Mul.at (k);
                 gainL = rebody::tables::followGainL.at (i);
                 gainR = rebody::tables::followGainR.at (i);
                 used = k - rebody::tables::featureStride < follows;
@@ -594,9 +630,15 @@ namespace rebody::modal
             }
         }
 
-        // Energy normalisation, cached per (sr, root, decay, material, size).
+        // Energy normalisation, cached per (sr, root, decay, material, size, shape). The shape key is a checksum of
+        // the caller's frequency and T60 multipliers (identity multipliers give the same constant every call).
+        float shapeKey = 0.0f;
+
+        for (int k = 0; k < slotsPerBody; k += 1)
+            shapeKey += float (k + 1) * (hzMul.at (k) + 0.37f * t60Mul.at (k));
+
         if (! sb.normReady || rate != sb.keySr || rootHz != sb.keyRoot || decaySeconds != sb.keyDecay
-             || material != sb.keyMaterial || size != sb.keySize)
+             || material != sb.keyMaterial || size != sb.keySize || shapeKey != sb.keyShape)
         {
             float64 energyL = 0.0;
             float64 energyR = 0.0;
@@ -626,6 +668,7 @@ namespace rebody::modal
             sb.keyDecay = decaySeconds;
             sb.keyMaterial = material;
             sb.keySize = size;
+            sb.keyShape = shapeKey;
             sb.normReady = true;
         }
 
@@ -647,8 +690,8 @@ namespace rebody::modal
                     float64 position = float64 (positionGain.at (k));
                     laneC.at (e) = cT.at (k);
                     laneS.at (e) = sT.at (k);
-                    laneL.at (e) = float (gain * driveL.at (k) * position);
-                    laneR.at (e) = float (gain * driveR.at (k) * position);
+                    laneL.at (e) = float (gain * driveL.at (k) * position * float64 (1.0f + spread.at (k)));
+                    laneR.at (e) = float (gain * driveR.at (k) * position * float64 (1.0f - spread.at (k)));
                 }
             }
 
@@ -682,12 +725,28 @@ namespace rebody::modal
         sb.ready = true;
     }
 
-    void setBody (SlotState& st, int body, float sr, float rootHz, float decaySeconds, float material, float sizeShiftOct,
-                  const float[18]& positionGain, bool hold)
+    void setBodyShaped (SlotState& st, int body, float sr, float rootHz, float decaySeconds, float material, float sizeShiftOct,
+                        const float[18]& hzMul, const float[18]& t60Mul, const float[18]& positionGain, const float[18]& spread,
+                        bool hold)
     {
         int b = clamp (body, 0, rebody::tables::numBodies - 1);
         setBodyState (st.bodies.at (b), b, max (sr, 1000.0f), rootHz, decaySeconds, material,
-                      clamp (sizeShiftOct, -maxSizeOct, maxSizeOct), positionGain, hold);
+                      clamp (sizeShiftOct, -maxSizeOct, maxSizeOct), hzMul, t60Mul, positionGain, spread, hold);
+    }
+
+    void setBody (SlotState& st, int body, float sr, float rootHz, float decaySeconds, float material, float sizeShiftOct,
+                  const float[18]& positionGain, bool hold)
+    {
+        float[18] unit;
+        float[18] none;
+
+        for (int k = 0; k < slotsPerBody; k += 1)
+        {
+            unit.at (k) = 1.0f;
+            none.at (k) = 0.0f;
+        }
+
+        setBodyShaped (st, body, sr, rootHz, decaySeconds, material, sizeShiftOct, unit, unit, positionGain, none, hold);
     }
 
     float<2> stepBody (SlotBody& sb, float<2> excitation)

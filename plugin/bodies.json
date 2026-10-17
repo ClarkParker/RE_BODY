@@ -176,6 +176,59 @@
         null
       ],
       "name": "Bass Drum",
+      "physics": {
+        "air": {
+          "alt_ratios": [1.0, 0.97, 1.03, 1.5, 2.0, 2.17, 2.51],
+          "default": 0.0,
+          "kind": "ratio_blend",
+          "max": 1.0,
+          "min": -0.5
+        },
+        "bright": {
+          "lp_scale": [0.5, 2.0],
+          "pivot_hz": 1000.0,
+          "tilt_db_oct": 6.0
+        },
+        "coupling": {
+          "default": 1.0,
+          "kind": "feed",
+          "max": 2.0,
+          "min": 0.0,
+          "radiation_cut_scale_at_100": 1.0,
+          "radiation_direct_at_0": 0.0
+        },
+        "position": {
+          "kind": "bessel",
+          "max": 0.9,
+          "min": 0.05
+        },
+        "reed": {
+          "aux_default": 1.0,
+          "aux_max": 1.7,
+          "aux_min": 0.6,
+          "default": 0.33,
+          "kind": "head_tension",
+          "max": 0.5,
+          "min": 0.0
+        },
+        "stiffness": {
+          "default": 0.0,
+          "kind": "membrane",
+          "max": 0.02,
+          "min": -0.008
+        },
+        "stretch": {
+          "max": 0.3
+        },
+        "touch": {
+          "strike_factor": 0.1
+        },
+        "width": {
+          "detune_ct": 0.0,
+          "split": 0.5,
+          "tap_offset": 0.0
+        }
+      },
       "physicsMap": {
         "air": "ideal -> air-loaded ratios (1.59 -> 1.50 ...), pair split",
         "coupling": "head -> shell feed 0..0.4",
@@ -342,6 +395,59 @@
         null
       ],
       "name": "Snare",
+      "physics": {
+        "air": {
+          "alt_ratios": [1.0, 0.97, 1.03, 1.5, 2.0],
+          "default": 0.0,
+          "kind": "ratio_blend",
+          "max": 1.0,
+          "min": -0.5
+        },
+        "bright": {
+          "lp_scale": [0.5, 2.0],
+          "pivot_hz": 1000.0,
+          "tilt_db_oct": 6.0
+        },
+        "coupling": {
+          "default": 1.0,
+          "kind": "feed",
+          "max": 2.0,
+          "min": 0.0,
+          "radiation_cut_scale_at_100": 1.0,
+          "radiation_direct_at_0": 0.0
+        },
+        "position": {
+          "kind": "bessel",
+          "max": 0.9,
+          "min": 0.05
+        },
+        "reed": {
+          "aux_default": 1.0,
+          "aux_max": 1.7,
+          "aux_min": 0.6,
+          "default": 0.0,
+          "kind": "head_tension",
+          "max": 0.25,
+          "min": 0.0
+        },
+        "stiffness": {
+          "default": 0.0,
+          "kind": "membrane",
+          "max": 0.02,
+          "min": -0.008
+        },
+        "stretch": {
+          "max": 0.3
+        },
+        "touch": {
+          "strike_factor": 0.1
+        },
+        "width": {
+          "detune_ct": 0.0,
+          "split": 0.5,
+          "tap_offset": 0.0
+        }
+      },
       "physicsMap": {
         "air": "air between heads: pair split 0.92/1.10 <-> 0.97/1.03",
         "coupling": "heads -> shell feed, wires sensitivity",
@@ -508,6 +614,59 @@
         null
       ],
       "name": "Timpani",
+      "physics": {
+        "air": {
+          "alt_ratios": [0.6276, 1.0, 1.3403, 1.6652, 1.9804, 2.2891],
+          "default": 0.0,
+          "kind": "ratio_blend",
+          "max": 1.0,
+          "min": -0.5
+        },
+        "bright": {
+          "lp_scale": [0.5, 2.0],
+          "pivot_hz": 1000.0,
+          "tilt_db_oct": 6.0
+        },
+        "coupling": {
+          "default": 1.0,
+          "kind": "feed",
+          "max": 2.0,
+          "min": 0.0,
+          "radiation_cut_scale_at_100": 1.0,
+          "radiation_direct_at_0": 0.0
+        },
+        "position": {
+          "kind": "bessel",
+          "max": 0.9,
+          "min": 0.05
+        },
+        "reed": {
+          "aux_default": 1.0,
+          "aux_max": 1.7,
+          "aux_min": 0.6,
+          "default": 0.1,
+          "kind": "head_tension",
+          "max": 0.3,
+          "min": 0.0
+        },
+        "stiffness": {
+          "default": 0.0,
+          "kind": "membrane",
+          "max": 0.02,
+          "min": -0.008
+        },
+        "stretch": {
+          "max": 0.3
+        },
+        "touch": {
+          "strike_factor": 0.1
+        },
+        "width": {
+          "detune_ct": 0.0,
+          "split": 0.5,
+          "tap_offset": 0.0
+        }
+      },
       "physicsMap": {
         "air": "kettle load: (0,1) damping, ratio set",
         "coupling": "head -> kettle mode feed",
@@ -674,6 +833,58 @@
         null
       ],
       "name": "Piano",
+      "physics": {
+        "air": {
+          "default": 1.0,
+          "kind": "mode_gain",
+          "low_modes": 3,
+          "max": 2.0,
+          "min": 0.25
+        },
+        "bright": {
+          "lp_clamp_hz": [2000.0, 16000.0],
+          "lp_scale": [0.357, 2.857],
+          "pivot_hz": 1000.0,
+          "tilt_db_oct": 6.0
+        },
+        "coupling": {
+          "default": 1.0,
+          "kind": "feed",
+          "max": 2.0,
+          "min": 0.0,
+          "radiation_cut_scale_at_100": 1.0,
+          "radiation_direct_at_0": 0.0
+        },
+        "position": {
+          "kind": "pickup",
+          "max": 0.5,
+          "min": 0.05
+        },
+        "reed": {
+          "default": 8200.0,
+          "kind": "hammer_lowpass_hz",
+          "max": 12000.0,
+          "min": 4000.0
+        },
+        "stiffness": {
+          "default": -0.86,
+          "kind": "dispersion",
+          "max": -0.95,
+          "min": -0.6,
+          "spread_b": 0.08
+        },
+        "stretch": {
+          "max": 0.3
+        },
+        "touch": {
+          "strike_factor": 0.1
+        },
+        "width": {
+          "detune_ct": 3.0,
+          "split": 0.5,
+          "tap_offset": 0.0
+        }
+      },
       "physicsMap": {
         "air": "board air (low-mode gain)",
         "coupling": "string -> board feed",
@@ -804,6 +1015,60 @@
         null
       ],
       "name": "Guitar",
+      "physics": {
+        "air": {
+          "cavity_hz": 109.916,
+          "cavity_radiation": 0.8,
+          "default": 1.0,
+          "kappa": 0.3,
+          "kind": "helmholtz_2dof",
+          "max": 2.0,
+          "min": 0.0,
+          "plate_hz": 201.376
+        },
+        "bright": {
+          "lp_clamp_hz": [2000.0, 16000.0],
+          "lp_scale": [0.357, 2.857],
+          "pivot_hz": 1000.0,
+          "tilt_db_oct": 6.0
+        },
+        "coupling": {
+          "default": 1.0,
+          "kind": "feed",
+          "max": 2.0,
+          "min": 0.0,
+          "radiation_cut_scale_at_100": 1.0,
+          "radiation_direct_at_0": 0.0
+        },
+        "position": {
+          "kind": "comb",
+          "max": 0.5,
+          "min": 0.05
+        },
+        "reed": {
+          "default": 5600.0,
+          "kind": "pick_lowpass_hz",
+          "max": 12000.0,
+          "min": 2000.0
+        },
+        "stiffness": {
+          "default": -0.3,
+          "kind": "dispersion",
+          "max": -0.75,
+          "min": 0.0
+        },
+        "stretch": {
+          "max": 0.3
+        },
+        "touch": {
+          "strike_factor": 0.1
+        },
+        "width": {
+          "detune_ct": 3.0,
+          "split": 0.5,
+          "tap_offset": 0.0
+        }
+      },
       "physicsMap": {
         "air": "A0/T1 coupling and gain",
         "coupling": "string -> box feed",
@@ -922,6 +1187,60 @@
         null
       ],
       "name": "Ukulele",
+      "physics": {
+        "air": {
+          "cavity_hz": 237.965,
+          "cavity_radiation": 0.8,
+          "default": 1.0,
+          "kappa": 0.15,
+          "kind": "helmholtz_2dof",
+          "max": 2.0,
+          "min": 0.0,
+          "plate_hz": 283.5
+        },
+        "bright": {
+          "lp_clamp_hz": [2000.0, 16000.0],
+          "lp_scale": [0.357, 2.857],
+          "pivot_hz": 1000.0,
+          "tilt_db_oct": 6.0
+        },
+        "coupling": {
+          "default": 1.0,
+          "kind": "feed",
+          "max": 2.0,
+          "min": 0.0,
+          "radiation_cut_scale_at_100": 1.0,
+          "radiation_direct_at_0": 0.0
+        },
+        "position": {
+          "kind": "comb",
+          "max": 0.5,
+          "min": 0.05
+        },
+        "reed": {
+          "default": 5600.0,
+          "kind": "pick_lowpass_hz",
+          "max": 12000.0,
+          "min": 2000.0
+        },
+        "stiffness": {
+          "default": 0.0,
+          "kind": "dispersion",
+          "max": -0.85,
+          "min": 0.0
+        },
+        "stretch": {
+          "max": 0.3
+        },
+        "touch": {
+          "strike_factor": 0.1
+        },
+        "width": {
+          "detune_ct": 3.0,
+          "split": 0.5,
+          "tap_offset": 0.0
+        }
+      },
       "physicsMap": {
         "air": "A0/T1",
         "coupling": "string -> box feed",
@@ -1064,6 +1383,57 @@
         null
       ],
       "name": "Fiddle",
+      "physics": {
+        "air": {
+          "default": 1.0,
+          "kind": "mode_gain",
+          "low_modes": 1,
+          "max": 2.0,
+          "min": 0.25
+        },
+        "bright": {
+          "lp_clamp_hz": [2000.0, 16000.0],
+          "lp_scale": [0.357, 2.857],
+          "pivot_hz": 1000.0,
+          "tilt_db_oct": 6.0
+        },
+        "coupling": {
+          "default": 1.0,
+          "kind": "feed",
+          "max": 2.0,
+          "min": 0.0,
+          "radiation_cut_scale_at_100": 1.0,
+          "radiation_direct_at_0": 0.0
+        },
+        "position": {
+          "kind": "comb",
+          "max": 0.5,
+          "min": 0.05
+        },
+        "reed": {
+          "default": 5600.0,
+          "kind": "pick_lowpass_hz",
+          "max": 12000.0,
+          "min": 2000.0
+        },
+        "stiffness": {
+          "default": -0.15,
+          "kind": "dispersion",
+          "max": -0.6,
+          "min": 0.0
+        },
+        "stretch": {
+          "max": 0.3
+        },
+        "touch": {
+          "strike_factor": 0.1
+        },
+        "width": {
+          "detune_ct": 3.0,
+          "split": 0.5,
+          "tap_offset": 0.0
+        }
+      },
       "physicsMap": {
         "air": "A0 gain",
         "coupling": "string -> body feed",
@@ -1112,6 +1482,58 @@
       "modes": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
       "modesCompact": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
       "name": "Clarinet",
+      "physics": {
+        "air": {
+          "default": 0.0,
+          "kind": "breath_noise",
+          "max": 0.3,
+          "min": 0.0
+        },
+        "bright": {
+          "lp_scale": [0.5, 2.0],
+          "pivot_hz": 1000.0,
+          "tilt_db_oct": 6.0
+        },
+        "coupling": {
+          "default": 1.0,
+          "kind": "feed",
+          "max": 2.0,
+          "min": 0.0,
+          "radiation_cut_scale_at_100": 0.36,
+          "radiation_direct_at_0": 1.0
+        },
+        "position": {
+          "kind": "bore_tap",
+          "max": 0.9,
+          "min": 0.1
+        },
+        "reed": {
+          "aux_default": 0.0,
+          "aux_max": 0.15,
+          "aux_min": 0.0,
+          "default": 0.9,
+          "kind": "reed_softclip",
+          "max": 2.5,
+          "min": 0.3
+        },
+        "stiffness": {
+          "default": 0.0,
+          "kind": "bore",
+          "max": -0.8,
+          "min": 0.8
+        },
+        "stretch": {
+          "max": 0.3
+        },
+        "touch": {
+          "strike_factor": 0.1
+        },
+        "width": {
+          "detune_ct": 0.0,
+          "split": 0.5,
+          "tap_offset": 0.12
+        }
+      },
       "physicsMap": {
         "air": "breath noise 0..0.3",
         "coupling": "radiation mix (loop gain stays Decay's)",
@@ -1338,6 +1760,58 @@
         null
       ],
       "name": "Oboe",
+      "physics": {
+        "air": {
+          "default": 0.0,
+          "kind": "breath_noise",
+          "max": 0.3,
+          "min": 0.0
+        },
+        "bright": {
+          "lp_scale": [1.0, 1.0],
+          "pivot_hz": 1000.0,
+          "tilt_db_oct": 6.0
+        },
+        "coupling": {
+          "default": 1.0,
+          "kind": "feed",
+          "max": 2.0,
+          "min": 0.0,
+          "radiation_cut_scale_at_100": 1.0,
+          "radiation_direct_at_0": 0.0
+        },
+        "position": {
+          "kind": "cosine",
+          "max": 1.0,
+          "min": 0.15
+        },
+        "reed": {
+          "aux_default": 0.0,
+          "aux_max": 0.0,
+          "aux_min": 0.0,
+          "default": 2.1,
+          "kind": "reed_contact_formant",
+          "max": 3.0,
+          "min": 1.0
+        },
+        "stiffness": {
+          "default": 0.0,
+          "kind": "cluster",
+          "max": 0.002,
+          "min": -0.0008
+        },
+        "stretch": {
+          "max": 0.3
+        },
+        "touch": {
+          "strike_factor": 0.1
+        },
+        "width": {
+          "detune_ct": 0.0,
+          "split": 0.5,
+          "tap_offset": 0.0
+        }
+      },
       "physicsMap": {
         "air": "breath noise",
         "coupling": "radiation mix; cluster feed",
@@ -1444,6 +1918,59 @@
         null
       ],
       "name": "Sax",
+      "physics": {
+        "air": {
+          "default": 1.0,
+          "kind": "breath_noise",
+          "max": 2.5,
+          "min": 0.0
+        },
+        "bright": {
+          "lp_base_hz": 20000.0,
+          "lp_scale": [0.075, 1.0],
+          "pivot_hz": 1000.0,
+          "tilt_db_oct": 6.0
+        },
+        "coupling": {
+          "default": 1.0,
+          "kind": "feed",
+          "max": 2.0,
+          "min": 0.0,
+          "radiation_cut_scale_at_100": 0.36,
+          "radiation_direct_at_0": 1.0
+        },
+        "position": {
+          "kind": "bore_tap",
+          "max": 0.5,
+          "min": 0.05
+        },
+        "reed": {
+          "aux_default": 0.12,
+          "aux_max": 0.35,
+          "aux_min": 0.0,
+          "default": 0.6,
+          "kind": "reed_slope",
+          "max": 1.6,
+          "min": 0.15
+        },
+        "stiffness": {
+          "default": 0.0,
+          "kind": "bore",
+          "max": -0.8,
+          "min": 0.8
+        },
+        "stretch": {
+          "max": 0.3
+        },
+        "touch": {
+          "strike_factor": 0.1
+        },
+        "width": {
+          "detune_ct": 0.0,
+          "split": 0.5,
+          "tap_offset": 0.12
+        }
+      },
       "physicsMap": {
         "air": "breath noise (BODY saxBreath)",
         "coupling": "radiation mix",
@@ -1635,6 +2162,58 @@
         null
       ],
       "name": "Obosaxolele",
+      "physics": {
+        "air": {
+          "default": 1.0,
+          "kind": "breath_noise",
+          "max": 2.5,
+          "min": 0.0
+        },
+        "bright": {
+          "lp_scale": [1.0, 1.0],
+          "pivot_hz": 1000.0,
+          "tilt_db_oct": 6.0
+        },
+        "coupling": {
+          "default": 1.0,
+          "kind": "feed",
+          "max": 2.0,
+          "min": 0.0,
+          "radiation_cut_scale_at_100": 1.0,
+          "radiation_direct_at_0": 0.0
+        },
+        "position": {
+          "kind": "cosine",
+          "max": 1.0,
+          "min": 0.15
+        },
+        "reed": {
+          "aux_default": 0.0,
+          "aux_max": 0.0,
+          "aux_min": 0.0,
+          "default": 2.1,
+          "kind": "reed_contact_formant",
+          "max": 3.0,
+          "min": 1.0
+        },
+        "stiffness": {
+          "default": 0.0,
+          "kind": "cluster",
+          "max": 0.002,
+          "min": -0.0008
+        },
+        "stretch": {
+          "max": 0.3
+        },
+        "touch": {
+          "strike_factor": 0.1
+        },
+        "width": {
+          "detune_ct": 0.0,
+          "split": 0.5,
+          "tap_offset": 0.0
+        }
+      },
       "physicsMap": {
         "air": "Sax row",
         "coupling": "hybrid coupling gains (BODY 0.95/0.60), one-way chain",
@@ -1651,24 +2230,24 @@
       "zTable": [0, 220, 40, 40, 40, 40, 140, 140, 140, 140]
     }
   ],
-  "generator": "bodytab 1.0.0",
+  "generator": "bodytab 1.1.0",
   "labels": ["BASS", "SNARE", "TIMP", "PIANO", "GUITAR", "UKE", "FIDDLE", "CLAR", "OBOE", "SAX", "OBOSAX·"],
   "labelsLong": ["BASS DRUM", "SNARE", "TIMPANI", "PIANO", "GUITAR", "UKULELE", "FIDDLE", "CLARINET", "OBOE", "SAX", "OBOSAXOLELE"],
   "numBodies": 11,
   "schema": "rebody.bodies/1",
   "slotLayout": "modes[k] (padded): k 0-7 = feature slot k, k 8-15 = following slot k-8, the first 16 of the 18 slots in fixed recipe index order, null = unused slot; modesCompact[k]: the same modes packed without gaps (features first, then following), for a telemetry that packs densely",
   "sources": {
-    "00_bass_drum.json": "bc8097297258",
-    "01_snare.json": "cde3f47fbe38",
-    "02_timpani.json": "a19190812325",
-    "03_piano.json": "f968f5d2b07f",
-    "04_guitar.json": "7aa2ad6d9547",
-    "05_ukulele.json": "7c8f013632e9",
-    "06_fiddle.json": "b59e4ca10940",
-    "07_clarinet.json": "746b0c8483a4",
-    "08_oboe.json": "f6ad65bca634",
-    "09_sax.json": "5d73d26aab01",
-    "10_obosaxolele.json": "306711393d0f"
+    "00_bass_drum.json": "7b95ee3339fe",
+    "01_snare.json": "7fd4ac044548",
+    "02_timpani.json": "011227fdc2aa",
+    "03_piano.json": "6a49cff0aa1a",
+    "04_guitar.json": "32cf21cb0146",
+    "05_ukulele.json": "56373a90ed35",
+    "06_fiddle.json": "ee9dec6c53bd",
+    "07_clarinet.json": "d2ea7258d51b",
+    "08_oboe.json": "44e53e3efa37",
+    "09_sax.json": "9f298142ead7",
+    "10_obosaxolele.json": "b36994bebe74"
   },
   "zTable": [
     [0, -40, -300, 92, 92, 60, 100, 100, 100, 100],

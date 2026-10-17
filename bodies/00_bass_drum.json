@@ -169,6 +169,68 @@
     "reed": "head tension: glide 0..0.5 oct, (0,1) damping",
     "excite": "Through; Hammer into the batter head"
   },
+  "physics": {
+    "touch": {
+      "strike_factor": 0.1,
+      "src": "20 s5 Touch, task P3: 50 = recipe sustain, 0 = sustain x 0.1, 100 = 1.0, log-interpolated"
+    },
+    "position": {
+      "kind": "bessel",
+      "min": 0.05,
+      "max": 0.9,
+      "src": "22 s1: J_m(j_mn r), r = Position radius; 50 = recipe 0.30; energy of the following modes kept"
+    },
+    "bright": {
+      "tilt_db_oct": 6.0,
+      "pivot_hz": 1000.0,
+      "lp_scale": [0.5, 2.0],
+      "src": "20 s5 Bright: contact low-pass (BODY:326 law x 0.5..2) + upper-mode tilt +-6 dB/oct above 1 kHz"
+    },
+    "stretch": {
+      "max": 0.3,
+      "src": "20 s5 Stretch: f' = 1000 (f/1000)^(1+s), s = -0.3..+0.3 (Sculpture Formant Stretch); following modes: ratio^(1+s)"
+    },
+    "stiffness": {
+      "kind": "membrane",
+      "min": -0.008,
+      "default": 0.0,
+      "max": 0.02,
+      "src": "22 s13: B 0..0.02 (r sqrt((1 + B r^2) / (1 + B)) keeps the tuned mode; negative B compresses mildly)"
+    },
+    "coupling": {
+      "kind": "feed",
+      "min": 0.0,
+      "default": 1.0,
+      "max": 2.0,
+      "radiation_direct_at_0": 0.0,
+      "radiation_cut_scale_at_100": 1.0,
+      "src": "22 s13: head -> shell feed: shell feature slots and the grid feed 0..2x recipe"
+    },
+    "air": {
+      "kind": "ratio_blend",
+      "min": -0.5,
+      "default": 0.0,
+      "max": 1.0,
+      "alt_ratios": [1.0, 0.97, 1.03, 1.5, 2.0, 2.17, 2.51],
+      "src": "22 s13: ideal -> air-loaded ratios (1.594 -> 1.50 ...), pair split 0.94/1.064 -> 0.97/1.03 (design); 0 extrapolates half-way the other way"
+    },
+    "reed": {
+      "kind": "head_tension",
+      "min": 0.0,
+      "default": 0.33,
+      "max": 0.5,
+      "aux_min": 0.6,
+      "aux_default": 1.0,
+      "aux_max": 1.7,
+      "src": "22 s13: onset glide 0..0.5 oct (recipe 0.33 at 50), aux = T60 multiplier of the (0,1) batter mode"
+    },
+    "width": {
+      "detune_ct": 0.0,
+      "split": 0.5,
+      "tap_offset": 0.0,
+      "src": "modal-only: Width acts on the sum (mid/side)"
+    }
+  },
   "ui": {
     "label": "BASS",
     "label_long": "BASS DRUM",

@@ -202,6 +202,67 @@
     "reed": "reed-contact formant 1..3 x f0 (BODY 2.1, :396)",
     "excite": "Through; Breath"
   },
+  "physics": {
+    "touch": {
+      "strike_factor": 0.1,
+      "src": "20 s5 Touch, task P3: 50 = recipe sustain, 0 = sustain x 0.1, 100 = 1.0, log-interpolated"
+    },
+    "position": {
+      "kind": "cosine",
+      "min": 0.15,
+      "max": 1.0,
+      "src": "20 s4: cosine mode gains |cos(pi (n-1) (p - p0))|, p0 = 0.5"
+    },
+    "bright": {
+      "tilt_db_oct": 6.0,
+      "pivot_hz": 1000.0,
+      "lp_scale": [1.0, 1.0],
+      "src": "20 s5 Bright: upper-mode tilt only (the reed contact formant belongs to Reed)"
+    },
+    "stretch": {
+      "max": 0.3,
+      "src": "20 s5 Stretch: f' = 1000 (f/1000)^(1+s), s = -0.3..+0.3 (Sculpture Formant Stretch); following modes: ratio^(1+s)"
+    },
+    "stiffness": {
+      "kind": "cluster",
+      "min": -0.0008,
+      "default": 0.0,
+      "max": 0.002,
+      "src": "22 s13: cluster ratio stretch r sqrt((1 + B r^2) / (1 + B))"
+    },
+    "coupling": {
+      "kind": "feed",
+      "min": 0.0,
+      "default": 1.0,
+      "max": 2.0,
+      "radiation_direct_at_0": 0.0,
+      "radiation_cut_scale_at_100": 1.0,
+      "src": "22 s13: radiation mix / cluster feed: formant slots and grid feed 0..2x"
+    },
+    "air": {
+      "kind": "breath_noise",
+      "min": 0.0,
+      "default": 0.0,
+      "max": 0.3,
+      "src": "22 s13: breath noise 0..0.3 (0..50 inert)"
+    },
+    "reed": {
+      "kind": "reed_contact_formant",
+      "min": 1.0,
+      "default": 2.1,
+      "max": 3.0,
+      "aux_min": 0.0,
+      "aux_default": 0.0,
+      "aux_max": 0.0,
+      "src": "22 s13: reed-contact formant 1..3 x f0 (BODY 2.1, :396)"
+    },
+    "width": {
+      "detune_ct": 0.0,
+      "split": 0.5,
+      "tap_offset": 0.0,
+      "src": "modal-only"
+    }
+  },
   "ui": {
     "label": "OBOE",
     "label_long": "OBOE",

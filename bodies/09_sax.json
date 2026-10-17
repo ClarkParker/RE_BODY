@@ -125,6 +125,68 @@
     "reed": "reed offset/slope (BODY asymmetry)",
     "excite": "Through; Breath"
   },
+  "physics": {
+    "touch": {
+      "strike_factor": 0.1,
+      "src": "20 s5 Touch, task P3: 50 = recipe sustain, 0 = sustain x 0.1, 100 = 1.0, log-interpolated"
+    },
+    "position": {
+      "kind": "bore_tap",
+      "min": 0.05,
+      "max": 0.5,
+      "src": "22 s10: pickup tap at beta of the delay (BODY:501), range 0.05..0.5, 50 = 0.17"
+    },
+    "bright": {
+      "tilt_db_oct": 6.0,
+      "pivot_hz": 1000.0,
+      "lp_scale": [0.075, 1.0],
+      "lp_base_hz": 20000.0,
+      "src": "20 s5 Bright: reed contact low-pass base 20 kHz x 0.075^((50-k)/50): 1.5 kHz at 0 rising to bypass at 50 (BODY's sax has none) + upper-mode tilt"
+    },
+    "stretch": {
+      "max": 0.3,
+      "src": "20 s5 Stretch: f' = 1000 (f/1000)^(1+s), s = -0.3..+0.3 (Sculpture Formant Stretch); following modes: ratio^(1+s)"
+    },
+    "stiffness": {
+      "kind": "bore",
+      "min": 0.8,
+      "default": 0.0,
+      "max": -0.8,
+      "src": "22 s13: bore dispersion +-0.8 (see the clarinet row: +-0.1 is inaudible with a first-order allpass)"
+    },
+    "coupling": {
+      "kind": "feed",
+      "min": 0.0,
+      "default": 1.0,
+      "max": 2.0,
+      "radiation_direct_at_0": 1.0,
+      "radiation_cut_scale_at_100": 0.36,
+      "src": "22 s13: radiation mix as the clarinet; feed to the brass slots and grid 0..2x"
+    },
+    "air": {
+      "kind": "breath_noise",
+      "min": 0.0,
+      "default": 1.0,
+      "max": 2.5,
+      "src": "22 s13: BODY saxBreath amount x 0..2.5 (1.0 = BODY, BODY:777-790)"
+    },
+    "reed": {
+      "kind": "reed_slope",
+      "min": 0.15,
+      "default": 0.6,
+      "max": 1.6,
+      "aux_min": 0.0,
+      "aux_default": 0.12,
+      "aux_max": 0.35,
+      "src": "22 s13: reed slope (BODY:790 0.60) and asymmetry (0.12)"
+    },
+    "width": {
+      "detune_ct": 0.0,
+      "split": 0.5,
+      "tap_offset": 0.12,
+      "src": "20 s5 Width: pickup tap L/R offset"
+    }
+  },
   "ui": {
     "label": "SAX",
     "label_long": "SAX",

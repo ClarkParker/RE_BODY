@@ -180,6 +180,67 @@
     "reed": "Oboe row",
     "excite": "Through; Pluck into the uke bridge"
   },
+  "physics": {
+    "touch": {
+      "strike_factor": 0.1,
+      "src": "20 s5 Touch, task P3: 50 = recipe sustain, 0 = sustain x 0.1, 100 = 1.0, log-interpolated"
+    },
+    "position": {
+      "kind": "cosine",
+      "min": 0.15,
+      "max": 1.0,
+      "src": "cluster slots as the Oboe; the string comb and the sax tap read their own rows"
+    },
+    "bright": {
+      "tilt_db_oct": 6.0,
+      "pivot_hz": 1000.0,
+      "lp_scale": [1.0, 1.0],
+      "src": "20 s5 Bright: upper-mode tilt only (the reed contact formant belongs to Reed)"
+    },
+    "stretch": {
+      "max": 0.3,
+      "src": "20 s5 Stretch: f' = 1000 (f/1000)^(1+s), s = -0.3..+0.3 (Sculpture Formant Stretch); following modes: ratio^(1+s)"
+    },
+    "stiffness": {
+      "kind": "cluster",
+      "min": -0.0008,
+      "default": 0.0,
+      "max": 0.002,
+      "src": "22 s13: Uke row for the string, oboe cluster stretch for the pair slots"
+    },
+    "coupling": {
+      "kind": "feed",
+      "min": 0.0,
+      "default": 1.0,
+      "max": 2.0,
+      "radiation_direct_at_0": 0.0,
+      "radiation_cut_scale_at_100": 1.0,
+      "src": "22 s13: hybrid coupling stays one-way; feed multiplier on the three rows"
+    },
+    "air": {
+      "kind": "breath_noise",
+      "min": 0.0,
+      "default": 1.0,
+      "max": 2.5,
+      "src": "22 s13: Sax row (engines read their own rows; the hybrid slots do not use it)"
+    },
+    "reed": {
+      "kind": "reed_contact_formant",
+      "min": 1.0,
+      "default": 2.1,
+      "max": 3.0,
+      "aux_min": 0.0,
+      "aux_default": 0.0,
+      "aux_max": 0.0,
+      "src": "22 s13: Oboe row (engines read their own rows)"
+    },
+    "width": {
+      "detune_ct": 0.0,
+      "split": 0.5,
+      "tap_offset": 0.0,
+      "src": "the string and sax engines read their own rows"
+    }
+  },
   "ui": {
     "label": "OBOSAX·",
     "label_long": "OBOSAXOLELE",

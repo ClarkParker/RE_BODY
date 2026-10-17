@@ -131,6 +131,69 @@
     "reed": "pick hardness",
     "excite": "Through; Pluck"
   },
+  "physics": {
+    "touch": {
+      "strike_factor": 0.1,
+      "src": "20 s5 Touch, task P3: 50 = recipe sustain, 0 = sustain x 0.1, 100 = 1.0, log-interpolated"
+    },
+    "position": {
+      "kind": "comb",
+      "min": 0.05,
+      "max": 0.5,
+      "src": "22 s5: pick position comb, range 0.05..0.5, 50 = 0.25"
+    },
+    "bright": {
+      "tilt_db_oct": 6.0,
+      "pivot_hz": 1000.0,
+      "lp_scale": [0.357, 2.857],
+      "lp_clamp_hz": [2000.0, 16000.0],
+      "src": "20 s5 Bright: pick/hammer low-pass tilt +-1.5 oct around the Reed base, clamped 2..16 kHz; upper-mode tilt +-6 dB/oct above 1 kHz"
+    },
+    "stretch": {
+      "max": 0.3,
+      "src": "20 s5 Stretch: f' = 1000 (f/1000)^(1+s), s = -0.3..+0.3 (Sculpture Formant Stretch); following modes: ratio^(1+s)"
+    },
+    "stiffness": {
+      "kind": "dispersion",
+      "min": 0.0,
+      "default": -0.3,
+      "max": -0.75,
+      "src": "22 s13: dispersion allpass 0 .. -0.75 around the recipe -0.30"
+    },
+    "coupling": {
+      "kind": "feed",
+      "min": 0.0,
+      "default": 1.0,
+      "max": 2.0,
+      "radiation_direct_at_0": 0.0,
+      "radiation_cut_scale_at_100": 1.0,
+      "src": "22 s13: string -> box feed 0..2x"
+    },
+    "air": {
+      "kind": "helmholtz_2dof",
+      "min": 0.0,
+      "default": 1.0,
+      "max": 2.0,
+      "plate_hz": 201.376,
+      "cavity_hz": 109.916,
+      "kappa": 0.3,
+      "cavity_radiation": 0.8,
+      "src": "R10 B1 Christensen & Vistisen: plate 201.4 / cavity 109.9 Hz with kappa 0.3 solve to the recipe A0 103 / T1 205 Hz (omega^2 sum conserved, so the 150/129 -> 97/200 example of R10 cannot be this form); Air scales kappa 0..2x"
+    },
+    "reed": {
+      "kind": "pick_lowpass_hz",
+      "min": 2000.0,
+      "default": 5600.0,
+      "max": 12000.0,
+      "src": "22 s13: pick hardness = contact low-pass 2..12 kHz (recipe 5.6 kHz, BODY:527)"
+    },
+    "width": {
+      "detune_ct": 3.0,
+      "split": 0.5,
+      "tap_offset": 0.0,
+      "src": "20 s5 Width: +-3 ct"
+    }
+  },
   "ui": {
     "label": "GUITAR",
     "label_long": "GUITAR",

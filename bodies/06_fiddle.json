@@ -135,6 +135,66 @@
     "reed": "contact low-pass (bow hair)",
     "excite": "Through; Pluck"
   },
+  "physics": {
+    "touch": {
+      "strike_factor": 0.1,
+      "src": "20 s5 Touch, task P3: 50 = recipe sustain, 0 = sustain x 0.1, 100 = 1.0, log-interpolated"
+    },
+    "position": {
+      "kind": "comb",
+      "min": 0.05,
+      "max": 0.5,
+      "src": "22 s7: bridge-side tap 0.1; range 0.05..0.5"
+    },
+    "bright": {
+      "tilt_db_oct": 6.0,
+      "pivot_hz": 1000.0,
+      "lp_scale": [0.357, 2.857],
+      "lp_clamp_hz": [2000.0, 16000.0],
+      "src": "20 s5 Bright: pick/hammer low-pass tilt +-1.5 oct around the Reed base, clamped 2..16 kHz; upper-mode tilt +-6 dB/oct above 1 kHz"
+    },
+    "stretch": {
+      "max": 0.3,
+      "src": "20 s5 Stretch: f' = 1000 (f/1000)^(1+s), s = -0.3..+0.3 (Sculpture Formant Stretch); following modes: ratio^(1+s)"
+    },
+    "stiffness": {
+      "kind": "dispersion",
+      "min": 0.0,
+      "default": -0.15,
+      "max": -0.6,
+      "src": "22 s13: dispersion 0 .. -0.6 around the recipe -0.15"
+    },
+    "coupling": {
+      "kind": "feed",
+      "min": 0.0,
+      "default": 1.0,
+      "max": 2.0,
+      "radiation_direct_at_0": 0.0,
+      "radiation_cut_scale_at_100": 1.0,
+      "src": "22 s13: string -> body feed 0..2x"
+    },
+    "air": {
+      "kind": "mode_gain",
+      "min": 0.25,
+      "default": 1.0,
+      "max": 2.0,
+      "low_modes": 1,
+      "src": "22 s13: A0 gain (corpus A0 275 Hz)"
+    },
+    "reed": {
+      "kind": "pick_lowpass_hz",
+      "min": 2000.0,
+      "default": 5600.0,
+      "max": 12000.0,
+      "src": "22 s13: contact low-pass (bow hair) 2..12 kHz"
+    },
+    "width": {
+      "detune_ct": 3.0,
+      "split": 0.5,
+      "tap_offset": 0.0,
+      "src": "20 s5 Width: +-3 ct"
+    }
+  },
   "ui": {
     "label": "FIDDLE",
     "label_long": "FIDDLE",

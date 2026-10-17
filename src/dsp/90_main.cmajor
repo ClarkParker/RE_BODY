@@ -2,6 +2,8 @@
 //
 // P2: Line A is complete (BODY's engines on physically modelled bodies, concept 20 sections 2-7, 12), B and C run
 // the same code and are Enable Off by default. All 73 parameters and 10 telemetry endpoints keep their final ids.
+// P3: the physics knobs of every line (Touch .. Reed, Width inside the bodies) are read by 50_line.cmajor at the control
+// tick; this file only hands the smoothed global Width to the lines (docs/dev/06_P3_PHYSICS.md).
 //
 // Signal path per sample (concept 20 section 2):
 //   in -> NaN guard, DC block, clamp, bypass fade                         (BODY:587-590)
@@ -217,6 +219,7 @@ processor RE_BODY [[ main ]]
     float<2> previousInput, dcState;
     float sampleRate;
     float lowCutNow;
+    float widthPercent;                            // smoothed global Width (percent), also read by the lines (P3: in-body Width)
     bool started;
     int counter;
 
@@ -253,6 +256,7 @@ processor RE_BODY [[ main ]]
             lines.at (k).control.at (s) = now;
         }
 
+        lines.at (k).width = widthPercent;
         rebody::line::tick (lines.at (k), snap);
     }
 
@@ -268,6 +272,8 @@ processor RE_BODY [[ main ]]
 
         rebody::line::setLowCut (protector, lowCutNow, sampleRate);
         rebody::line::setWidth (protector, paramTarget.at (rebody::params::globalWidth), snap);
+        widthPercent = rebody::analysis::slewTo (snap ? paramTarget.at (rebody::params::globalWidth) : widthPercent,
+                                                 paramTarget.at (rebody::params::globalWidth), controlTickSlew);
     }
 
     void main()

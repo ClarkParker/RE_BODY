@@ -159,6 +159,68 @@
     "reed": "tension glide 0..0.3 oct",
     "excite": "Through; Hammer (mallet 0.25 radius)"
   },
+  "physics": {
+    "touch": {
+      "strike_factor": 0.1,
+      "src": "20 s5 Touch, task P3: 50 = recipe sustain, 0 = sustain x 0.1, 100 = 1.0, log-interpolated"
+    },
+    "position": {
+      "kind": "bessel",
+      "min": 0.05,
+      "max": 0.9,
+      "src": "22 s3: J_m(j_mn r); 50 = recipe 0.25"
+    },
+    "bright": {
+      "tilt_db_oct": 6.0,
+      "pivot_hz": 1000.0,
+      "lp_scale": [0.5, 2.0],
+      "src": "20 s5 Bright: contact low-pass (BODY:326 law x 0.5..2) + upper-mode tilt +-6 dB/oct above 1 kHz"
+    },
+    "stretch": {
+      "max": 0.3,
+      "src": "20 s5 Stretch: f' = 1000 (f/1000)^(1+s), s = -0.3..+0.3 (Sculpture Formant Stretch); following modes: ratio^(1+s)"
+    },
+    "stiffness": {
+      "kind": "membrane",
+      "min": -0.008,
+      "default": 0.0,
+      "max": 0.02,
+      "src": "22 s13: ratio stretch"
+    },
+    "coupling": {
+      "kind": "feed",
+      "min": 0.0,
+      "default": 1.0,
+      "max": 2.0,
+      "radiation_direct_at_0": 0.0,
+      "radiation_cut_scale_at_100": 1.0,
+      "src": "22 s13: head -> kettle mode feed (kettle slot and grid feed 0..2x)"
+    },
+    "air": {
+      "kind": "ratio_blend",
+      "min": -0.5,
+      "default": 0.0,
+      "max": 1.0,
+      "alt_ratios": [0.6276, 1.0, 1.3403, 1.6652, 1.9804, 2.2891],
+      "src": "22 s13: kettle load: recipe = air-loaded set (1 : 1.5 : 1.98 : 2.44 : 2.91, (0,1) at 0.81), 100 = ideal membrane j_n1 / j_11"
+    },
+    "reed": {
+      "kind": "head_tension",
+      "min": 0.0,
+      "default": 0.1,
+      "max": 0.3,
+      "aux_min": 0.6,
+      "aux_default": 1.0,
+      "aux_max": 1.7,
+      "src": "22 s13: tension glide 0..0.3 oct (recipe 0.10), aux = T60 multiplier of the kettle-damped (0,1) mode"
+    },
+    "width": {
+      "detune_ct": 0.0,
+      "split": 0.5,
+      "tap_offset": 0.0,
+      "src": "modal-only"
+    }
+  },
   "ui": {
     "label": "TIMP",
     "label_long": "TIMPANI",

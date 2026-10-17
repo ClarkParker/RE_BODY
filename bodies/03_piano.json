@@ -145,6 +145,67 @@
     "reed": "hammer hardness (low-pass 4-12 kHz)",
     "excite": "Through; Hammer"
   },
+  "physics": {
+    "touch": {
+      "strike_factor": 0.1,
+      "src": "20 s5 Touch, task P3: 50 = recipe sustain, 0 = sustain x 0.1, 100 = 1.0, log-interpolated"
+    },
+    "position": {
+      "kind": "pickup",
+      "min": 0.05,
+      "max": 0.5,
+      "src": "22 s4: output pickup tap at beta of the delay (BODY:486), range 0.05..0.5, 50 = 0.11"
+    },
+    "bright": {
+      "tilt_db_oct": 6.0,
+      "pivot_hz": 1000.0,
+      "lp_scale": [0.357, 2.857],
+      "lp_clamp_hz": [2000.0, 16000.0],
+      "src": "20 s5 Bright: pick/hammer low-pass tilt +-1.5 oct around the Reed base, clamped 2..16 kHz; upper-mode tilt +-6 dB/oct above 1 kHz"
+    },
+    "stretch": {
+      "max": 0.3,
+      "src": "20 s5 Stretch: f' = 1000 (f/1000)^(1+s), s = -0.3..+0.3 (Sculpture Formant Stretch); following modes: ratio^(1+s)"
+    },
+    "stiffness": {
+      "kind": "dispersion",
+      "min": -0.6,
+      "default": -0.86,
+      "max": -0.95,
+      "spread_b": 0.08,
+      "src": "22 s13: dispersion -0.6..-0.95, the second voice keeps the recipe offset dispersion_b - dispersion = +0.08"
+    },
+    "coupling": {
+      "kind": "feed",
+      "min": 0.0,
+      "default": 1.0,
+      "max": 2.0,
+      "radiation_direct_at_0": 0.0,
+      "radiation_cut_scale_at_100": 1.0,
+      "src": "22 s13: string -> board feed 0..2x"
+    },
+    "air": {
+      "kind": "mode_gain",
+      "min": 0.25,
+      "default": 1.0,
+      "max": 2.0,
+      "low_modes": 3,
+      "src": "22 s13: board air = gain of the lowest FEM modes (84, 127, 194 Hz)"
+    },
+    "reed": {
+      "kind": "hammer_lowpass_hz",
+      "min": 4000.0,
+      "default": 8200.0,
+      "max": 12000.0,
+      "src": "22 s13: hammer hardness, low-pass 4-12 kHz (recipe 8.2 kHz, BODY:525)"
+    },
+    "width": {
+      "detune_ct": 3.0,
+      "split": 0.5,
+      "tap_offset": 0.0,
+      "src": "20 s5 Width: +-3 ct detune between the channels at 100"
+    }
+  },
   "ui": {
     "label": "PIANO",
     "label_long": "PIANO",

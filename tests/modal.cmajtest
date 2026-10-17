@@ -610,3 +610,88 @@ bool gainVectorBlendEndpointsExact()
     rebody::modal::gainVectorBlend (3, 4, 0.25f, gl, gr);
     return near (gl.at (10), 0.75f * rebody::tables::gridGainL.at (3 * 96 + 10) + 0.25f * rebody::tables::gridGainL.at (4 * 96 + 10), 0.000001f);
 }
+
+// ---- P3 additions: Stretch and the per-slot multipliers (docs/dev/06_P3_PHYSICS.md) ------------------------------
+
+bool stretchLawFollowsTheFormula()
+{
+    return rebody::modal::stretchHz (500.0f, 0.0f) == 500.0f
+        && nearRel (rebody::modal::stretchHz (1000.0f, 0.3f), 1000.0f, 0.0001f)
+        && nearRel (rebody::modal::stretchHz (2000.0f, 0.3f), 1000.0f * float (pow (2.0f, 1.3f)), 0.0001f)
+        && nearRel (rebody::modal::stretchHz (250.0f, -0.2f), 1000.0f * float (pow (0.25f, 0.8f)), 0.0001f);
+}
+
+bool gridStretchZeroIsSetLawAndMovesThePoles()
+{
+    rebody::modal::GridState a;
+    rebody::modal::GridState b;
+    rebody::modal::GridState c;
+    rebody::modal::resetGrid (a);
+    rebody::modal::resetGrid (b);
+    rebody::modal::resetGrid (c);
+    rebody::modal::setLaw (a, 48000.0f, 0.0f, 0.02f, 1.0f, 50.0f, 0.0f, false);
+    rebody::modal::setLawShaped (b, 48000.0f, 0.0f, 0.02f, 1.0f, 50.0f, 0.0f, 0.0f, false);
+    rebody::modal::setLawShaped (c, 48000.0f, 0.0f, 0.02f, 1.0f, 50.0f, 0.0f, 0.3f, false);
+
+    for (int lane = 0; lane < 12; lane += 1)
+        for (int e = 0; e < 8; e += 1)
+            if (a.cTarget.at (lane).at (e) != b.cTarget.at (lane).at (e) || a.sTarget.at (lane).at (e) != b.sTarget.at (lane).at (e))
+                return false;
+
+    int pole = 60;
+    int lane = pole / 8;
+    int e = pole % 8;
+    float angleA = float (atan2 (a.sTarget.at (lane).at (e), a.cTarget.at (lane).at (e)));
+    float angleC = float (atan2 (c.sTarget.at (lane).at (e), c.cTarget.at (lane).at (e)));
+    float hz = rebody::tables::gridHz.at (pole);
+    return nearRel (angleC / angleA, rebody::modal::stretchHz (hz, 0.3f) / hz, 0.001f) && hz > 1000.0f;
+}
+
+bool shapedBodyUnitMultipliersEqualSetBodyAndMultipliersAct()
+{
+    float[18] unit;
+    float[18] hz;
+    float[18] t60;
+    float[18] spread;
+    unitPosition (unit);
+    unitPosition (hz);
+    unitPosition (t60);
+
+    for (int k = 0; k < 18; k += 1) spread.at (k) = 0.0f;
+
+    rebody::modal::SlotState a;
+    rebody::modal::SlotState b;
+    rebody::modal::SlotState c;
+    rebody::modal::SlotState d;
+    rebody::modal::resetSlots (a);
+    rebody::modal::resetSlots (b);
+    rebody::modal::resetSlots (c);
+    rebody::modal::resetSlots (d);
+    rebody::modal::setBody (a, 4, 48000.0f, 0.0f, 1.0f, 50.0f, 0.0f, unit, false);          // guitar: 4 feature modes
+    rebody::modal::setBodyShaped (b, 4, 48000.0f, 0.0f, 1.0f, 50.0f, 0.0f, hz, t60, unit, spread, false);
+
+    for (int e = 0; e < 8; e += 1)
+        if (a.bodies.at (4).cTarget.at (0).at (e) != b.bodies.at (4).cTarget.at (0).at (e)
+             || a.bodies.at (4).sTarget.at (0).at (e) != b.bodies.at (4).sTarget.at (0).at (e)
+             || a.bodies.at (4).dLTarget.at (0).at (e) != b.bodies.at (4).dLTarget.at (0).at (e)
+             || a.bodies.at (4).dRTarget.at (0).at (e) != b.bodies.at (4).dRTarget.at (0).at (e))
+            return false;
+
+    // frequency and T60 multipliers
+    hz.at (0) = 1.25f;
+    t60.at (1) = 2.0f;
+    rebody::modal::setBodyShaped (c, 4, 48000.0f, 0.0f, 1.0f, 50.0f, 0.0f, hz, t60, unit, spread, false);
+    float angleB = float (atan2 (b.bodies.at (4).sTarget.at (0).at (0), b.bodies.at (4).cTarget.at (0).at (0)));
+    float angleC = float (atan2 (c.bodies.at (4).sTarget.at (0).at (0), c.bodies.at (4).cTarget.at (0).at (0)));
+    float lnB = float (log (poleMagnitude (b.bodies.at (4).cTarget.at (0).at (1), b.bodies.at (4).sTarget.at (0).at (1))));
+    float lnC = float (log (poleMagnitude (c.bodies.at (4).cTarget.at (0).at (1), c.bodies.at (4).sTarget.at (0).at (1))));
+
+    // spread 0.5 on slot 2 (unit frequency and T60): drive L x 1.5, drive R x 0.5
+    spread.at (2) = 0.5f;
+    rebody::modal::setBodyShaped (d, 4, 48000.0f, 0.0f, 1.0f, 50.0f, 0.0f, unit, unit, unit, spread, false);
+    bool split = nearRel (d.bodies.at (4).dLTarget.at (0).at (2), 1.5f * b.bodies.at (4).dLTarget.at (0).at (2), 0.0001f)
+              && nearRel (d.bodies.at (4).dRTarget.at (0).at (2), 0.5f * b.bodies.at (4).dRTarget.at (0).at (2), 0.0001f)
+              && d.bodies.at (4).dLTarget.at (0).at (1) == b.bodies.at (4).dLTarget.at (0).at (1);
+
+    return nearRel (angleC / angleB, 1.25f, 0.001f) && nearRel (lnC / lnB, 0.5f, 0.01f) && split;
+}

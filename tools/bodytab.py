@@ -25,7 +25,7 @@ import math
 import os
 import sys
 
-GENERATOR = "bodytab 1.0.0"
+GENERATOR = "bodytab 1.1.0"
 SCHEMA = "rebody.recipe/1"
 
 NUM_BODIES = 11
@@ -42,6 +42,8 @@ FEATURE_HZ_MIN, FEATURE_HZ_MAX = 20.0, 20000.0
 NYQUIST_FRAC_44 = 0.45 * 44100.0
 LINE_KINDS = {"none": 0, "cylinder": 1, "cone": 2, "string": 3, "string_pair": 4}
 ROOT_LAWS = {"drum": 0, "note": 1}
+POS_KINDS = {"none": 0, "comb": 1, "pickup": 2, "bore_tap": 3, "bessel": 4, "cosine": 5}   # physics.position.kind (P3)
+AIR_KINDS = {"none": 0, "ratio_blend": 1, "helmholtz_2dof": 2, "mode_gain": 3, "breath_noise": 4}   # physics.air.kind (P3)
 HYBRID_UKE, HYBRID_OBOE, HYBRID_SAX = 5, 8, 9
 DEFAULT_ROOT_NOTE_MAX = 72
 FILLER_FEATURE_HZ, FILLER_FEATURE_T60 = 1000.0, 0.01     # benign values for unused slots (gain 0)
@@ -187,6 +189,60 @@ def is_num(x):
     return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
 
 
+def validate_physics(r, errs):
+    """P3 `physics` block: numeric ranges of the physics knobs (docs/dev/06_P3_PHYSICS.md section 2)."""
+    ph = r.get("physics")
+    if not need(isinstance(ph, dict), r, "missing key 'physics' (P3 knob ranges)", errs):
+        return
+    for key in ("touch", "position", "bright", "stretch", "stiffness", "coupling", "air", "reed", "width"):
+        need(isinstance(ph.get(key), dict), r, "physics.%s missing" % key, errs)
+    if any(not isinstance(ph.get(k), dict) for k in ("touch", "position", "bright", "stretch", "stiffness", "coupling", "air", "reed", "width")):
+        return
+    need(is_num(ph["touch"].get("strike_factor")) and 0 < ph["touch"]["strike_factor"] <= 1, r, "physics.touch.strike_factor in (0, 1]", errs)
+    pos = ph["position"]
+    need(pos.get("kind") in POS_KINDS and pos.get("kind") != "none", r, "physics.position.kind must be one of %s" % sorted(POS_KINDS), errs)
+    need(is_num(pos.get("min")) and is_num(pos.get("max")) and pos["min"] < pos["max"], r, "physics.position needs min < max", errs)
+    pdef = r["contact"]["position"] if is_num(r.get("contact", {}).get("position")) else 0.5
+    if is_num(pos.get("min")) and is_num(pos.get("max")):
+        need(pos["min"] <= pdef <= pos["max"], r, "contact.position %.3g outside physics.position range" % pdef, errs)
+    br = ph["bright"]
+    need(is_num(br.get("tilt_db_oct")) and is_num(br.get("pivot_hz")) and br["pivot_hz"] > 0, r, "physics.bright needs tilt_db_oct and pivot_hz", errs)
+    need(isinstance(br.get("lp_scale"), list) and len(br["lp_scale"]) == 2 and all(is_num(v) and v > 0 for v in br["lp_scale"]), r,
+         "physics.bright.lp_scale needs two positive numbers", errs)
+    need(is_num(ph["stretch"].get("max")) and 0 <= ph["stretch"]["max"] <= 0.5, r, "physics.stretch.max in 0..0.5", errs)
+    st = ph["stiffness"]
+    need(all(is_num(st.get(k)) for k in ("min", "default", "max")), r, "physics.stiffness needs min, default, max", errs)
+    if st.get("kind") == "dispersion" and all(is_num(st.get(k)) for k in ("min", "default", "max")):
+        need(abs(st["default"] - r["line"].get("dispersion", 0.0)) < 1e-9, r, "physics.stiffness.default must equal line.dispersion", errs)
+        need(all(abs(v) < 1.0 for v in (st["min"], st["max"])), r, "physics.stiffness |min|, |max| < 1", errs)
+        if is_num(st.get("spread_b")):
+            need(abs(st["spread_b"] - (r["line"].get("dispersion_b", 0.0) - r["line"].get("dispersion", 0.0))) < 1e-9, r,
+                 "physics.stiffness.spread_b must equal line.dispersion_b - line.dispersion", errs)
+    cp = ph["coupling"]
+    need(all(is_num(cp.get(k)) for k in ("min", "default", "max", "radiation_direct_at_0", "radiation_cut_scale_at_100")), r,
+         "physics.coupling needs min, default, max, radiation_direct_at_0, radiation_cut_scale_at_100", errs)
+    if all(is_num(cp.get(k)) for k in ("min", "default", "max")):
+        need(cp["min"] >= 0 and abs(cp["default"] - 1.0) < 1e-9 and cp["max"] >= 1.0, r, "physics.coupling: min >= 0, default 1, max >= 1", errs)
+    air = ph["air"]
+    need(air.get("kind") in AIR_KINDS and air.get("kind") != "none", r, "physics.air.kind must be one of %s" % sorted(AIR_KINDS), errs)
+    need(all(is_num(air.get(k)) for k in ("min", "default", "max")), r, "physics.air needs min, default, max", errs)
+    if air.get("kind") == "helmholtz_2dof":
+        need(all(is_num(air.get(k)) and air[k] > 0 for k in ("plate_hz", "cavity_hz", "kappa", "cavity_radiation")), r,
+             "physics.air (helmholtz_2dof) needs plate_hz, cavity_hz, kappa, cavity_radiation > 0", errs)
+        need(is_num(air.get("kappa")) and air["kappa"] < 0.95, r, "physics.air.kappa < 0.95", errs)
+    if air.get("kind") == "ratio_blend":
+        n = len(r["following_modes"])
+        need(isinstance(air.get("alt_ratios"), list) and len(air["alt_ratios"]) == n and all(is_num(v) and 0.05 < v < 20 for v in air["alt_ratios"]),
+             r, "physics.air.alt_ratios needs %d ratios (one per following mode)" % n, errs)
+    if air.get("kind") == "mode_gain":
+        need(isinstance(air.get("low_modes"), int) and 1 <= air["low_modes"] <= FEATURE_STRIDE, r, "physics.air.low_modes in 1..8", errs)
+    rd = ph["reed"]
+    need(all(is_num(rd.get(k)) for k in ("min", "default", "max")), r, "physics.reed needs min, default, max", errs)
+    need(all(is_num(ph["width"].get(k)) for k in ("detune_ct", "tap_offset", "split")), r, "physics.width needs detune_ct, tap_offset and split", errs)
+    if is_num(ph["width"].get("split")):
+        need(0.0 <= ph["width"]["split"] < 1.0, r, "physics.width.split in 0..1", errs)
+
+
 def validate_structure(recs, spec):
     errs = []
     if len(recs) != NUM_BODIES:
@@ -204,10 +260,10 @@ def validate_structure(recs, spec):
         depth = u.get("depth", {}).get("z") if isinstance(u.get("depth"), dict) else None
         need(isinstance(depth, list) and len(depth) == 10 and all(is_num(z) for z in depth), r, "ui.depth.z must be 10 numbers (paths 0..9)", errs)
         for key in ("generator", "anchor", "material", "grid_profile", "feature_modes", "following_modes", "damping",
-                    "decay", "contact", "line", "calibration", "physics_map", "ui"):
+                    "decay", "contact", "line", "calibration", "physics_map", "physics", "ui"):
             need(key in r, r, "missing key %r" % key, errs)
         if any(k not in r for k in ("generator", "anchor", "grid_profile", "feature_modes", "following_modes",
-                                    "damping", "decay", "contact", "line", "calibration", "physics_map", "ui")):
+                                    "damping", "decay", "contact", "line", "calibration", "physics_map", "physics", "ui")):
             continue
         an = r["anchor"]
         need(an.get("root_law") in ROOT_LAWS, r, "anchor.root_law must be drum|note", errs)
@@ -216,6 +272,7 @@ def validate_structure(recs, spec):
         need(len(r["following_modes"]) <= FOLLOW_STRIDE, r, "%d following modes > %d" % (len(r["following_modes"]), FOLLOW_STRIDE), errs)
         for k in ("stiffness", "coupling", "air", "reed", "excite"):
             need(isinstance(r["physics_map"].get(k), str) and r["physics_map"][k], r, "physics_map.%s missing" % k, errs)
+        validate_physics(r, errs)
         need(r["line"].get("kind") in LINE_KINDS, r, "line.kind must be one of %s" % sorted(LINE_KINDS), errs)
         for k in ("loop_lowpass_hz", "radiation_hz", "beta", "dispersion"):
             need(is_num(r["line"].get(k)), r, "line.%s must be a number" % k, errs)
@@ -583,6 +640,54 @@ def build_tables(ghz, rows, cons):
     hyb = rows[NUM_BODIES - 1]["rec"]["hybrid"]
     add("followBesselOrder", "int", bo, "[body*10 + i] Bessel order m of a drum mode (gain = J_m(j_mn r), r = Position), -1 = no Position law", ext, FOLLOW_STRIDE)
     add("followBesselZero", "float", bz, "[body*10 + i] first zero j_mn of J_m for that mode, 0 = none", ext, FOLLOW_STRIDE)
+    # ---- P3 physics knobs (docs/dev/06_P3_PHYSICS.md section 2): lo / mid / hi = value at knob 0 / 50 / 100 ----
+    def ph(row, key):
+        return row["rec"]["physics"][key]
+
+    add("touchStrike", "float", [ph(r, "touch")["strike_factor"] for r in rows], "Touch 0: sustain x this factor (50 = recipe sustain, 100 = 1), log-interpolated", ext)
+    add("posKind", "int", [POS_KINDS[ph(r, "position")["kind"]] for r in rows], "Position law: 0 none, 1 string pick comb, 2 piano pickup tap, 3 bore tap, 4 Bessel (drum radius), 5 cosine mode gains", ext)
+    add("posLo", "float", [ph(r, "position")["min"] for r in rows], "Position knob 0 (beta / radius / p); 50 = positionDefault, 100 = posHi", ext)
+    add("posHi", "float", [ph(r, "position")["max"] for r in rows], "Position knob 100", ext)
+    add("brightTilt", "float", [ph(r, "bright")["tilt_db_oct"] for r in rows], "Bright: upper-mode gain tilt in dB/oct above brightPivot at knob 100 (-tilt at 0)", ext)
+    add("brightPivotHz", "float", [ph(r, "bright")["pivot_hz"] for r in rows], "Bright: tilt pivot frequency", ext)
+    add("brightLpLo", "float", [ph(r, "bright")["lp_scale"][0] for r in rows], "Bright knob 0: contact / reed low-pass cutoff scale", ext)
+    add("brightLpHi", "float", [ph(r, "bright")["lp_scale"][1] for r in rows], "Bright knob 100: contact / reed low-pass cutoff scale", ext)
+    add("brightClampLo", "float", [ph(r, "bright").get("lp_clamp_hz", [0.0, 0.0])[0] for r in rows], "strings: lowest pick / hammer low-pass in Hz (0 = none)", ext)
+    add("brightClampHi", "float", [ph(r, "bright").get("lp_clamp_hz", [0.0, 0.0])[1] for r in rows], "strings: highest pick / hammer low-pass in Hz (0 = none)", ext)
+    add("brightBaseHz", "float", [ph(r, "bright").get("lp_base_hz", 0.0) for r in rows], "sax: reed low-pass cutoff at scale 1 (0 = not used)", ext)
+    add("stretchMax", "float", [ph(r, "stretch")["max"] for r in rows], "Stretch +-100 maps to s = -max..+max in f' = 1000 (f/1000)^(1+s)", ext)
+    add("stiffLo", "float", [ph(r, "stiffness")["min"] for r in rows], "Stiffness knob 0: allpass coefficient (strings, bores) or membrane B (drums, oboe cluster)", ext)
+    add("stiffMid", "float", [ph(r, "stiffness")["default"] for r in rows], "Stiffness knob 50 (= recipe: line dispersion for strings, 0 otherwise)", ext)
+    add("stiffHi", "float", [ph(r, "stiffness")["max"] for r in rows], "Stiffness knob 100", ext)
+    add("stiffSpread", "float", [ph(r, "stiffness").get("spread_b", 0.0) for r in rows], "piano: second string dispersion minus the first (two-voice spread kept over the dial)", ext)
+    add("coupLo", "float", [ph(r, "coupling")["min"] for r in rows], "Coupling knob 0: feed multiplier string / bore / head -> body (50 = 1)", ext)
+    add("coupHi", "float", [ph(r, "coupling")["max"] for r in rows], "Coupling knob 100: feed multiplier", ext)
+    add("coupRadDirect", "float", [ph(r, "coupling")["radiation_direct_at_0"] for r in rows], "bores: share of the direct pickup in the radiation mix at Coupling 0 (linear to 0 at 50)", ext)
+    add("coupRadCut", "float", [ph(r, "coupling")["radiation_cut_scale_at_100"] for r in rows], "bores: radiation filter cutoff scale at Coupling 100 (log from 1 at 50)", ext)
+    add("airKind", "int", [AIR_KINDS[ph(r, "air")["kind"]] for r in rows], "Air law: 0 none, 1 drum ratio blend, 2 2-DOF Helmholtz / plate, 3 low-mode gain, 4 breath noise", ext)
+    add("airLo", "float", [ph(r, "air")["min"] for r in rows], "Air knob 0: drums = ratio blend t, boxes = kappa scale, piano / fiddle = mode gain, sax = breath multiplier, clarinet / oboe = breath noise", ext)
+    add("airMid", "float", [ph(r, "air")["default"] for r in rows], "Air knob 50 (= recipe)", ext)
+    add("airHi", "float", [ph(r, "air")["max"] for r in rows], "Air knob 100", ext)
+    add("airPlateHz", "float", [ph(r, "air").get("plate_hz", 0.0) for r in rows], "boxes: uncoupled top-plate mode Hz of the 2-DOF solve (0 = none)", ext)
+    add("airCavityHz", "float", [ph(r, "air").get("cavity_hz", 0.0) for r in rows], "boxes: uncoupled Helmholtz cavity Hz", ext)
+    add("airKappa", "float", [ph(r, "air").get("kappa", 0.0) for r in rows], "boxes: coupling kappa at Air 50", ext)
+    add("airCavityRad", "float", [ph(r, "air").get("cavity_radiation", 0.0) for r in rows], "boxes: radiation of the cavity relative to the plate", ext)
+    add("airLowModes", "int", [ph(r, "air").get("low_modes", 0) for r in rows], "piano / fiddle: number of lowest feature slots the Air gain applies to", ext)
+    alt = []
+    for row in rows:
+        a = ph(row, "air").get("alt_ratios")
+        base = [m["ratio"] for m in row["following"]]
+        alt += pad(a if a else base, FOLLOW_STRIDE, 1.0)
+    add("airAltRatio", "float", alt, "[body*10 + i] drums: alternate following-mode ratios (Air 100); equal to followRatio when unused", ext, FOLLOW_STRIDE)
+    add("reedLo", "float", [ph(r, "reed")["min"] for r in rows], "Reed knob 0: strings contact low-pass Hz, drums glide oct, clarinet soft-clip, sax slope, oboe formant ratio", ext)
+    add("reedMid", "float", [ph(r, "reed")["default"] for r in rows], "Reed knob 50 (= recipe, equals the value the P2 code used)", ext)
+    add("reedHi", "float", [ph(r, "reed")["max"] for r in rows], "Reed knob 100", ext)
+    add("reedAuxLo", "float", [ph(r, "reed").get("aux_min", 0.0) for r in rows], "Reed knob 0, second quantity: drums (0,1) T60 multiplier, clarinet / sax reed asymmetry", ext)
+    add("reedAuxMid", "float", [ph(r, "reed").get("aux_default", 0.0) for r in rows], "Reed knob 50, second quantity", ext)
+    add("reedAuxHi", "float", [ph(r, "reed").get("aux_max", 0.0) for r in rows], "Reed knob 100, second quantity", ext)
+    add("widthDetuneCt", "float", [ph(r, "width")["detune_ct"] for r in rows], "Width 100: L/R detune of the string loops in cents (+- this, 0 at 50)", ext)
+    add("widthSplit", "float", [ph(r, "width")["split"] for r in rows], "Width 100: odd / even mode split to L / R of the slots and the grid, drive x (1 +- split)", ext)
+    add("widthTapOffset", "float", [ph(r, "width")["tap_offset"] for r in rows], "Width 100: L/R offset of the bore radiation tap (fraction, +-)", ext)
     add("hybridConst", "float", [c["value"] for c in hyb["constants"]],
         "Obosaxolele coupling constants, order: " + ", ".join(c["name"] for c in hyb["constants"]), ext)
     add("hybridCentre", "float", hyb["pairs"]["centres"], "beating-pair centre ratios (BODY:105)", ext)
@@ -605,7 +710,8 @@ def expected_len(name):
              "featureGainL": NUM_BODIES * FEATURE_STRIDE, "featureGainR": NUM_BODIES * FEATURE_STRIDE,
              "followRatio": NUM_BODIES * FOLLOW_STRIDE, "followT60Mult": NUM_BODIES * FOLLOW_STRIDE,
              "followGainL": NUM_BODIES * FOLLOW_STRIDE, "followGainR": NUM_BODIES * FOLLOW_STRIDE,
-             "followBesselOrder": NUM_BODIES * FOLLOW_STRIDE, "followBesselZero": NUM_BODIES * FOLLOW_STRIDE}
+             "followBesselOrder": NUM_BODIES * FOLLOW_STRIDE, "followBesselZero": NUM_BODIES * FOLLOW_STRIDE,
+             "airAltRatio": NUM_BODIES * FOLLOW_STRIDE}
     return sizes.get(name, NUM_BODIES)
 
 
@@ -860,6 +966,7 @@ def build_ui_json(spec, rows, cons, hashes):
             "modes": modes,
             "modesCompact": compact,
             "physicsMap": r["physics_map"],
+            "physics": {k: {kk: vv for kk, vv in v.items() if kk != "src"} for k, v in r["physics"].items()},
             "constituents": [{"index": ix, "weight": w} for ix, w in cons] if row["i"] == NUM_BODIES - 1 else [],
         })
     ui = {
