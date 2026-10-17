@@ -5,7 +5,7 @@
   "target": "rebody",
   "patch": "plugin/RE_BODY.cmajorpatch",
   "cmaj": "1.0.3175",
-  "generated": "2026-10-17T08:43Z",
+  "generated": "2026-10-17T08:48Z",
   "settings": {
    "decay": 50.0,
    "mix": 100.0,

@@ -155,7 +155,7 @@
   },
   "calibration": {
     "out_gain": 1.5,
-    "energy_target": 0.4496,
+    "energy_target": 1.0,
     "engine_gain": 0.0,
     "body_gain": 1.0,
     "terms": {"bass": 1.5},

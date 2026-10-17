@@ -1658,7 +1658,7 @@
   "schema": "rebody.bodies/1",
   "slotLayout": "modes[k] (padded): k 0-7 = feature slot k, k 8-15 = following slot k-8, the first 16 of the 18 slots in fixed recipe index order, null = unused slot; modesCompact[k]: the same modes packed without gaps (features first, then following), for a telemetry that packs densely",
   "sources": {
-    "00_bass_drum.json": "17b270c3d2ce",
+    "00_bass_drum.json": "a593e56dae16",
     "01_snare.json": "54006505487e",
     "02_timpani.json": "4a8ef5cdb02f",
     "03_piano.json": "f968f5d2b07f",
